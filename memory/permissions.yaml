@@ -1,0 +1,1155 @@
+```yaml
+version: "0.1"
+status: "foundational"
+
+system:
+  name: "Li OS Memory Permissions"
+  owner: "Christoffer"
+
+  purpose: >
+    Define which Li OS agents may access, receive, propose changes to,
+    or administer different categories of Christoffer's personal memory.
+
+core_principles:
+
+  default_deny:
+    description: >
+      An agent should not receive personal information unless that information
+      is relevant to the agent's role or the current task.
+
+  minimum_necessary:
+    description: >
+      When information is shared with a specialist, Li should provide the
+      minimum amount of personal context reasonably necessary to perform
+      the task well.
+
+  purpose_limitation:
+    description: >
+      Memory accessed for one task should not automatically become available
+      for unrelated purposes.
+
+  sensitivity_matters:
+    description: >
+      Higher-sensitivity information requires stricter access controls,
+      narrower sharing, and stronger auditability.
+
+  li_is_context_router:
+    description: >
+      Li is the primary agent responsible for determining what context should
+      be supplied to specialist agents.
+
+  no_free_cross_agent_sharing:
+    description: >
+      Specialist agents should not freely share personal information with
+      one another. Cross-agent context should normally pass through Li.
+
+  owner_authority:
+    description: >
+      Christoffer retains ultimate authority over personal memory permissions
+      and may grant, restrict, or revoke access.
+
+  third_party_privacy:
+    description: >
+      Information about other people should be shared only when relevant and
+      should receive additional protection when sensitive.
+
+access_levels:
+
+  none:
+    description: >
+      No access to the memory domain.
+
+  task_specific:
+    description: >
+      Access only to information explicitly provided or retrieved for the
+      current task.
+
+  summary:
+    description: >
+      Access to a limited summary rather than full underlying records.
+
+  restricted:
+    description: >
+      Access to relevant records within the domain when required by the
+      agent's role.
+
+  broad:
+    description: >
+      Broad access to the domain because it is necessary for the agent's
+      primary responsibilities.
+
+  administrative:
+    description: >
+      Access required to maintain, secure, classify, audit, or operate the
+      memory system. Administrative access does not imply unrestricted use
+      of the information for unrelated reasoning.
+
+sensitivity_access:
+
+  low:
+    default_rule: "available_when_relevant"
+
+  personal:
+    default_rule: "available_to_authorized_agents_when_relevant"
+
+  sensitive:
+    default_rule: "restricted_and_task_relevant"
+
+  highly_sensitive:
+    default_rule: "explicitly_authorized_or_strictly_required"
+
+  secret:
+    default_rule: "never_exposed_to_normal_agents"
+
+secret_rules:
+
+  prohibited_agent_access:
+    - li
+    - sofia
+    - marco
+    - elena
+    - amelia
+    - freja
+    - oliver
+    - james
+    - victor
+    - nora
+    - milo
+    - iris
+    - clara
+    - ada
+    - theo
+
+  handling:
+    description: >
+      Passwords, API keys, private cryptographic keys, recovery codes,
+      and equivalent secrets should be handled by dedicated secure credential
+      systems rather than exposed as conversational memory.
+
+  heimdall:
+    access: "metadata_only"
+    description: >
+      Heimdall may know that a secret exists, which system uses it,
+      whether it is healthy, and when it was rotated, but should not normally
+      receive the raw secret value.
+
+domains:
+
+  identity:
+    description: >
+      Core facts about Christoffer such as background, language, places lived,
+      and ordinary biographical information.
+
+  people:
+    description: >
+      Information about people in Christoffer's life.
+
+  family:
+    description: >
+      Family relationships, history, events, and responsibilities.
+
+  parenting:
+    description: >
+      Parenting, children, co-parenting, activities, and related logistics.
+
+  relationships:
+    description: >
+      Romantic relationships, friendships, interpersonal history,
+      and private relationship context.
+
+  dating:
+    description: >
+      Dating experiences, preferences, conversations, and current situations.
+
+  preferences:
+    description: >
+      General likes, dislikes, tastes, and lifestyle preferences.
+
+  values:
+    description: >
+      Personal principles, priorities, and things Christoffer considers
+      important.
+
+  goals:
+    description: >
+      Short-term and long-term personal goals.
+
+  health:
+    description: >
+      Health history, symptoms, medications, medical context, and health data.
+
+  fitness:
+    description: >
+      Training history, exercise, recovery, performance, and physical goals.
+
+  nutrition:
+    description: >
+      Dietary habits, food preferences, nutrition goals, and cooking context.
+
+  wellbeing:
+    description: >
+      Stress, emotional wellbeing, routines, habits, and mental performance.
+
+  work:
+    description: >
+      Professional role, projects, career information, and work context.
+
+  work_confidential:
+    description: >
+      Confidential business information, internal strategy, contracts,
+      customer information, company-sensitive material, or privileged
+      professional context.
+
+  finance:
+    description: >
+      Personal financial information, assets, liabilities, budgets,
+      investments, and financial plans.
+
+  legal:
+    description: >
+      Personal legal matters, legal documents, disputes, obligations,
+      and legal history.
+
+  travel:
+    description: >
+      Travel history, preferences, plans, bookings, and destination context.
+
+  home:
+    description: >
+      Residence, home projects, design preferences, plants, garden,
+      possessions, and household context.
+
+  leisure:
+    description: >
+      Restaurants, entertainment, hobbies, events, interests, and experiences.
+
+  social:
+    description: >
+      Friends, social activities, invitations, groups, and social preferences.
+
+  commitments:
+    description: >
+      Promises, deadlines, obligations, and planned actions.
+
+  decisions:
+    description: >
+      Important decisions, options, reasoning, recommendations, and outcomes.
+
+  timeline:
+    description: >
+      Chronological life history and important events.
+
+  documents:
+    description: >
+      Metadata and summaries relating to personal documents.
+
+  lessons:
+    description: >
+      Lessons learned from decisions, recommendations, and outcomes.
+
+  open_loops:
+    description: >
+      Unresolved matters, waiting items, and things requiring follow-up.
+
+agent_permissions:
+
+  li:
+
+    default_access: "broad"
+
+    domains:
+      identity: broad
+      people: broad
+      family: broad
+      parenting: broad
+      relationships: broad
+      dating: broad
+      preferences: broad
+      values: broad
+      goals: broad
+      health: broad
+      fitness: broad
+      nutrition: broad
+      wellbeing: broad
+      work: broad
+      work_confidential: restricted
+      finance: broad
+      legal: broad
+      travel: broad
+      home: broad
+      leisure: broad
+      social: broad
+      commitments: broad
+      decisions: broad
+      timeline: broad
+      documents: restricted
+      lessons: broad
+      open_loops: broad
+
+    write:
+      direct:
+        - temporary_context
+        - low_risk_explicit_fact
+        - low_risk_explicit_preference
+
+      through_theo:
+        - sensitive_information
+        - inference
+        - relationship_interpretation
+        - health_interpretation
+        - contradiction
+        - historical_change
+        - important_life_event
+
+    restrictions:
+      - >
+        Broad access does not permit unnecessary disclosure to other agents.
+      - >
+        Li should not expose highly sensitive information merely because it
+        might be interesting or tangentially relevant.
+      - >
+        Li should treat work-confidential information separately from ordinary
+        personal work context.
+
+  sofia:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: task_specific
+      family: task_specific
+      parenting: task_specific
+      relationships: task_specific
+      dating: none
+      preferences: task_specific
+      values: task_specific
+      goals: task_specific
+      health: broad
+      fitness: summary
+      nutrition: summary
+      wellbeing: summary
+      work: task_specific
+      work_confidential: none
+      finance: none
+      legal: task_specific
+      travel: task_specific
+      home: none
+      leisure: task_specific
+      social: none
+      commitments: task_specific
+      decisions: task_specific
+      timeline: restricted
+      documents: restricted
+      lessons: task_specific
+      open_loops: task_specific
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+    restrictions:
+      - "No unrelated relationship access."
+      - "No general financial access."
+      - "No work-confidential access."
+      - >
+        Medical conclusions should not automatically become personal facts.
+
+  marco:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: none
+      family: none
+      parenting: none
+      relationships: none
+      dating: none
+      preferences: restricted
+      values: task_specific
+      goals: restricted
+      health: summary
+      fitness: broad
+      nutrition: summary
+      wellbeing: summary
+      work: task_specific
+      work_confidential: none
+      finance: none
+      legal: none
+      travel: task_specific
+      home: none
+      leisure: task_specific
+      social: none
+      commitments: task_specific
+      decisions: task_specific
+      timeline: task_specific
+      documents: none
+      lessons: restricted
+      open_loops: task_specific
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+  elena:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: none
+      family: task_specific
+      parenting: task_specific
+      relationships: none
+      dating: none
+      preferences: restricted
+      values: task_specific
+      goals: restricted
+      health: summary
+      fitness: summary
+      nutrition: broad
+      wellbeing: summary
+      work: none
+      work_confidential: none
+      finance: task_specific
+      legal: none
+      travel: summary
+      home: task_specific
+      leisure: restricted
+      social: task_specific
+      commitments: task_specific
+      decisions: task_specific
+      timeline: none
+      documents: none
+      lessons: restricted
+      open_loops: task_specific
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+  amelia:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: restricted
+      family: task_specific
+      parenting: task_specific
+      relationships: broad
+      dating: broad
+      preferences: restricted
+      values: restricted
+      goals: task_specific
+      health: task_specific
+      fitness: none
+      nutrition: none
+      wellbeing: summary
+      work: task_specific
+      work_confidential: none
+      finance: none
+      legal: task_specific
+      travel: task_specific
+      home: none
+      leisure: restricted
+      social: broad
+      commitments: task_specific
+      decisions: restricted
+      timeline: restricted
+      documents: none
+      lessons: restricted
+      open_loops: task_specific
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+    restrictions:
+      - >
+        Amelia should not treat Christoffer's interpretation of another
+        person's motives as verified fact.
+      - >
+        Highly private relationship information should not be shared outside
+        Amelia and Li unless directly relevant and appropriately authorized.
+
+  freja:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: restricted
+      family: broad
+      parenting: broad
+      relationships: restricted
+      dating: none
+      preferences: task_specific
+      values: restricted
+      goals: task_specific
+      health: task_specific
+      fitness: none
+      nutrition: task_specific
+      wellbeing: summary
+      work: task_specific
+      work_confidential: none
+      finance: task_specific
+      legal: summary
+      travel: restricted
+      home: task_specific
+      leisure: restricted
+      social: task_specific
+      commitments: restricted
+      decisions: restricted
+      timeline: restricted
+      documents: task_specific
+      lessons: restricted
+      open_loops: restricted
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+    restrictions:
+      - >
+        Information about children and family members should receive heightened
+        privacy protection.
+      - >
+        Sensitive child information should not be shared with unrelated agents.
+
+  oliver:
+
+    default_access: "none"
+
+    domains:
+      identity: restricted
+      people: task_specific
+      family: restricted
+      parenting: restricted
+      relationships: task_specific
+      dating: none
+      preferences: none
+      values: task_specific
+      goals: task_specific
+      health: task_specific
+      fitness: none
+      nutrition: none
+      wellbeing: none
+      work: restricted
+      work_confidential: restricted
+      finance: summary
+      legal: broad
+      travel: task_specific
+      home: task_specific
+      leisure: none
+      social: none
+      commitments: restricted
+      decisions: restricted
+      timeline: restricted
+      documents: restricted
+      lessons: task_specific
+      open_loops: restricted
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+    restrictions:
+      - >
+        Legal access should be scoped to the matter being analyzed.
+      - >
+        Work-confidential information should only be supplied when the legal or
+        regulatory matter genuinely requires it.
+
+  james:
+
+    default_access: "none"
+
+    domains:
+      identity: restricted
+      people: none
+      family: task_specific
+      parenting: task_specific
+      relationships: none
+      dating: none
+      preferences: task_specific
+      values: restricted
+      goals: restricted
+      health: task_specific
+      fitness: none
+      nutrition: none
+      wellbeing: none
+      work: summary
+      work_confidential: task_specific
+      finance: broad
+      legal: summary
+      travel: task_specific
+      home: task_specific
+      leisure: task_specific
+      social: none
+      commitments: restricted
+      decisions: restricted
+      timeline: task_specific
+      documents: restricted
+      lessons: restricted
+      open_loops: restricted
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+  victor:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: task_specific
+      family: none
+      parenting: none
+      relationships: none
+      dating: none
+      preferences: task_specific
+      values: restricted
+      goals: restricted
+      health: none
+      fitness: none
+      nutrition: none
+      wellbeing: task_specific
+      work: broad
+      work_confidential: restricted
+      finance: task_specific
+      legal: summary
+      travel: task_specific
+      home: none
+      leisure: none
+      social: task_specific
+      commitments: restricted
+      decisions: restricted
+      timeline: task_specific
+      documents: restricted
+      lessons: restricted
+      open_loops: restricted
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+    restrictions:
+      - >
+        Victor should not receive private personal relationship information
+        unless Christoffer or Li determines it is directly relevant.
+      - >
+        Personal Li OS data and company-confidential data should remain
+        logically separated.
+
+  nora:
+
+    default_access: "task_specific"
+
+    domains:
+      identity: task_specific
+      people: task_specific
+      family: task_specific
+      parenting: task_specific
+      relationships: task_specific
+      dating: task_specific
+      preferences: task_specific
+      values: task_specific
+      goals: task_specific
+      health: task_specific
+      fitness: task_specific
+      nutrition: task_specific
+      wellbeing: task_specific
+      work: task_specific
+      work_confidential: task_specific
+      finance: task_specific
+      legal: task_specific
+      travel: task_specific
+      home: task_specific
+      leisure: task_specific
+      social: task_specific
+      commitments: task_specific
+      decisions: task_specific
+      timeline: task_specific
+      documents: task_specific
+      lessons: task_specific
+      open_loops: task_specific
+
+    write:
+      direct: false
+      may_propose_to_theo: false
+
+    restrictions:
+      - >
+        Nora should normally receive a curated task packet rather than broad
+        access to Christoffer's personal memory.
+      - >
+        When performing independent review, Li should avoid supplying
+        unnecessary information about its own preferred conclusion.
+
+  milo:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: task_specific
+      family: task_specific
+      parenting: task_specific
+      relationships: task_specific
+      dating: task_specific
+      preferences: broad
+      values: task_specific
+      goals: task_specific
+      health: task_specific
+      fitness: none
+      nutrition: summary
+      wellbeing: task_specific
+      work: task_specific
+      work_confidential: none
+      finance: task_specific
+      legal: none
+      travel: broad
+      home: none
+      leisure: broad
+      social: restricted
+      commitments: restricted
+      decisions: task_specific
+      timeline: task_specific
+      documents: task_specific
+      lessons: restricted
+      open_loops: task_specific
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+  iris:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: none
+      family: task_specific
+      parenting: task_specific
+      relationships: none
+      dating: none
+      preferences: restricted
+      values: task_specific
+      goals: task_specific
+      health: none
+      fitness: none
+      nutrition: none
+      wellbeing: task_specific
+      work: none
+      work_confidential: none
+      finance: summary
+      legal: task_specific
+      travel: none
+      home: broad
+      leisure: restricted
+      social: none
+      commitments: task_specific
+      decisions: task_specific
+      timeline: none
+      documents: task_specific
+      lessons: restricted
+      open_loops: task_specific
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+  clara:
+
+    default_access: "none"
+
+    domains:
+      identity: summary
+      people: task_specific
+      family: task_specific
+      parenting: task_specific
+      relationships: summary
+      dating: task_specific
+      preferences: restricted
+      values: restricted
+      goals: broad
+      health: summary
+      fitness: summary
+      nutrition: summary
+      wellbeing: broad
+      work: summary
+      work_confidential: none
+      finance: task_specific
+      legal: none
+      travel: task_specific
+      home: task_specific
+      leisure: restricted
+      social: summary
+      commitments: restricted
+      decisions: restricted
+      timeline: restricted
+      documents: none
+      lessons: broad
+      open_loops: restricted
+
+    write:
+      direct: false
+      may_propose_to_theo: true
+
+  ada:
+
+    default_access: "none"
+
+    domains:
+      identity: none
+      people: none
+      family: none
+      parenting: none
+      relationships: none
+      dating: none
+      preferences: none
+      values: summary
+      goals: task_specific
+      health: none
+      fitness: none
+      nutrition: none
+      wellbeing: none
+      work: none
+      work_confidential: none
+      finance: none
+      legal: none
+      travel: none
+      home: none
+      leisure: none
+      social: none
+      commitments: none
+      decisions: task_specific
+      timeline: none
+      documents: none
+      lessons: anonymized_or_summary
+      open_loops: none
+
+    system_access:
+      configuration: broad
+      agent_definitions: broad
+      evaluations: broad
+      system_logs: restricted
+      anonymized_usage_patterns: restricted
+
+    write:
+      personal_memory: false
+      system_configuration: "proposal_only"
+
+    restrictions:
+      - >
+        Ada does not need direct access to Christoffer's private life merely to
+        improve Li OS.
+      - >
+        Evaluation data should be anonymized where practical.
+
+  theo:
+
+    default_access: "administrative"
+
+    domains:
+      identity: administrative
+      people: administrative
+      family: administrative
+      parenting: administrative
+      relationships: administrative
+      dating: administrative
+      preferences: administrative
+      values: administrative
+      goals: administrative
+      health: administrative
+      fitness: administrative
+      nutrition: administrative
+      wellbeing: administrative
+      work: administrative
+      work_confidential: administrative
+      finance: administrative
+      legal: administrative
+      travel: administrative
+      home: administrative
+      leisure: administrative
+      social: administrative
+      commitments: administrative
+      decisions: administrative
+      timeline: administrative
+      documents: administrative
+      lessons: administrative
+      open_loops: administrative
+
+    write:
+      canonical_memory: true
+
+    responsibilities:
+      - memory_classification
+      - provenance
+      - confidence_management
+      - contradiction_resolution
+      - historical_preservation
+      - sensitivity_classification
+      - access_metadata
+      - memory_integrity
+
+    restrictions:
+      - >
+        Administrative access is for memory maintenance, not unrestricted
+        personal advice.
+      - >
+        Theo must not invent missing information.
+      - >
+        Theo must not silently convert inference into confirmed fact.
+
+  heimdall:
+
+    default_access: "none"
+
+    domains:
+      identity: none
+      people: none
+      family: none
+      parenting: none
+      relationships: none
+      dating: none
+      preferences: none
+      values: none
+      goals: none
+      health: "metadata_only"
+      fitness: none
+      nutrition: none
+      wellbeing: none
+      work: "metadata_only"
+      work_confidential: "metadata_only"
+      finance: "metadata_only"
+      legal: "metadata_only"
+      travel: none
+      home: none
+      leisure: none
+      social: none
+      commitments: none
+      decisions: none
+      timeline: none
+      documents: "metadata_only"
+      lessons: none
+      open_loops: none
+
+    system_access:
+      permissions: broad
+      security_logs: broad
+      authentication_metadata: broad
+      integration_metadata: broad
+      secret_values: none
+      encryption_key_values: none
+      audit_logs: broad
+
+    write:
+      personal_memory: false
+      security_metadata: true
+
+    authority:
+      may_block_data_disclosure: true
+      may_block_unsafe_tool_access: true
+      may_block_unsafe_system_change: true
+      may_require_reauthentication: true
+
+task_context_rules:
+
+  creation:
+    description: >
+      Before delegating a task, Li should construct a task context package.
+
+  package_should_include:
+    - task_objective
+    - relevant_personal_context
+    - necessary_live_information
+    - permitted_memory_domains
+    - sensitivity_level
+    - expected_output
+    - whether_independent_analysis_is_required
+
+  package_should_not_include:
+    - unrelated_private_history
+    - irrelevant_health_information
+    - irrelevant_financial_information
+    - unrelated_relationship_information
+    - secrets
+    - unnecessary_third_party_information
+
+cross_agent_sharing:
+
+  default: "through_li"
+
+  allowed_without_li:
+    - >
+      System-level technical metadata explicitly designed for machine-to-machine
+      operation and containing no unnecessary personal information.
+
+  sensitive_information:
+    rule: >
+      Sensitive or highly sensitive personal information should not be passed
+      directly between specialist agents unless Li or an approved system policy
+      explicitly authorizes the transfer.
+
+  example:
+    scenario: >
+      Sofia identifies that a health limitation should affect Christoffer's
+      exercise plan.
+
+    allowed_share:
+      from: "sofia"
+      through: "li"
+      to: "marco"
+      information: >
+        Only the medically relevant exercise restriction or recommendation.
+
+    prohibited_share:
+      information: >
+        Sofia's complete health record or unrelated medical history.
+
+temporary_access:
+
+  principle: >
+    Li may grant an agent temporary access to information outside its normal
+    domain when required for a specific task.
+
+  requirements:
+    - access_must_be_task_relevant
+    - scope_should_be_minimized
+    - highly_sensitive_access_should_be_logged
+    - access_should_expire_after_task_or_defined_window
+    - permanent_permission_should_not_be_created_automatically
+
+owner_overrides:
+
+  christoffer_may:
+    - grant_agent_access
+    - revoke_agent_access
+    - grant_temporary_access
+    - restrict_li_access_where_technically_possible
+    - prevent_specific_memories_from_being_shared
+    - mark_information_private_to_li
+    - request_access_history
+    - request_permission_audit
+
+  explicit_private_to_li:
+    description: >
+      Christoffer may mark a memory as private to Li. Such information should
+      not be disclosed to specialist agents unless Christoffer later authorizes
+      sharing or an overriding safety requirement applies.
+
+third_party_information:
+
+  principle: >
+    Li OS should recognize that personal memory frequently contains information
+    about people other than Christoffer.
+
+  rules:
+    - >
+      Store third-party information only when reasonably useful for
+      Christoffer's life, responsibilities, or relationships.
+    - >
+      Do not store speculative accusations or sensitive interpretations as
+      confirmed facts.
+    - >
+      Sensitive information about children should receive heightened
+      protection.
+    - >
+      Do not expose private third-party information to unrelated agents.
+    - >
+      Minimize retention of highly sensitive information that provides little
+      continuing value.
+
+audit:
+
+  log_when:
+    - highly_sensitive_memory_is_accessed
+    - temporary_permission_is_granted
+    - agent_permission_is_changed
+    - sensitive_information_is_shared_cross_agent
+    - bulk_memory_export_occurs
+    - memory_is_deleted
+    - security_policy_blocks_access
+
+  audit_record:
+    fields:
+      - timestamp
+      - agent
+      - action
+      - memory_domain
+      - reason
+      - authorization_basis
+      - sensitivity
+      - result
+
+  privacy:
+    description: >
+      Audit logs should avoid duplicating full sensitive memory content when
+      metadata is sufficient.
+
+permission_changes:
+
+  process:
+    - proposed_change
+    - heimdall_security_review
+    - impact_assessment
+    - christoffer_approval_if_material
+    - version_control_update
+    - deployment
+    - audit_entry
+
+  rule: >
+    A new agent should begin with the minimum permissions required for its
+    defined role.
+
+emergency_and_safety:
+
+  principle: >
+    Permission boundaries should remain strong during urgent situations,
+    but Li may use already-authorized relevant information when necessary to
+    provide timely safety guidance.
+
+  restrictions:
+    - >
+      Urgency does not grant unrestricted access to every memory domain.
+    - >
+      External disclosure of sensitive information should still follow
+      applicable authorization and safety requirements.
+
+review_policy:
+
+  frequency: "quarterly_or_after_major_system_change"
+
+  reviewed_by:
+    - li
+    - theo
+    - heimdall
+    - ada
+
+  review_questions:
+    - "Does every agent still need its current access?"
+    - "Are any permissions unnecessarily broad?"
+    - "Have new memory domains been introduced?"
+    - "Are sensitive domains adequately protected?"
+    - "Are temporary permissions expiring correctly?"
+    - "Has any agent repeatedly requested information outside its role?"
+    - "Do new tools or capabilities create new privacy risks?"
+
+update_integrity:
+
+  rule: >
+    Li OS updates must not silently broaden agent memory access.
+
+  required_checks:
+    - compare_permissions_before_and_after
+    - flag_new_access
+    - flag_new_write_permissions
+    - flag_new_cross_agent_routes
+    - flag_new_sensitive_data_access
+    - require_review_for_material_changes
+```
