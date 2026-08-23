@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 
+from app.auth import require_api_token
 from app.database import (
     DatabaseHealthError,
     MemoryReadError,
@@ -45,7 +46,11 @@ async def health() -> dict[str, str]:
     }
 
 
-@app.get("/health/database", tags=["system"])
+@app.get(
+    "/health/database",
+    tags=["system"],
+    dependencies=[Depends(require_api_token)],
+)
 def database_health_endpoint() -> dict[str, str | int]:
     try:
         return database_health()
@@ -57,7 +62,11 @@ def database_health_endpoint() -> dict[str, str | int]:
         ) from exc
 
 
-@app.get("/memory/primary-user", tags=["memory"])
+@app.get(
+    "/memory/primary-user",
+    tags=["memory"],
+    dependencies=[Depends(require_api_token)],
+)
 def primary_user_endpoint() -> dict[str, str]:
     try:
         return get_primary_user()
@@ -74,17 +83,11 @@ def primary_user_endpoint() -> dict[str, str]:
     response_model=ExplicitMemoryCreated,
     status_code=status.HTTP_201_CREATED,
     tags=["memory"],
+    dependencies=[Depends(require_api_token)],
 )
 def explicit_memory_endpoint(
     payload: ExplicitMemoryCreate,
 ) -> ExplicitMemoryCreated:
-    """
-    Store an explicit low-risk memory stated by Christoffer.
-
-    Sensitive and inferred memory must use Theo's review workflow
-    rather than this endpoint.
-    """
-
     try:
         memory_id = store_explicit_memory(
             memory_class=payload.memory_class,
@@ -111,6 +114,7 @@ def explicit_memory_endpoint(
     "/memory/recall",
     response_model=list[RecalledMemory],
     tags=["memory"],
+    dependencies=[Depends(require_api_token)],
 )
 def recall_memory_endpoint(
     q: str = Query(
@@ -129,10 +133,6 @@ def recall_memory_endpoint(
         le=50,
     ),
 ) -> list[RecalledMemory]:
-    """
-    Retrieve relevant canonical memories for Li.
-    """
-
     try:
         memories = recall_memory(
             query=q,

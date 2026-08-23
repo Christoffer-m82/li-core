@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    api_token: SecretStr
+
     db_host: str
     db_port: int = 5432
     db_name: str = "postgres"
@@ -33,11 +35,6 @@ class Settings(BaseSettings):
     )
 
     def database_connect_kwargs(self) -> dict[str, object]:
-        """
-        Return connection parameters for Psycopg.
-
-        The password remains stored as a SecretStr until needed.
-        """
         return {
             "host": self.db_host,
             "port": self.db_port,
