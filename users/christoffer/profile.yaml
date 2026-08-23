@@ -1,0 +1,546 @@
+```yaml
+version: "0.1"
+status: "active"
+
+user:
+  id: "christoffer"
+  full_name: "Christoffer Melldén"
+  display_name: "Christoffer"
+
+  role_in_li_os:
+    - owner
+    - primary_user
+    - sole_active_user
+
+  relationship_to_li: "primary_user"
+
+  profile_type: "personal"
+
+secondary_users:
+
+  elias:
+    full_name: "Elias Melldén"
+    status: "future_not_active"
+
+    note: >
+      Elias is recorded only as a possible future secondary user.
+      No separate profile, permissions, memory space, authentication,
+      or Li OS access should be activated until Christoffer explicitly
+      requests it.
+
+ownership:
+
+  li_os_owner: true
+
+  personal_memory_owner: true
+
+  final_authority_over:
+    - personal_memory
+    - agent_creation
+    - agent_removal
+    - permissions
+    - standing_permissions
+    - system_updates
+    - integrations
+    - personal_data_exports
+    - autonomy_expansion
+
+  rule: >
+    Christoffer retains control over Li OS and the personal information
+    contained within it.
+
+profile_purpose: >
+  Provide Li OS with a stable identity and profile anchor for Christoffer
+  while keeping detailed personal information inside the canonical,
+  protected memory system rather than directly inside readable GitHub
+  configuration.
+
+profile_architecture:
+
+  github_profile:
+    purpose: >
+      Store non-sensitive profile configuration, identity metadata,
+      references, schemas, and policies.
+
+    may_contain:
+      - user_id
+      - name
+      - system_role
+      - configuration_preferences
+      - memory_references
+      - profile_structure
+      - non_sensitive_system_preferences
+
+    should_not_contain:
+      - passwords
+      - credentials
+      - authentication_tokens
+      - encryption_keys
+      - detailed_health_records
+      - detailed_financial_information
+      - deeply_private_relationship_information
+      - private_legal_records
+      - highly_sensitive_family_information
+      - confidential_documents
+      - unnecessary_third_party_sensitive_information
+
+  canonical_personal_memory:
+    purpose: >
+      Store what Li learns about Christoffer over time.
+
+    storage: "external_encrypted_memory_store"
+
+    managed_by:
+      primary: "theo"
+      coordinator: "li"
+
+    backed_up: true
+    versioned: true
+    portable: true
+    encrypted: true
+
+    github_readable_copy: false
+
+memory_namespace:
+
+  user_id: "christoffer"
+
+  namespace: "user/christoffer"
+
+  canonical_owner: "christoffer"
+
+  curator: "theo"
+
+  primary_access:
+    - li
+    - theo
+
+  specialist_access: "task_specific_according_to_memory_permissions"
+
+profile_sections:
+
+  identity:
+    enabled: true
+
+    examples:
+      - name
+      - age
+      - birthday
+      - nationality
+      - languages
+      - locations
+      - important_identity_context
+
+  people:
+    enabled: true
+
+    examples:
+      - family
+      - friends
+      - partners
+      - colleagues
+      - important_relationships
+
+  family:
+    enabled: true
+
+  parenting:
+    enabled: true
+
+  relationships:
+    enabled: true
+
+  social:
+    enabled: true
+
+  values:
+    enabled: true
+
+  preferences:
+    enabled: true
+
+  goals:
+    enabled: true
+
+  health:
+    enabled: true
+    sensitivity_default: "highly_sensitive"
+
+  fitness:
+    enabled: true
+
+  nutrition:
+    enabled: true
+
+  wellbeing:
+    enabled: true
+
+  work:
+    enabled: true
+
+  work_confidential:
+    enabled: true
+    sensitivity_default: "highly_sensitive"
+
+  finance:
+    enabled: true
+    sensitivity_default: "highly_sensitive"
+
+  legal:
+    enabled: true
+    sensitivity_default: "highly_sensitive"
+
+  travel:
+    enabled: true
+
+  home:
+    enabled: true
+
+  leisure:
+    enabled: true
+
+  decisions:
+    enabled: true
+
+  commitments:
+    enabled: true
+
+  open_loops:
+    enabled: true
+
+  timeline:
+    enabled: true
+
+  lessons:
+    enabled: true
+
+  documents:
+    enabled: true
+    sensitivity_default: "sensitive"
+
+memory_classes:
+
+  supported:
+    - explicit_fact
+    - explicit_preference
+    - explicit_opinion
+    - observation
+    - inference
+    - historical_fact
+    - outcome
+    - commitment
+    - open_loop
+    - temporary_context
+
+  rule: >
+    Information about Christoffer must preserve the distinction between
+    something he explicitly stated, something Li observed, something Li
+    inferred, and something that happened historically.
+
+personalization:
+
+  enabled: true
+
+  principle: >
+    Li should become increasingly personalized to Christoffer over time
+    without assuming that past preferences, opinions, goals, or patterns
+    remain permanently unchanged.
+
+  learn_from:
+    - explicit_statements
+    - corrections
+    - decisions
+    - outcomes
+    - repeated_preferences
+    - recurring_patterns
+    - direct_feedback
+
+  do_not:
+    - silently_convert_inference_to_fact
+    - overgeneralize_from_single_events
+    - create_intrusive_psychological_labels
+    - retain_information_without_reasonable_value
+
+personal_context_retrieval:
+
+  default: "minimum_relevant_context"
+
+  rule: >
+    Li should retrieve personal context because it helps answer a request,
+    not simply because the information exists.
+
+  prioritize:
+    - confirmed_information
+    - current_information
+    - high_relevance
+    - important_recent_context
+    - relevant_history
+
+  treat_cautiously:
+    - inferred_information
+    - disputed_information
+    - outdated_information
+    - weak_observations
+
+corrections:
+
+  user_can_correct_memory: true
+
+  user_corrections_receive_high_priority: true
+
+  history_should_be_preserved_when_useful: true
+
+  rule: >
+    A correction should normally update the current understanding while
+    preserving useful historical context rather than silently rewriting
+    the past.
+
+private_to_li:
+
+  supported: true
+
+  description: >
+    Christoffer may mark information as private to Li.
+
+  default_specialist_access: "none"
+
+  sharing_rule: >
+    Li should ask Christoffer before sharing private-to-Li information with
+    another agent unless an applicable higher-level safety requirement
+    requires a different response.
+
+communication_preferences:
+
+  source: "learn_over_time"
+
+  principle: >
+    Communication preferences should be learned from Christoffer's direct
+    feedback and repeated interaction rather than assumed in advance.
+
+  dimensions:
+    - response_length
+    - amount_of_detail
+    - directness
+    - humor
+    - proactivity
+    - notification_frequency
+    - preferred_voice_style
+    - preferred_confirmation_style
+
+life_priorities:
+
+  source: "canonical_memory"
+
+  rule: >
+    Li should learn Christoffer's actual priorities rather than impose a
+    generic life framework.
+
+  broad_dimensions_supported:
+    - health
+    - family
+    - relationships
+    - friendship
+    - love
+    - enjoyment
+    - experiences
+    - personal_growth
+    - professional_success
+    - financial_security
+    - freedom
+    - rest
+    - curiosity
+    - wellbeing
+
+goals:
+
+  storage: "canonical_memory"
+
+  attributes:
+    - goal_id
+    - title
+    - description
+    - domain
+    - status
+    - importance
+    - timeframe
+    - created_at
+    - updated_at
+    - related_people
+    - related_commitments
+    - progress
+    - notes
+
+  statuses:
+    - idea
+    - active
+    - paused
+    - achieved
+    - abandoned
+    - superseded
+
+commitments:
+
+  storage: "canonical_memory"
+
+  principle: >
+    Li should help Christoffer remember meaningful promises, responsibilities,
+    deadlines, and intended actions without treating every casual statement
+    as a commitment.
+
+open_loops:
+
+  storage: "canonical_memory"
+
+  examples:
+    - awaiting_reply
+    - unresolved_decision
+    - follow_up
+    - pending_booking
+    - document_to_send
+    - question_to_revisit
+
+people_model:
+
+  storage: "canonical_memory"
+
+  principle: >
+    Li may remember people who are important to Christoffer while protecting
+    their privacy and distinguishing Christoffer's interpretation of them
+    from verified facts.
+
+  person_record_may_include:
+    - person_id
+    - name
+    - relationship
+    - relevant_history
+    - important_dates
+    - preferences
+    - shared_context
+    - communication_notes
+    - sensitivity
+    - provenance
+
+  avoid:
+    - unnecessary_intimate_details
+    - unsupported_psychological_labels
+    - speculative_accusations
+    - irrelevant_sensitive_information
+
+timeline:
+
+  enabled: true
+
+  purpose: >
+    Preserve important events and changes in Christoffer's life so Li can
+    understand how circumstances, preferences, goals, and relationships
+    evolve over time.
+
+  examples:
+    - moves
+    - work_changes
+    - family_events
+    - major_relationship_events
+    - important_decisions
+    - major_travel
+    - health_changes
+    - meaningful_achievements
+
+experience_learning:
+
+  enabled: true
+
+  principle: >
+    What works specifically for Christoffer should gradually become part of
+    Li OS knowledge without being confused with universal truth.
+
+  examples:
+    - preferred_travel_style
+    - restaurant_preferences
+    - communication_approaches
+    - training_adherence
+    - work_patterns
+    - planning_preferences
+    - notification_preferences
+
+profile_updates:
+
+  continuous: true
+
+  coordinator: "li"
+  curator: "theo"
+
+  update_triggers:
+    - explicit_new_information
+    - user_correction
+    - meaningful_life_event
+    - meaningful_outcome
+    - stable_new_preference
+    - changed_goal
+    - changed_relationship
+    - changed_commitment
+
+  rule: >
+    Profile evolution should reflect Christoffer's actual life while
+    preserving provenance and history.
+
+security:
+
+  policy: "../../system/security-policy.md"
+
+  sensitive_data_in_readable_github: false
+
+  encryption_required_for_sensitive_storage: true
+
+  raw_secrets_in_profile: false
+
+  access_control_required: true
+
+  audit_sensitive_access: true
+
+portability:
+
+  required: true
+
+  principle: >
+    Christoffer's identity and personal memory must remain portable across
+    models, providers, tools, databases, and future versions of Li OS.
+
+  export_formats:
+    - json
+    - yaml
+    - csv
+    - markdown
+
+future_secondary_user:
+
+  user: "Elias Melldén"
+
+  active: false
+
+  activation_requires:
+    - christoffer_explicit_approval
+    - elias_request_approval
+    - separate_profile
+    - separate_memory_namespace
+    - separate_permissions
+    - privacy_design
+    - authentication_design
+    - age_appropriate_rules
+
+  rule: >
+    Until these requirements are satisfied, all Li OS personalization,
+    memory, and orchestration remains focused on Christoffer.
+
+final_principle: >
+  This profile anchors Li OS to Christoffer Melldén as its owner and sole
+  active primary user.
+
+  GitHub defines how his profile works.
+
+  The protected canonical memory system contains what Li actually learns
+  about him.
+
+  Over time Li should know Christoffer deeply while keeping that knowledge
+  accurate, private, portable, correctable, historically aware, and under
+  his control.
+```
