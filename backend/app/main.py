@@ -1,6 +1,11 @@
 from fastapi import FastAPI, HTTPException, status
 
-from app.database import DatabaseHealthError, database_health
+from app.database import (
+    DatabaseHealthError,
+    MemoryReadError,
+    database_health,
+    get_primary_user,
+)
 
 
 APP_NAME = "Li OS Backend"
@@ -18,9 +23,6 @@ app = FastAPI(
 async def root() -> dict[str, str]:
     """
     Basic service identification endpoint.
-
-    This endpoint intentionally exposes no personal information,
-    database information, credentials, or internal configuration.
     """
     return {
         "service": APP_NAME,
@@ -32,9 +34,7 @@ async def root() -> dict[str, str]:
 @app.get("/health", tags=["system"])
 async def health() -> dict[str, str]:
     """
-    Basic application health check.
-
-    This verifies that the FastAPI application itself is running.
+    Verify that the FastAPI application itself is running.
     """
     return {
         "status": "ok",
@@ -46,11 +46,7 @@ async def health() -> dict[str, str]:
 @app.get("/health/database", tags=["system"])
 def database_health_endpoint() -> dict[str, str | int]:
     """
-    Verify the controlled connection between the Li OS backend
-    and the private memory database.
-
-    The backend uses the restricted runtime database account and
-    calls only the approved li_api.health_check() function.
+    Verify the controlled connection between Li OS and PostgreSQL.
     """
 
     try:
@@ -60,4 +56,21 @@ def database_health_endpoint() -> dict[str, str | int]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Li OS memory database is unavailable.",
+        ) from exc
+
+
+@app.get("/memory/primary-user", tags=["memory"])
+def primary_user_endpoint() -> dict[str, str]:
+    """
+    Retrieve the active primary Li OS user through the controlled
+    Memory API boundary.
+    """
+
+    try:
+        return get_primary_user()
+
+    except MemoryReadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Li OS could not retrieve the primary user.",
         ) from exc
