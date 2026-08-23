@@ -1,0 +1,960 @@
+```yaml
+version: "0.1"
+status: "foundational"
+
+system:
+  name: "Li OS Memory"
+  owner: "Christoffer"
+  curator: "Theo"
+
+  purpose: >
+    Maintain a persistent, structured, trustworthy, private, and historically
+    accurate understanding of Christoffer's life while clearly separating
+    facts, observations, inferences, professional knowledge, live information,
+    and temporary context.
+
+principles:
+
+  continuity:
+    description: >
+      Personal memory must survive model changes, agent updates, infrastructure
+      migrations, and system upgrades.
+
+  no_silent_overwrite:
+    description: >
+      Important memories should not be silently replaced when circumstances
+      change. Relevant historical states should be preserved.
+
+  provenance:
+    description: >
+      Important memories should record where the information came from.
+
+  uncertainty:
+    description: >
+      Inferences and uncertain information must never silently become facts.
+
+  minimum_disclosure:
+    description: >
+      Agents should receive only the memory necessary to perform their task.
+
+  privacy:
+    description: >
+      Sensitive personal memory must not be stored in readable form in GitHub.
+
+  correction:
+    description: >
+      Christoffer must always be able to correct, update, or dispute a memory.
+
+  history:
+    description: >
+      Where useful, the system should preserve how facts, preferences,
+      relationships, circumstances, and beliefs changed over time.
+
+memory_classes:
+
+  explicit_fact:
+    description: >
+      Information Christoffer directly stated as factual.
+    default_confidence: 1.0
+
+  explicit_preference:
+    description: >
+      A preference, like, dislike, or choice directly expressed by Christoffer.
+    default_confidence: 1.0
+
+  explicit_opinion:
+    description: >
+      An opinion or interpretation directly expressed by Christoffer.
+    default_confidence: 1.0
+    note: >
+      Confidence reflects that Christoffer expressed the opinion, not that the
+      opinion itself is objectively correct.
+
+  observation:
+    description: >
+      A pattern supported by recorded behavior, repeated choices, or outcomes.
+    default_confidence: 0.75
+
+  inference:
+    description: >
+      A system-generated hypothesis that has not been confirmed by Christoffer.
+    default_confidence: 0.5
+
+  historical_fact:
+    description: >
+      Information that was previously true but may no longer represent the
+      current situation.
+    default_confidence: 1.0
+
+  outcome:
+    description: >
+      A recorded result of a recommendation, decision, action, or event.
+    default_confidence: 0.9
+
+  commitment:
+    description: >
+      Something Christoffer has said he intends, promises, needs, or plans to do.
+    default_confidence: 1.0
+
+  open_loop:
+    description: >
+      Something unresolved that may require future attention.
+    default_confidence: 0.9
+
+  temporary_context:
+    description: >
+      Information useful for the present situation but not intended for
+      permanent long-term memory.
+    default_confidence: 0.8
+
+truth_status:
+
+  confirmed:
+    description: >
+      Directly confirmed by Christoffer or verified through a trusted source.
+
+  likely:
+    description: >
+      Strongly supported but not explicitly confirmed.
+
+  inferred:
+    description: >
+      Reasonable hypothesis requiring caution.
+
+  disputed:
+    description: >
+      Conflicting information exists or Christoffer disputes the record.
+
+  outdated:
+    description: >
+      Previously relevant but no longer current.
+
+  unknown:
+    description: >
+      There is insufficient information to determine the truth.
+
+temporal_status:
+
+  current:
+    description: "Believed to represent the present situation."
+
+  historical:
+    description: "Previously true or relevant."
+
+  planned:
+    description: "Expected or intended future state."
+
+  temporary:
+    description: "Short-lived information."
+
+  unresolved:
+    description: "Status has not yet been determined."
+
+sensitivity_levels:
+
+  low:
+    examples:
+      - general preferences
+      - hobbies
+      - ordinary restaurant preferences
+      - entertainment preferences
+
+  personal:
+    examples:
+      - personal goals
+      - ordinary relationships
+      - lifestyle information
+      - travel history
+
+  sensitive:
+    examples:
+      - health context
+      - financial context
+      - private relationship information
+      - work-confidential context
+      - legal matters
+
+  highly_sensitive:
+    examples:
+      - detailed medical records
+      - legal documents
+      - bank information
+      - authentication information
+      - deeply private communications
+      - highly sensitive third-party information
+
+  secret:
+    examples:
+      - passwords
+      - API keys
+      - encryption keys
+      - recovery codes
+      - private cryptographic keys
+
+storage_rules:
+
+  github_readable:
+    allowed:
+      - schemas
+      - memory policies
+      - category definitions
+      - anonymized examples
+      - migrations
+      - documentation
+
+    prohibited:
+      - actual highly_sensitive personal memory
+      - actual secret values
+      - readable medical records
+      - readable financial records
+      - readable private legal records
+      - readable private relationship records
+
+  encrypted_storage:
+    required_for:
+      - sensitive
+      - highly_sensitive
+      - secret
+
+  secret_storage:
+    rule: >
+      Secret values should normally use a dedicated secrets manager and should
+      never be committed to GitHub, including encrypted GitHub backups unless
+      specifically designed and independently secured.
+
+memory_record:
+
+  required_fields:
+
+    id:
+      type: "uuid"
+      description: "Unique memory identifier."
+
+    class:
+      type: "enum"
+      values:
+        - explicit_fact
+        - explicit_preference
+        - explicit_opinion
+        - observation
+        - inference
+        - historical_fact
+        - outcome
+        - commitment
+        - open_loop
+        - temporary_context
+
+    category:
+      type: "string"
+      description: "Primary life domain."
+
+    value:
+      type: "structured"
+      description: >
+        The information represented by the memory. Production storage may use
+        structured fields rather than one text string.
+
+    source:
+      type: "structured"
+      description: "Where the information came from."
+
+    created_at:
+      type: "datetime"
+
+    confidence:
+      type: "float"
+      minimum: 0.0
+      maximum: 1.0
+
+    truth_status:
+      type: "enum"
+      values:
+        - confirmed
+        - likely
+        - inferred
+        - disputed
+        - outdated
+        - unknown
+
+    temporal_status:
+      type: "enum"
+      values:
+        - current
+        - historical
+        - planned
+        - temporary
+        - unresolved
+
+    sensitivity:
+      type: "enum"
+      values:
+        - low
+        - personal
+        - sensitive
+        - highly_sensitive
+        - secret
+
+  optional_fields:
+
+    valid_from:
+      type: "datetime"
+
+    valid_until:
+      type: "datetime"
+
+    last_confirmed:
+      type: "datetime"
+
+    updated_at:
+      type: "datetime"
+
+    supersedes:
+      type: "uuid"
+
+    superseded_by:
+      type: "uuid"
+
+    related_people:
+      type: "list"
+
+    related_entities:
+      type: "list"
+
+    related_memories:
+      type: "list"
+
+    tags:
+      type: "list"
+
+    notes:
+      type: "string"
+
+    evidence:
+      type: "list"
+
+    contradiction_group:
+      type: "string"
+
+    review_after:
+      type: "datetime"
+
+    retention_policy:
+      type: "string"
+
+    agent_visibility:
+      type: "list"
+
+    write_permissions:
+      type: "list"
+
+source_types:
+
+  christoffer:
+    trust: "primary"
+    description: >
+      Information directly provided by Christoffer.
+
+  connected_source:
+    trust: "high"
+    description: >
+      Information retrieved from an authorized system such as calendar,
+      documents, email, health data, or another trusted source.
+
+  specialist_agent:
+    trust: "context_dependent"
+    description: >
+      Information generated by a specialist agent. Professional conclusions
+      should retain sources where appropriate.
+
+  li:
+    trust: "context_dependent"
+    description: >
+      Li-generated observations or conclusions.
+
+  theo:
+    trust: "administrative"
+    description: >
+      Memory classifications, reconciliations, and structural decisions.
+
+  external_source:
+    trust: "variable"
+    description: >
+      Information obtained from external research.
+
+life_domains:
+
+  identity:
+    examples:
+      - identity information
+      - background
+      - languages
+      - nationality
+      - places lived
+
+  people:
+    examples:
+      - important people
+      - contact relationships
+      - relationship context
+
+  family:
+    examples:
+      - family relationships
+      - family events
+      - family commitments
+
+  parenting:
+    examples:
+      - child-related information
+      - parenting plans
+      - activities
+      - co-parenting
+
+  relationships:
+    examples:
+      - romantic relationships
+      - friendships
+      - interpersonal history
+
+  dating:
+    examples:
+      - dating preferences
+      - dating experiences
+      - current dating context
+
+  preferences:
+    examples:
+      - likes
+      - dislikes
+      - tastes
+      - personal choices
+
+  values:
+    examples:
+      - personal principles
+      - important priorities
+
+  goals:
+    examples:
+      - short-term goals
+      - long-term goals
+      - life ambitions
+
+  health:
+    examples:
+      - health history
+      - symptoms
+      - medical context
+      - medical records
+
+  fitness:
+    examples:
+      - training
+      - performance
+      - physical goals
+      - recovery
+
+  nutrition:
+    examples:
+      - dietary preferences
+      - food habits
+      - cooking preferences
+
+  wellbeing:
+    examples:
+      - stress
+      - habits
+      - routines
+      - wellbeing patterns
+
+  work:
+    examples:
+      - professional role
+      - work goals
+      - projects
+      - career history
+
+  finance:
+    examples:
+      - personal finance
+      - assets
+      - liabilities
+      - budgets
+      - financial goals
+
+  legal:
+    examples:
+      - legal matters
+      - legal commitments
+      - legal history
+
+  travel:
+    examples:
+      - destinations
+      - hotels
+      - travel preferences
+      - travel history
+
+  home:
+    examples:
+      - residence
+      - interior preferences
+      - household information
+      - gardening
+
+  leisure:
+    examples:
+      - hobbies
+      - entertainment
+      - restaurants
+      - experiences
+
+  social:
+    examples:
+      - social activities
+      - friendships
+      - events
+      - social preferences
+
+  commitments:
+    examples:
+      - promises
+      - deadlines
+      - obligations
+      - intended actions
+
+  decisions:
+    examples:
+      - important decisions
+      - alternatives considered
+      - reasoning
+      - outcomes
+
+  timeline:
+    examples:
+      - major life events
+      - relationship changes
+      - moves
+      - career events
+
+  possessions:
+    examples:
+      - important possessions
+      - vehicles
+      - property
+      - collections
+
+  documents:
+    examples:
+      - document metadata
+      - document relationships
+      - document summaries
+
+  lessons:
+    examples:
+      - lessons learned
+      - repeated patterns
+      - outcome insights
+
+  open_loops:
+    examples:
+      - unresolved tasks
+      - waiting items
+      - things needing follow-up
+
+people_model:
+
+  purpose: >
+    Maintain structured information about important people without treating
+    assumptions about them as facts.
+
+  fields:
+    id:
+      type: "uuid"
+
+    name:
+      type: "string"
+
+    relationship_to_christoffer:
+      type: "string"
+
+    importance:
+      type: "enum"
+      values:
+        - core
+        - important
+        - normal
+        - contextual
+
+    current_relationship_status:
+      type: "string"
+
+    relevant_dates:
+      type: "list"
+
+    known_preferences:
+      type: "list"
+
+    shared_history:
+      type: "list"
+
+    commitments:
+      type: "list"
+
+    open_loops:
+      type: "list"
+
+    notes:
+      type: "list"
+
+    sensitivity:
+      type: "enum"
+
+  rules:
+    - >
+      Another person's motives, emotions, intentions, or personality must not
+      be stored as confirmed fact merely because Christoffer or an AI inferred
+      them.
+    - >
+      Information about third parties should be stored only when reasonably
+      useful to Christoffer's life or responsibilities.
+    - >
+      Highly sensitive third-party information requires additional caution.
+
+preference_model:
+
+  fields:
+    subject:
+      type: "string"
+
+    preference:
+      type: "string"
+
+    strength:
+      type: "float"
+      minimum: 0.0
+      maximum: 1.0
+
+    confidence:
+      type: "float"
+      minimum: 0.0
+      maximum: 1.0
+
+    source:
+      type: "structured"
+
+    last_confirmed:
+      type: "datetime"
+
+    context:
+      type: "string"
+
+  rule: >
+    Preferences may change. Historical preferences should remain available when
+    useful, while current preferences receive priority.
+
+goal_model:
+
+  fields:
+    id:
+      type: "uuid"
+
+    title:
+      type: "string"
+
+    description:
+      type: "string"
+
+    domain:
+      type: "string"
+
+    priority:
+      type: "enum"
+      values:
+        - critical
+        - high
+        - medium
+        - low
+
+    status:
+      type: "enum"
+      values:
+        - idea
+        - active
+        - paused
+        - completed
+        - abandoned
+
+    target_date:
+      type: "datetime"
+
+    reason:
+      type: "string"
+
+    success_definition:
+      type: "string"
+
+    related_goals:
+      type: "list"
+
+    progress_notes:
+      type: "list"
+
+    created_at:
+      type: "datetime"
+
+    updated_at:
+      type: "datetime"
+
+decision_model:
+
+  purpose: >
+    Preserve important decisions and eventually learn from their outcomes.
+
+  fields:
+    id:
+      type: "uuid"
+
+    decision:
+      type: "string"
+
+    date:
+      type: "datetime"
+
+    domain:
+      type: "string"
+
+    options_considered:
+      type: "list"
+
+    reasoning:
+      type: "string"
+
+    agents_consulted:
+      type: "list"
+
+    recommendation:
+      type: "string"
+
+    final_choice:
+      type: "string"
+
+    outcome:
+      type: "string"
+
+    outcome_rating:
+      type: "float"
+
+    lessons:
+      type: "list"
+
+    review_date:
+      type: "datetime"
+
+commitment_model:
+
+  fields:
+    id:
+      type: "uuid"
+
+    commitment:
+      type: "string"
+
+    type:
+      type: "enum"
+      values:
+        - promise
+        - obligation
+        - intention
+        - deadline
+        - follow_up
+
+    related_person:
+      type: "uuid"
+
+    due_at:
+      type: "datetime"
+
+    priority:
+      type: "enum"
+      values:
+        - critical
+        - high
+        - medium
+        - low
+
+    status:
+      type: "enum"
+      values:
+        - open
+        - completed
+        - cancelled
+        - overdue
+        - waiting
+
+    source:
+      type: "structured"
+
+    created_at:
+      type: "datetime"
+
+open_loop_model:
+
+  fields:
+    id:
+      type: "uuid"
+
+    title:
+      type: "string"
+
+    description:
+      type: "string"
+
+    domain:
+      type: "string"
+
+    created_at:
+      type: "datetime"
+
+    next_action:
+      type: "string"
+
+    waiting_for:
+      type: "string"
+
+    priority:
+      type: "enum"
+      values:
+        - critical
+        - high
+        - medium
+        - low
+
+    status:
+      type: "enum"
+      values:
+        - active
+        - waiting
+        - resolved
+        - dropped
+
+    remind_after:
+      type: "datetime"
+
+memory_write_policy:
+
+  li:
+    may_propose: true
+    direct_write:
+      allowed_for:
+        - temporary_context
+        - low_risk_explicit_fact
+      requires_theo_review_for:
+        - inference
+        - sensitive_memory
+        - relationship_interpretation
+        - historical_reconciliation
+        - contradiction
+
+  specialists:
+    may_propose: true
+    direct_write: false
+    rule: >
+      Specialist agents may propose memories to Li and Theo but should not
+      independently modify Christoffer's canonical personal memory.
+
+  theo:
+    may_write: true
+    responsibilities:
+      - provenance_check
+      - confidence_assignment
+      - contradiction_detection
+      - classification
+      - sensitivity_assignment
+      - historical_preservation
+
+  christoffer:
+    authority: "highest"
+    rights:
+      - correct_memory
+      - delete_memory_where_appropriate
+      - dispute_memory
+      - confirm_memory
+      - change_permissions
+      - request_history
+      - request_export
+
+contradiction_policy:
+
+  rule: >
+    Conflicting memories should not automatically delete one another.
+
+  process:
+    - identify_conflict
+    - determine_if_time_change_explains_difference
+    - preserve_historical_context_when_relevant
+    - request_confirmation_when_material
+    - mark_unresolved_conflict_when_uncertain
+
+example:
+
+  description: >
+    Generic example only. Actual personal records should not be committed
+    readably to GitHub.
+
+  memory:
+    id: "example-uuid"
+    class: "explicit_preference"
+    category: "travel"
+
+    value:
+      subject: "hotel style"
+      preference: "prefers smaller boutique hotels"
+
+    source:
+      type: "christoffer"
+      reference: "direct_statement"
+
+    created_at: "YYYY-MM-DDTHH:MM:SSZ"
+    last_confirmed: "YYYY-MM-DDTHH:MM:SSZ"
+
+    confidence: 1.0
+    truth_status: "confirmed"
+    temporal_status: "current"
+    sensitivity: "low"
+
+    agent_visibility:
+      - li
+      - milo
+
+memory_integrity:
+
+  update_rule: >
+    Every major Li OS update must verify that the canonical memory store remains
+    available and unchanged except for intentional memory operations.
+
+  backup_rule: >
+    Encrypted backups should be maintained independently from the running
+    database.
+
+  migration_rule: >
+    Memory schema migrations must preserve prior data and include a tested
+    rollback or recovery path.
+
+  audit_rule: >
+    Theo should be capable of reporting memory counts, integrity status,
+    contradictions, unconfirmed inferences, and recent significant changes.
+
+export:
+
+  principle: >
+    Christoffer must be able to export his personal memory into an open,
+    documented format so that Li OS is not permanently dependent on a single
+    database, AI provider, or hosting company.
+
+  preferred_formats:
+    - json
+    - yaml
+    - csv
+    - markdown_for_human_readable_exports
+```
