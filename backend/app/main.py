@@ -1,10 +1,18 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Query, status
 
 from app.database import (
     DatabaseHealthError,
     MemoryReadError,
+    MemoryWriteError,
     database_health,
     get_primary_user,
+    recall_memory,
+    store_explicit_memory,
+)
+from app.schemas import (
+    ExplicitMemoryCreate,
+    ExplicitMemoryCreated,
+    RecalledMemory,
 )
 
 
@@ -21,9 +29,6 @@ app = FastAPI(
 
 @app.get("/", tags=["system"])
 async def root() -> dict[str, str]:
-    """
-    Basic service identification endpoint.
-    """
     return {
         "service": APP_NAME,
         "version": APP_VERSION,
@@ -33,9 +38,6 @@ async def root() -> dict[str, str]:
 
 @app.get("/health", tags=["system"])
 async def health() -> dict[str, str]:
-    """
-    Verify that the FastAPI application itself is running.
-    """
     return {
         "status": "ok",
         "service": APP_NAME,
@@ -45,10 +47,6 @@ async def health() -> dict[str, str]:
 
 @app.get("/health/database", tags=["system"])
 def database_health_endpoint() -> dict[str, str | int]:
-    """
-    Verify the controlled connection between Li OS and PostgreSQL.
-    """
-
     try:
         return database_health()
 
@@ -61,11 +59,6 @@ def database_health_endpoint() -> dict[str, str | int]:
 
 @app.get("/memory/primary-user", tags=["memory"])
 def primary_user_endpoint() -> dict[str, str]:
-    """
-    Retrieve the active primary Li OS user through the controlled
-    Memory API boundary.
-    """
-
     try:
         return get_primary_user()
 
@@ -74,3 +67,86 @@ def primary_user_endpoint() -> dict[str, str]:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Li OS could not retrieve the primary user.",
         ) from exc
+
+
+@app.post(
+    "/memory/explicit",
+    response_model=ExplicitMemoryCreated,
+    status_code=status.HTTP_201_CREATED,
+    tags=["memory"],
+)
+def explicit_memory_endpoint(
+    payload: ExplicitMemoryCreate,
+) -> ExplicitMemoryCreated:
+    """
+    Store an explicit low-risk memory stated by Christoffer.
+
+    Sensitive and inferred memory must use Theo's review workflow
+    rather than this endpoint.
+    """
+
+    try:
+        memory_id = store_explicit_memory(
+            memory_class=payload.memory_class,
+            domain=payload.domain,
+            value=payload.value,
+            title=payload.title,
+            sensitivity=payload.sensitivity,
+            private_to_li=payload.private_to_li,
+            source_reference=payload.source_reference,
+        )
+
+    except MemoryWriteError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Li OS could not store the memory.",
+        ) from exc
+
+    return ExplicitMemoryCreated(
+        memory_id=memory_id,
+    )
+
+
+@app.get(
+    "/memory/recall",
+    response_model=list[RecalledMemory],
+    tags=["memory"],
+)
+def recall_memory_endpoint(
+    q: str = Query(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Memory search query.",
+    ),
+    domain: list[str] | None = Query(
+        default=None,
+        description="Optional memory domains to search.",
+    ),
+    limit: int = Query(
+        default=10,
+        ge=1,
+        le=50,
+    ),
+) -> list[RecalledMemory]:
+    """
+    Retrieve relevant canonical memories for Li.
+    """
+
+    try:
+        memories = recall_memory(
+            query=q,
+            domains=domain,
+            limit=limit,
+        )
+
+    except MemoryReadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Li OS could not recall memory.",
+        ) from exc
+
+    return [
+        RecalledMemory.model_validate(memory)
+        for memory in memories
+    ]
