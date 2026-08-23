@@ -19,12 +19,23 @@ class MemoryReadError(DatabaseError):
 class MemoryWriteError(DatabaseError):
     """Raised when Li OS cannot write permitted memory information."""
 
+class MemoryProposalError(DatabaseError):
+    """Raised when Li OS cannot create or process a memory proposal."""
 
 def _connect() -> psycopg.Connection:
     settings = get_settings()
 
     return psycopg.connect(
         **settings.database_connect_kwargs(),
+        row_factory=dict_row,
+        connect_timeout=10,
+    )
+
+def _theo_connect() -> psycopg.Connection:
+    settings = get_settings()
+
+    return psycopg.connect(
+        **settings.theo_database_connect_kwargs(),
         row_factory=dict_row,
         connect_timeout=10,
     )
@@ -240,3 +251,188 @@ def recall_memory(
         }
         for row in rows
     ]
+def propose_memory(
+    *,
+    proposed_by_agent: str,
+    memory_class: str,
+    domain: str,
+    value_text: str,
+    reason: str | None = None,
+    truth_status: str | None = None,
+    temporal_status: str | None = None,
+    sensitivity: str = "personal",
+    source_reference: str | None = None,
+) -> str:
+    """
+    Submit a proposed memory for Theo review using Li's normal
+    restricted runtime database role.
+    """
+
+    try:
+        with _connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT li_api.propose_memory(
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    ) AS proposal_id;
+                    """,
+                    (
+                        proposed_by_agent,
+                        memory_class,
+                        domain,
+                        value_text,
+                        reason,
+                        truth_status,
+                        temporal_status,
+                        sensitivity,
+                        source_reference,
+                    ),
+                )
+
+                row = cursor.fetchone()
+
+    except psycopg.Error as exc:
+        raise MemoryProposalError(
+            "Li OS could not create the memory proposal."
+        ) from exc
+
+    if row is None or row["proposal_id"] is None:
+        raise MemoryProposalError(
+            "Li OS memory proposal returned no proposal ID."
+        )
+
+    return str(row["proposal_id"])
+
+
+def get_pending_memory_proposals(
+    *,
+    limit: int = 20,
+) -> list[dict[str, object]]:
+    """
+    Retrieve pending memory proposals using Theo's dedicated
+    restricted database role.
+    """
+
+    try:
+        with _theo_connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        proposal_id,
+                        proposed_by_agent,
+                        proposed_class,
+                        proposed_domain,
+                        proposed_value_text,
+                        proposed_truth_status,
+                        proposed_temporal_status,
+                        proposed_sensitivity,
+                        reason,
+                        source_reference,
+                        created_at
+                    FROM li_api.get_pending_memory_proposals(%s);
+                    """,
+                    (limit,),
+                )
+
+                rows = cursor.fetchall()
+
+    except psycopg.Error as exc:
+        raise MemoryProposalError(
+            "Theo could not retrieve pending memory proposals."
+        ) from exc
+
+    return [
+        {
+            "proposal_id": str(row["proposal_id"]),
+            "proposed_by_agent": str(row["proposed_by_agent"]),
+            "proposed_class": str(row["proposed_class"]),
+            "proposed_domain": str(row["proposed_domain"]),
+            "proposed_value_text": str(row["proposed_value_text"]),
+            "proposed_truth_status": str(row["proposed_truth_status"]),
+            "proposed_temporal_status": str(
+                row["proposed_temporal_status"]
+            ),
+            "proposed_sensitivity": str(row["proposed_sensitivity"]),
+            "reason": row["reason"],
+            "source_reference": row["source_reference"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
+
+
+def review_memory_proposal(
+    *,
+    proposal_id: str,
+    decision: str,
+    review_note: str | None = None,
+    final_truth_status: str | None = None,
+    final_temporal_status: str | None = None,
+    final_confidence: float | None = None,
+) -> dict[str, object]:
+    """
+    Review a memory proposal using Theo's dedicated restricted
+    database role.
+    """
+
+    try:
+        with _theo_connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        proposal_id,
+                        proposal_status,
+                        memory_id,
+                        outcome
+                    FROM li_api.review_memory_proposal(
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    );
+                    """,
+                    (
+                        proposal_id,
+                        decision,
+                        review_note,
+                        final_truth_status,
+                        final_temporal_status,
+                        final_confidence,
+                    ),
+                )
+
+                row = cursor.fetchone()
+
+    except psycopg.Error as exc:
+        raise MemoryProposalError(
+            "Theo could not review the memory proposal."
+        ) from exc
+
+    if row is None:
+        raise MemoryProposalError(
+            "Theo memory review returned no result."
+        )
+
+    return {
+        "proposal_id": str(row["proposal_id"]),
+        "proposal_status": str(row["proposal_status"]),
+        "memory_id": (
+            str(row["memory_id"])
+            if row["memory_id"] is not None
+            else None
+        ),
+        "outcome": str(row["outcome"]),
+    }

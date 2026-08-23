@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     api_token: SecretStr
+    theo_api_token: SecretStr
 
     db_host: str
     db_port: int = 5432
@@ -25,6 +26,9 @@ class Settings(BaseSettings):
     db_user: str
     db_password: SecretStr
     db_sslmode: str = "require"
+
+    theo_db_user: str
+    theo_db_password: SecretStr
 
     model_config = SettingsConfigDict(
         env_prefix="LI_OS_",
@@ -41,6 +45,16 @@ class Settings(BaseSettings):
             "dbname": self.db_name,
             "user": self.db_user,
             "password": self.db_password.get_secret_value(),
+            "sslmode": self.db_sslmode,
+        }
+
+    def theo_database_connect_kwargs(self) -> dict[str, object]:
+        return {
+            "host": self.db_host,
+            "port": self.db_port,
+            "dbname": self.db_name,
+            "user": self.theo_db_user,
+            "password": self.theo_db_password.get_secret_value(),
             "sslmode": self.db_sslmode,
         }
 
