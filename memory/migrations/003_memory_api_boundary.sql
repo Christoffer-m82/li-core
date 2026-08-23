@@ -27,6 +27,7 @@ BEGIN
         FROM pg_roles
         WHERE rolname = 'li_memory_function_owner'
     ) THEN
+
         CREATE ROLE li_memory_function_owner
         NOLOGIN
         NOSUPERUSER
@@ -35,13 +36,16 @@ BEGIN
         NOINHERIT
         NOREPLICATION
         NOBYPASSRLS;
+
     END IF;
+
 
     IF NOT EXISTS (
         SELECT 1
         FROM pg_roles
         WHERE rolname = 'li_memory_api'
     ) THEN
+
         CREATE ROLE li_memory_api
         NOLOGIN
         NOSUPERUSER
@@ -50,6 +54,7 @@ BEGIN
         NOINHERIT
         NOREPLICATION
         NOBYPASSRLS;
+
     END IF;
 
 END
@@ -57,11 +62,26 @@ $$;
 
 
 -- ============================================================
--- 2. FUNCTION OWNER ACCESS
+-- 2. TEMPORARILY ALLOW POSTGRES TO ASSUME FUNCTION OWNER
+-- ============================================================
+
+-- Supabase migrations run through postgres.
+-- PostgreSQL requires the migration role to be able to SET ROLE
+-- to a new function owner before ownership can be transferred.
+--
+-- This membership is removed again before the migration ends.
+
+GRANT li_memory_function_owner TO postgres;
+
+
+-- ============================================================
+-- 3. FUNCTION OWNER ACCESS TO CANONICAL MEMORY
 -- ============================================================
 
 -- li_memory_function_owner cannot log in.
--- It exists only to own approved SECURITY DEFINER functions.
+--
+-- It exists only so approved SECURITY DEFINER functions can
+-- interact with canonical memory.
 
 GRANT USAGE
 ON SCHEMA li_memory
@@ -83,11 +103,8 @@ TO li_memory_function_owner;
 
 
 -- ============================================================
--- 3. DEFAULT PRIVILEGES FOR FUNCTION OWNER
+-- 4. DEFAULT PRIVILEGES FOR FUTURE MEMORY OBJECTS
 -- ============================================================
-
--- Future canonical tables and sequences created by postgres
--- should also be usable by the controlled function-owner role.
 
 ALTER DEFAULT PRIVILEGES
 FOR ROLE postgres
@@ -110,15 +127,13 @@ TO li_memory_function_owner;
 
 
 -- ============================================================
--- 4. RLS POLICIES FOR FUNCTION OWNER
+-- 5. RLS POLICIES FOR FUNCTION OWNER
 -- ============================================================
 
--- Canonical tables already have Row Level Security enabled.
+-- RLS remains enabled and forced.
 --
--- Create an explicit policy allowing the controlled
--- function-owner role to work with canonical memory.
---
--- The application API role itself does not receive this access.
+-- The controlled function-owner role receives explicit access.
+-- The application API role does not receive this access.
 
 DO $$
 DECLARE
@@ -153,13 +168,15 @@ $$;
 
 
 -- ============================================================
--- 5. CREATE CONTROLLED API SCHEMA
+-- 6. CREATE CONTROLLED API SCHEMA
 -- ============================================================
 
 CREATE SCHEMA IF NOT EXISTS li_api
 AUTHORIZATION postgres;
 
 
+-- No ordinary or Supabase API role should receive access.
+
 REVOKE ALL
 ON SCHEMA li_api
 FROM PUBLIC;
@@ -179,19 +196,32 @@ REVOKE ALL
 ON SCHEMA li_api
 FROM service_role;
 
+
+-- The capability role may call approved API functions.
 
 GRANT USAGE
 ON SCHEMA li_api
 TO li_memory_api;
 
 
+-- The function-owner role temporarily needs CREATE permission
+-- because PostgreSQL requires a new function owner to have
+-- CREATE privilege on the function's schema.
+
+GRANT USAGE, CREATE
+ON SCHEMA li_api
+TO li_memory_function_owner;
+
+
 -- ============================================================
--- 6. DEFAULT-DENY FUTURE API FUNCTIONS
+-- 7. DEFAULT-DENY FUTURE API FUNCTIONS
 -- ============================================================
 
--- PostgreSQL normally grants EXECUTE on new functions to PUBLIC.
--- Remove that default for future functions created by postgres
--- inside the li_api schema.
+-- PostgreSQL normally grants function EXECUTE permission to
+-- PUBLIC by default.
+--
+-- Remove that behavior for functions created by postgres in
+-- the li_api schema.
 
 ALTER DEFAULT PRIVILEGES
 FOR ROLE postgres
@@ -226,13 +256,14 @@ FROM service_role;
 
 
 -- ============================================================
--- 7. HEALTH CHECK FUNCTION
+-- 8. CREATE HEALTH CHECK FUNCTION
 -- ============================================================
 
--- This function exposes no personal memory.
+-- This function intentionally returns no personal information.
 --
--- It proves that the API role can call an approved function
--- without receiving direct access to canonical memory tables.
+-- It proves that an approved API function can reach canonical
+-- memory without giving the application role direct access to
+-- memory tables.
 
 CREATE OR REPLACE FUNCTION li_api.health_check()
 RETURNS TABLE (
@@ -262,12 +293,16 @@ AS $$
 $$;
 
 
+-- ============================================================
+-- 9. TRANSFER FUNCTION OWNERSHIP
+-- ============================================================
+
 ALTER FUNCTION li_api.health_check()
 OWNER TO li_memory_function_owner;
 
 
 -- ============================================================
--- 8. REMOVE DEFAULT FUNCTION ACCESS
+-- 10. REMOVE DEFAULT FUNCTION ACCESS
 -- ============================================================
 
 REVOKE ALL
@@ -298,7 +333,7 @@ TO li_memory_api;
 
 
 -- ============================================================
--- 9. ENSURE API ROLE HAS NO DIRECT MEMORY TABLE ACCESS
+-- 11. ENSURE API ROLE HAS NO DIRECT MEMORY TABLE ACCESS
 -- ============================================================
 
 REVOKE ALL PRIVILEGES
@@ -317,7 +352,7 @@ FROM li_memory_api;
 
 
 -- ============================================================
--- 10. ENSURE SUPABASE CLIENT ROLES CANNOT USE LI_API
+-- 12. RECONFIRM SUPABASE CLIENT ROLE RESTRICTIONS
 -- ============================================================
 
 REVOKE ALL
@@ -350,7 +385,7 @@ ON FUNCTION li_api.health_check()
 FROM service_role;
 
 
--- Reconfirm the intended API role access.
+-- Reconfirm the intended capability-role permissions.
 
 GRANT USAGE
 ON SCHEMA li_api
@@ -363,7 +398,42 @@ TO li_memory_api;
 
 
 -- ============================================================
--- 11. RECORD MIGRATION
+-- 13. REMOVE TEMPORARY FUNCTION-OWNER CREATE AUTHORITY
+-- ============================================================
+
+-- The role required CREATE only so PostgreSQL could transfer
+-- ownership of the function to it.
+--
+-- It no longer needs permission to create arbitrary API
+-- functions.
+
+REVOKE CREATE
+ON SCHEMA li_api
+FROM li_memory_function_owner;
+
+
+-- Keep USAGE because the role owns and executes approved
+-- functions inside this schema.
+
+GRANT USAGE
+ON SCHEMA li_api
+TO li_memory_function_owner;
+
+
+-- ============================================================
+-- 14. REMOVE TEMPORARY POSTGRES ROLE MEMBERSHIP
+-- ============================================================
+
+-- The migration is finished transferring ownership.
+-- postgres no longer needs membership in the function-owner
+-- role.
+
+REVOKE li_memory_function_owner
+FROM postgres;
+
+
+-- ============================================================
+-- 15. RECORD MIGRATION VERSION
 -- ============================================================
 
 INSERT INTO li_memory.schema_versions (
@@ -378,43 +448,64 @@ ON CONFLICT (version) DO NOTHING;
 
 
 -- ============================================================
--- 12. SECURITY NOTES
+-- 16. FINAL SECURITY STATE
 -- ============================================================
 
--- Final intended state:
---
 -- li_memory_function_owner:
---   No login.
---   No superuser.
---   No bypass RLS.
---   Can access canonical memory only so approved SECURITY
---   DEFINER functions can perform controlled operations.
+--
+-- No login.
+-- No superuser.
+-- No database creation.
+-- No role creation.
+-- No RLS bypass.
+-- Has controlled canonical-memory privileges.
+-- Owns approved SECURITY DEFINER functions.
+-- Cannot create arbitrary new li_api functions.
+--
 --
 -- li_memory_api:
---   No login.
---   No superuser.
---   No bypass RLS.
---   No direct access to canonical memory tables.
---   May execute specifically approved li_api functions.
+--
+-- No login.
+-- No superuser.
+-- No database creation.
+-- No role creation.
+-- No RLS bypass.
+-- No direct canonical table access.
+-- May execute only explicitly approved li_api functions.
+--
 --
 -- anon:
---   No access.
+--
+-- No Li OS private-memory access.
+--
 --
 -- authenticated:
---   No access.
+--
+-- No Li OS private-memory access.
+--
 --
 -- service_role:
---   No access to the Li OS private memory schemas.
 --
--- A future runtime LOGIN role will be created separately and
--- granted only the li_memory_api capability.
+-- No Li OS private-memory table privileges.
 --
--- Runtime credentials must never be committed to GitHub.
 --
--- Future Memory API functions should be narrowly scoped and
--- should validate user identity, purpose, permissions,
--- sensitivity, and requested operation before accessing
--- canonical memory.
+-- Future runtime services:
+--
+-- A dedicated runtime LOGIN role will be created separately.
+-- It will receive only the li_memory_api capability.
+--
+-- Runtime passwords, tokens, and credentials must never be
+-- committed to GitHub.
+--
+--
+-- Future Memory API functions:
+--
+-- Functions should be narrowly scoped.
+-- Functions should validate inputs.
+-- Functions should enforce user scope.
+-- Functions should respect sensitivity and permissions.
+-- Functions should return only necessary information.
+-- Functions should never expose raw secrets.
 
 
 COMMIT;
