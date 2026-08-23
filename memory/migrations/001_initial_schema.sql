@@ -1,4 +1,4 @@
-```sql
+
 BEGIN;
 
 
@@ -1256,5 +1256,5 @@ ON CONFLICT (user_key) DO NOTHING;
 --
 -- Christoffer's accumulated personal history must remain
 -- portable and recoverable.
-```
+
 COMMIT;
