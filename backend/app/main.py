@@ -1,4 +1,3 @@
-```python
 from fastapi import FastAPI
 
 
@@ -40,4 +39,3 @@ async def health() -> dict[str, str]:
         "service": APP_NAME,
         "version": APP_VERSION,
     }
-```
