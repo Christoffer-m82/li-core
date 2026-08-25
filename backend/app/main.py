@@ -2,29 +2,37 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 
-from app.auth import require_api_token, require_theo_api_token
+from app.auth import (
+    require_api_token,
+    require_owner_api_token,
+    require_theo_api_token,
+)
 from app.database import (
     DatabaseHealthError,
+    MemoryProposalError,
     MemoryReadError,
     MemoryWriteError,
+    OwnerConfirmationError,
+    confirm_memory_proposal,
     database_health,
-    get_primary_user,
-    recall_memory,
-    store_explicit_memory,
-    MemoryProposalError,
     get_pending_memory_proposals,
+    get_primary_user,
     propose_memory,
+    recall_memory,
     review_memory_proposal,
+    store_explicit_memory,
 )
 from app.schemas import (
     ExplicitMemoryCreate,
     ExplicitMemoryCreated,
-    RecalledMemory,
     MemoryProposalCreate,
     MemoryProposalCreated,
     MemoryProposalReview,
     MemoryProposalReviewResult,
+    OwnerMemoryConfirmation,
+    OwnerMemoryConfirmationResult,
     PendingMemoryProposal,
+    RecalledMemory,
 )
 
 
@@ -162,6 +170,7 @@ def recall_memory_endpoint(
         for memory in memories
     ]
 
+
 @app.post(
     "/memory/proposals",
     response_model=MemoryProposalCreated,
@@ -175,8 +184,8 @@ def create_memory_proposal_endpoint(
     """
     Submit a memory candidate for Theo review.
 
-    This route uses Li's normal restricted runtime. It cannot approve
-    its own proposal.
+    This route uses Li's normal restricted runtime.
+    It cannot approve its own proposal.
     """
 
     try:
@@ -217,7 +226,8 @@ def pending_memory_proposals_endpoint(
     ),
 ) -> list[PendingMemoryProposal]:
     """
-    Retrieve pending memory proposals through Theo's restricted role.
+    Retrieve pending memory proposals through Theo's
+    restricted database role.
     """
 
     try:
@@ -271,3 +281,37 @@ def review_memory_proposal_endpoint(
         ) from exc
 
     return MemoryProposalReviewResult.model_validate(result)
+
+
+@app.post(
+    "/owner/memory/proposals/{proposal_id}/confirm",
+    response_model=OwnerMemoryConfirmationResult,
+    tags=["owner"],
+    dependencies=[Depends(require_owner_api_token)],
+)
+def owner_confirm_memory_proposal_endpoint(
+    proposal_id: UUID,
+    payload: OwnerMemoryConfirmation,
+) -> OwnerMemoryConfirmationResult:
+    """
+    Explicitly confirm or reject a proposal that Theo has marked
+    as requiring owner confirmation.
+
+    This endpoint requires the owner's separate API credential and
+    uses the owner's separate restricted database role.
+    """
+
+    try:
+        result = confirm_memory_proposal(
+            proposal_id=str(proposal_id),
+            decision=payload.decision,
+            note=payload.note,
+        )
+
+    except OwnerConfirmationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Owner memory confirmation failed.",
+        ) from exc
+
+    return OwnerMemoryConfirmationResult.model_validate(result)

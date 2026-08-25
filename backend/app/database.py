@@ -19,8 +19,14 @@ class MemoryReadError(DatabaseError):
 class MemoryWriteError(DatabaseError):
     """Raised when Li OS cannot write permitted memory information."""
 
+
 class MemoryProposalError(DatabaseError):
     """Raised when Li OS cannot create or process a memory proposal."""
+
+
+class OwnerConfirmationError(DatabaseError):
+    """Raised when the owner confirmation workflow fails."""
+
 
 def _connect() -> psycopg.Connection:
     settings = get_settings()
@@ -31,11 +37,22 @@ def _connect() -> psycopg.Connection:
         connect_timeout=10,
     )
 
+
 def _theo_connect() -> psycopg.Connection:
     settings = get_settings()
 
     return psycopg.connect(
         **settings.theo_database_connect_kwargs(),
+        row_factory=dict_row,
+        connect_timeout=10,
+    )
+
+
+def _owner_connect() -> psycopg.Connection:
+    settings = get_settings()
+
+    return psycopg.connect(
+        **settings.owner_database_connect_kwargs(),
         row_factory=dict_row,
         connect_timeout=10,
     )
@@ -251,6 +268,8 @@ def recall_memory(
         }
         for row in rows
     ]
+
+
 def propose_memory(
     *,
     proposed_by_agent: str,
@@ -396,12 +415,12 @@ def review_memory_proposal(
                         memory_id,
                         outcome
                     FROM li_api.review_memory_proposal(
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s
+                        CAST(%s AS UUID),
+                        CAST(%s AS TEXT),
+                        CAST(%s AS TEXT),
+                        CAST(%s AS TEXT),
+                        CAST(%s AS TEXT),
+                        CAST(%s AS NUMERIC)
                     );
                     """,
                     (
@@ -434,5 +453,57 @@ def review_memory_proposal(
             if row["memory_id"] is not None
             else None
         ),
+        "outcome": str(row["outcome"]),
+    }
+
+
+def confirm_memory_proposal(
+    *,
+    proposal_id: str,
+    decision: str,
+    note: str | None = None,
+) -> dict[str, object]:
+    """
+    Confirm or reject a proposal using the owner's dedicated
+    restricted database role.
+    """
+
+    try:
+        with _owner_connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        proposal_id,
+                        proposal_status,
+                        outcome
+                    FROM li_api.confirm_memory_proposal(
+                        %s,
+                        %s,
+                        %s
+                    );
+                    """,
+                    (
+                        proposal_id,
+                        decision,
+                        note,
+                    ),
+                )
+
+                row = cursor.fetchone()
+
+    except psycopg.Error as exc:
+        raise OwnerConfirmationError(
+            "Li OS owner confirmation failed."
+        ) from exc
+
+    if row is None:
+        raise OwnerConfirmationError(
+            "Li OS owner confirmation returned no result."
+        )
+
+    return {
+        "proposal_id": str(row["proposal_id"]),
+        "proposal_status": str(row["proposal_status"]),
         "outcome": str(row["outcome"]),
     }

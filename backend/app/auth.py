@@ -20,6 +20,13 @@ theo_bearer_scheme = HTTPBearer(
 )
 
 
+owner_bearer_scheme = HTTPBearer(
+    auto_error=False,
+    scheme_name="Owner API Token",
+    description="Separate bearer token for explicit owner-confirmation endpoints.",
+)
+
+
 def require_api_token(
     credentials: HTTPAuthorizationCredentials | None = Security(
         li_bearer_scheme
@@ -70,5 +77,32 @@ def require_theo_api_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Theo authentication credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def require_owner_api_token(
+    credentials: HTTPAuthorizationCredentials | None = Security(
+        owner_bearer_scheme
+    ),
+) -> None:
+    """
+    Require the owner's separate explicit-confirmation bearer token.
+    """
+
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Owner authentication required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    settings = get_settings()
+    expected_token = settings.owner_api_token.get_secret_value()
+
+    if not compare_digest(credentials.credentials, expected_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid owner authentication credentials.",
             headers={"WWW-Authenticate": "Bearer"},
         )

@@ -99,3 +99,16 @@ class MemoryProposalReviewResult(BaseModel):
     proposal_status: str
     memory_id: UUID | None
     outcome: str
+
+class OwnerMemoryConfirmation(BaseModel):
+    decision: Literal[
+        "confirm",
+        "reject",
+    ]
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class OwnerMemoryConfirmationResult(BaseModel):
+    proposal_id: UUID
+    proposal_status: str
+    outcome: str
