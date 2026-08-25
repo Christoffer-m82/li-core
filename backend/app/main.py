@@ -1,3 +1,6 @@
+from app.claude import ClaudeError
+from app.li_runtime import talk_to_li
+
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -33,6 +36,8 @@ from app.schemas import (
     OwnerMemoryConfirmationResult,
     PendingMemoryProposal,
     RecalledMemory,
+    LiChatRequest,
+    LiChatResponse,
 )
 
 
@@ -315,3 +320,34 @@ def owner_confirm_memory_proposal_endpoint(
         ) from exc
 
     return OwnerMemoryConfirmationResult.model_validate(result)
+
+@app.post(
+    "/li/chat",
+    response_model=LiChatResponse,
+    tags=["li"],
+    dependencies=[Depends(require_api_token)],
+)
+def li_chat_endpoint(
+    payload: LiChatRequest,
+) -> LiChatResponse:
+    """
+    Talk directly to Li.
+
+    Li's identity and operating principles are loaded from the
+    version-controlled Li OS source documents.
+    """
+
+    try:
+        response = talk_to_li(
+            payload.message,
+        )
+
+    except ClaudeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Li could not reach Claude.",
+        ) from exc
+
+    return LiChatResponse(
+        response=response,
+    )

@@ -17,10 +17,17 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    # Application authentication
     api_token: SecretStr
     theo_api_token: SecretStr
     owner_api_token: SecretStr
 
+    # Claude / Anthropic
+    anthropic_api_key: SecretStr
+    claude_model: str = "claude-opus-5"
+    claude_max_tokens: int = 2048
+
+    # Shared database settings
     db_host: str
     db_port: int = 5432
     db_name: str = "postgres"
@@ -28,9 +35,11 @@ class Settings(BaseSettings):
     db_password: SecretStr
     db_sslmode: str = "require"
 
+    # Theo database runtime
     theo_db_user: str
     theo_db_password: SecretStr
 
+    # Owner database runtime
     owner_db_user: str
     owner_db_password: SecretStr
 

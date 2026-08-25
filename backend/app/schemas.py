@@ -112,3 +112,10 @@ class OwnerMemoryConfirmationResult(BaseModel):
     proposal_id: UUID
     proposal_status: str
     outcome: str
+
+class LiChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=10000)
+
+
+class LiChatResponse(BaseModel):
+    response: str

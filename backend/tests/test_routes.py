@@ -12,6 +12,7 @@ EXPECTED_ROUTES = {
     ("GET", "/theo/memory/proposals"),
     ("POST", "/theo/memory/proposals/{proposal_id}/review"),
     ("POST", "/owner/memory/proposals/{proposal_id}/confirm"),
+    ("POST", "/li/chat"),
 }
 
 
