@@ -1,7 +1,4 @@
-from app.claude import ClaudeError
-from app.li_runtime import talk_to_li
-
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 
@@ -10,6 +7,7 @@ from app.auth import (
     require_owner_api_token,
     require_theo_api_token,
 )
+from app.claude import ClaudeError
 from app.database import (
     DatabaseHealthError,
     MemoryProposalError,
@@ -25,9 +23,17 @@ from app.database import (
     review_memory_proposal,
     store_explicit_memory,
 )
+from app.li_runtime import LiRuntimeError, talk_to_li
+from app.memory_capture import (
+    MemoryCaptureError,
+    capture_memory_from_message,
+)
 from app.schemas import (
     ExplicitMemoryCreate,
     ExplicitMemoryCreated,
+    LiChatRequest,
+    LiChatResponse,
+    LiMemoryCaptureOutcome,
     MemoryProposalCreate,
     MemoryProposalCreated,
     MemoryProposalReview,
@@ -36,8 +42,6 @@ from app.schemas import (
     OwnerMemoryConfirmationResult,
     PendingMemoryProposal,
     RecalledMemory,
-    LiChatRequest,
-    LiChatResponse,
 )
 
 
@@ -186,13 +190,6 @@ def recall_memory_endpoint(
 def create_memory_proposal_endpoint(
     payload: MemoryProposalCreate,
 ) -> MemoryProposalCreated:
-    """
-    Submit a memory candidate for Theo review.
-
-    This route uses Li's normal restricted runtime.
-    It cannot approve its own proposal.
-    """
-
     try:
         proposal_id = propose_memory(
             proposed_by_agent=payload.proposed_by_agent,
@@ -230,11 +227,6 @@ def pending_memory_proposals_endpoint(
         le=100,
     ),
 ) -> list[PendingMemoryProposal]:
-    """
-    Retrieve pending memory proposals through Theo's
-    restricted database role.
-    """
-
     try:
         proposals = get_pending_memory_proposals(
             limit=limit,
@@ -262,13 +254,6 @@ def review_memory_proposal_endpoint(
     proposal_id: UUID,
     payload: MemoryProposalReview,
 ) -> MemoryProposalReviewResult:
-    """
-    Approve, reject, or request user confirmation for a proposal.
-
-    This endpoint requires Theo's separate API credential and uses
-    Theo's separate restricted database role.
-    """
-
     try:
         result = review_memory_proposal(
             proposal_id=str(proposal_id),
@@ -298,14 +283,6 @@ def owner_confirm_memory_proposal_endpoint(
     proposal_id: UUID,
     payload: OwnerMemoryConfirmation,
 ) -> OwnerMemoryConfirmationResult:
-    """
-    Explicitly confirm or reject a proposal that Theo has marked
-    as requiring owner confirmation.
-
-    This endpoint requires the owner's separate API credential and
-    uses the owner's separate restricted database role.
-    """
-
     try:
         result = confirm_memory_proposal(
             proposal_id=str(proposal_id),
@@ -321,6 +298,7 @@ def owner_confirm_memory_proposal_endpoint(
 
     return OwnerMemoryConfirmationResult.model_validate(result)
 
+
 @app.post(
     "/li/chat",
     response_model=LiChatResponse,
@@ -333,8 +311,11 @@ def li_chat_endpoint(
     """
     Talk directly to Li.
 
-    Li's identity and operating principles are loaded from the
-    version-controlled Li OS source documents.
+    Li first answers using her identity and relevant canonical memory.
+    After a successful answer, the user's message is independently
+    analyzed for governed memory capture.
+
+    Memory-capture failure does not prevent Li from answering.
     """
 
     try:
@@ -342,12 +323,36 @@ def li_chat_endpoint(
             payload.message,
         )
 
-    except ClaudeError as exc:
+    except (ClaudeError, LiRuntimeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Li could not reach Claude.",
+            detail="Li could not complete the conversation.",
         ) from exc
+
+    capture_reference = f"li-chat:{uuid4()}"
+
+    try:
+        capture_outcomes = capture_memory_from_message(
+            payload.message,
+            source_reference=capture_reference,
+        )
+
+    except MemoryCaptureError:
+        return LiChatResponse(
+            response=response,
+            memory_capture=[],
+            memory_capture_reference=capture_reference,
+            memory_capture_error="Automatic memory capture failed.",
+        )
 
     return LiChatResponse(
         response=response,
+        memory_capture=[
+            LiMemoryCaptureOutcome.model_validate(
+                outcome.model_dump()
+            )
+            for outcome in capture_outcomes
+        ],
+        memory_capture_reference=capture_reference,
+        memory_capture_error=None,
     )

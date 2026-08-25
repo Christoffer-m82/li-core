@@ -51,6 +51,7 @@ class RecalledMemory(BaseModel):
     created_at: datetime
     relevance: float
 
+
 class MemoryProposalCreate(BaseModel):
     proposed_by_agent: str = Field(min_length=1, max_length=100)
     memory_class: str = Field(min_length=1, max_length=100)
@@ -74,8 +75,8 @@ class PendingMemoryProposal(BaseModel):
     proposed_class: str
     proposed_domain: str
     proposed_value_text: str
-    proposed_truth_status: str
-    proposed_temporal_status: str
+    proposed_truth_status: str | None
+    proposed_temporal_status: str | None
     proposed_sensitivity: str
     reason: str | None
     source_reference: str | None
@@ -100,6 +101,7 @@ class MemoryProposalReviewResult(BaseModel):
     memory_id: UUID | None
     outcome: str
 
+
 class OwnerMemoryConfirmation(BaseModel):
     decision: Literal[
         "confirm",
@@ -113,9 +115,28 @@ class OwnerMemoryConfirmationResult(BaseModel):
     proposal_status: str
     outcome: str
 
+
+class LiMemoryCaptureOutcome(BaseModel):
+    status: Literal[
+        "ignored",
+        "stored",
+        "proposed",
+    ]
+    memory_class: ExplicitMemoryClass | None = None
+    domain: str | None = None
+    memory_id: UUID | None = None
+    proposal_id: UUID | None = None
+    reason: str | None = None
+
+
 class LiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
 
 
 class LiChatResponse(BaseModel):
     response: str
+    memory_capture: list[LiMemoryCaptureOutcome] = Field(
+        default_factory=list
+    )
+    memory_capture_reference: str | None = None
+    memory_capture_error: str | None = None

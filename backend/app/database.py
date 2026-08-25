@@ -377,11 +377,19 @@ def get_pending_memory_proposals(
             "proposed_class": str(row["proposed_class"]),
             "proposed_domain": str(row["proposed_domain"]),
             "proposed_value_text": str(row["proposed_value_text"]),
-            "proposed_truth_status": str(row["proposed_truth_status"]),
-            "proposed_temporal_status": str(
-                row["proposed_temporal_status"]
+            "proposed_truth_status": (
+                str(row["proposed_truth_status"])
+                if row["proposed_truth_status"] is not None
+                else None
             ),
-            "proposed_sensitivity": str(row["proposed_sensitivity"]),
+            "proposed_temporal_status": (
+                str(row["proposed_temporal_status"])
+                if row["proposed_temporal_status"] is not None
+                else None
+            ),
+            "proposed_sensitivity": str(
+                row["proposed_sensitivity"]
+            ),
             "reason": row["reason"],
             "source_reference": row["source_reference"],
             "created_at": row["created_at"],
