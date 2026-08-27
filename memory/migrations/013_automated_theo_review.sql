@@ -1,5 +1,18 @@
 BEGIN;
 
+-- Supabase SQL Editor runs migrations as postgres. Earlier migrations revoke
+-- postgres membership in the non-login function-owner role after use, so make
+-- that membership temporary again for this migration. Creating the function
+-- while SET LOCAL ROLE is active gives it the intended SECURITY DEFINER owner
+-- without relying on a later ALTER FUNCTION ... OWNER TO transfer.
+GRANT li_memory_function_owner TO postgres;
+
+GRANT USAGE, CREATE
+ON SCHEMA li_api
+TO li_memory_function_owner;
+
+SET LOCAL ROLE li_memory_function_owner;
+
 -- Theo receives relevant canonical context only through this audited,
 -- SECURITY DEFINER function. The runtime role retains no table access.
 CREATE OR REPLACE FUNCTION li_api.recall_memory_for_theo(
@@ -76,8 +89,7 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION li_api.recall_memory_for_theo(TEXT, TEXT[], INTEGER)
-OWNER TO li_memory_function_owner;
+RESET ROLE;
 
 REVOKE ALL
 ON FUNCTION li_api.recall_memory_for_theo(TEXT, TEXT[], INTEGER)
@@ -91,6 +103,19 @@ TO li_memory_theo;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA li_memory FROM li_memory_theo;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA li_memory FROM li_memory_theo;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA li_memory FROM li_memory_theo;
+
+-- Remove all migration-only authority. The function-owner role keeps schema
+-- USAGE so its approved SECURITY DEFINER function can execute, but cannot
+-- create arbitrary API functions and postgres cannot assume it afterward.
+REVOKE CREATE
+ON SCHEMA li_api
+FROM li_memory_function_owner;
+
+GRANT USAGE
+ON SCHEMA li_api
+TO li_memory_function_owner;
+
+REVOKE li_memory_function_owner FROM postgres;
 
 INSERT INTO li_memory.schema_versions (version, description)
 VALUES ('0.13', 'Add automated Theo memory review context access')
