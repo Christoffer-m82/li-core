@@ -102,6 +102,35 @@ class UnavailableCalendarProvider:
         raise CalendarProviderError("No calendar provider is configured.")
 
 
+def configured_calendar_provider(settings: object) -> CalendarProvider:
+    """Build Li's provider only when every required OAuth secret is present."""
+
+    secret_names = (
+        "google_calendar_client_id",
+        "google_calendar_client_secret",
+        "google_calendar_refresh_token",
+    )
+    secrets: list[str] = []
+    for name in secret_names:
+        secret = getattr(settings, name, None)
+        if secret is None:
+            return UnavailableCalendarProvider()
+        value = secret.get_secret_value().strip()
+        if not value:
+            return UnavailableCalendarProvider()
+        secrets.append(value)
+
+    from app.google_calendar import GoogleCalendarProvider
+
+    return GoogleCalendarProvider(
+        client_id=secrets[0],
+        client_secret=secrets[1],
+        refresh_token=secrets[2],
+        calendar_id=getattr(settings, "google_calendar_id", "primary"),
+        timeout_seconds=getattr(settings, "google_calendar_timeout_seconds", 10.0),
+    )
+
+
 def execute_calendar_action(
     envelope: CalendarActionEnvelope,
     provider: CalendarProvider,

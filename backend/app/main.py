@@ -10,7 +10,7 @@ from app.auth import (
 from app.calendar_runtime import (
     CalendarActionEnvelope,
     CalendarActionOutcome,
-    UnavailableCalendarProvider,
+    configured_calendar_provider,
     execute_calendar_action,
 )
 from app.claude import ClaudeError
@@ -71,7 +71,7 @@ app = FastAPI(
     description="Private backend and orchestration service for Li OS.",
 )
 
-app.state.calendar_provider = UnavailableCalendarProvider()
+app.state.calendar_provider = configured_calendar_provider(get_settings())
 
 
 @app.get("/", tags=["system"])

@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     brave_search_api_key: SecretStr | None = None
     brave_search_timeout_seconds: float = 10.0
 
+    # Optional Li-owned Google Calendar OAuth provider. Secrets belong in the
+    # deployment secret manager; the backend never exposes them to specialists.
+    google_calendar_client_id: SecretStr | None = None
+    google_calendar_client_secret: SecretStr | None = None
+    google_calendar_refresh_token: SecretStr | None = None
+    google_calendar_id: str = "primary"
+    google_calendar_timeout_seconds: float = 10.0
+
     # Shared database settings
     db_host: str
     db_port: int = 5432
