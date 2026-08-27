@@ -240,6 +240,7 @@ def test_nora_research_is_executed_then_nora_is_reinvoked(monkeypatch) -> None:
     observed = {}
 
     def fake_nora(request, **kwargs):
+        assert kwargs["max_tokens"] == 4096
         evidence = request.research_evidence[0]
         assert evidence["title"] == "Vendor release"
         assert evidence["identifier"] == "https://example.test/release"
@@ -267,6 +268,7 @@ def test_nora_research_is_executed_then_nora_is_reinvoked(monkeypatch) -> None:
     )
     assert response == "Choose A."
     assert "https://example.test/release" in observed["system"]
+    assert "Preserve exact citation metadata" in observed["system"]
 
 
 def test_specialist_prompt_explicitly_denies_direct_tool_access(monkeypatch) -> None:
@@ -291,3 +293,5 @@ def test_specialist_prompt_explicitly_denies_direct_tool_access(monkeypatch) -> 
     delegate_to_nora(SpecialistRequest(current_user_message="Analyze this."))
     assert "You have no tools and no database access" in observed["system"]
     assert "Li is the sole orchestrator" in observed["system"]
+    assert "include exact" in observed["system"]
+    assert "identifiers/URLs" in observed["system"]

@@ -45,7 +45,8 @@ def test_li_chat_defers_ordinary_capture_until_after_answer(monkeypatch) -> None
     )
 
     def fake_talk(
-        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None,
+        research_provider=None,
     ) -> str:
         events.append("talk")
         assert trusted_runtime_context is None
@@ -110,7 +111,8 @@ def test_li_chat_applies_change_before_answer_with_actual_outcome(
         )]
 
     def fake_talk(
-        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None,
+        research_provider=None,
     ) -> str:
         events.append("talk")
         assert f"success ({status})" in trusted_runtime_context
@@ -136,7 +138,8 @@ def test_li_chat_blocks_ambiguous_forget_and_tells_li(monkeypatch) -> None:
         raise AssertionError("Blocked request must not mutate memory.")
 
     def fake_talk(
-        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None,
+        research_provider=None,
     ) -> str:
         assert "blocked" in trusted_runtime_context
         assert "did not resolve to one safe, specific memory change" in trusted_runtime_context
@@ -170,7 +173,8 @@ def test_li_chat_answers_with_failed_change_context_without_retry(monkeypatch) -
         raise MemoryCaptureError("Synthetic policy failure.")
 
     def fake_talk(
-        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None,
+        research_provider=None,
     ) -> str:
         assert "failed or blocked" in trusted_runtime_context
         assert "No success may be claimed" in trusted_runtime_context
@@ -192,7 +196,8 @@ def test_li_chat_still_answers_when_memory_analysis_fails(monkeypatch) -> None:
         raise MemoryCaptureError("Synthetic classifier failure.")
 
     def fake_talk(
-        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None,
+        research_provider=None,
     ) -> str:
         assert trusted_runtime_context is None
         return "Here is your answer."
