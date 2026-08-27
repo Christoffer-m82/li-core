@@ -101,6 +101,20 @@ class MemoryProposalReviewResult(BaseModel):
     outcome: str
 
 
+class TheoAutomatedReviewResult(BaseModel):
+    status: Literal["no_pending_proposals", "processed"]
+    proposal_id: UUID | None = None
+    decision: Literal[
+        "approve",
+        "reject",
+        "needs_user_confirmation",
+    ] | None = None
+    rationale: str | None = None
+    proposal_status: str | None = None
+    memory_id: UUID | None = None
+    outcome: str | None = None
+
+
 class OwnerMemoryConfirmation(BaseModel):
     decision: Literal[
         "confirm",

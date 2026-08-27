@@ -278,6 +278,47 @@ def recall_memory(
     ]
 
 
+def recall_memory_for_theo(
+    *,
+    query: str,
+    domains: list[str] | None = None,
+    limit: int = 8,
+) -> list[dict[str, object]]:
+    """Retrieve review context through Theo's approved database function."""
+
+    try:
+        with _theo_connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM li_api.recall_memory_for_theo(%s, %s, %s);
+                    """,
+                    (query, domains, limit),
+                )
+                rows = cursor.fetchall()
+    except psycopg.Error as exc:
+        raise MemoryReadError(
+            "Theo could not retrieve canonical memory context."
+        ) from exc
+
+    return [
+        {
+            "memory_id": str(row["memory_id"]),
+            "memory_class": str(row["memory_class"]),
+            "domain": str(row["domain"]),
+            "title": row["title"],
+            "value_text": row["value_text"],
+            "truth_status": str(row["truth_status"]),
+            "temporal_status": str(row["temporal_status"]),
+            "sensitivity": str(row["sensitivity"]),
+            "confidence": float(row["confidence"]),
+            "confirmed_by_user": bool(row["confirmed_by_user"]),
+        }
+        for row in rows
+    ]
+
+
 def correct_explicit_memory(
     *,
     memory_id: str,

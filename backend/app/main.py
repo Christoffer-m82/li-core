@@ -45,7 +45,9 @@ from app.schemas import (
     OwnerMemoryConfirmationResult,
     PendingMemoryProposal,
     RecalledMemory,
+    TheoAutomatedReviewResult,
 )
+from app.theo_runtime import TheoRuntimeError, process_next_memory_proposal
 
 APP_NAME = "Li OS Backend"
 APP_VERSION = "0.1.0"
@@ -273,6 +275,23 @@ def review_memory_proposal_endpoint(
         ) from exc
 
     return MemoryProposalReviewResult.model_validate(result)
+
+
+@app.post(
+    "/theo/memory/proposals/process-next",
+    response_model=TheoAutomatedReviewResult,
+    tags=["theo"],
+    dependencies=[Depends(require_theo_api_token)],
+)
+def process_next_memory_proposal_endpoint() -> TheoAutomatedReviewResult:
+    try:
+        result = process_next_memory_proposal()
+    except TheoRuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Theo could not safely complete the automated review.",
+        ) from exc
+    return TheoAutomatedReviewResult.model_validate(result.model_dump())
 
 
 @app.post(
