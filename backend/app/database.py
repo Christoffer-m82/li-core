@@ -24,6 +24,14 @@ class MemoryProposalError(DatabaseError):
     """Raised when Li OS cannot create or process a memory proposal."""
 
 
+class MemoryCorrectionError(DatabaseError):
+    """Raised when Li OS cannot correct an explicit memory."""
+
+
+class MemoryForgetError(DatabaseError):
+    """Raised when Li OS cannot forget a memory."""
+
+
 class OwnerConfirmationError(DatabaseError):
     """Raised when the owner confirmation workflow fails."""
 
@@ -268,6 +276,113 @@ def recall_memory(
         }
         for row in rows
     ]
+
+
+def correct_explicit_memory(
+    *,
+    memory_id: str,
+    new_value: str,
+    new_domain: str | None = None,
+    new_title: str | None = None,
+    source_reference: str | None = None,
+) -> dict[str, object]:
+    """
+    Correct an existing low-risk explicit canonical memory.
+
+    The old memory is preserved as historical/outdated and the
+    replacement becomes the current canonical memory.
+    """
+
+    try:
+        with _connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        previous_memory_id,
+                        memory_id,
+                        outcome
+                    FROM li_api.correct_explicit_memory(
+                        CAST(%s AS UUID),
+                        CAST(%s AS TEXT),
+                        CAST(%s AS TEXT),
+                        CAST(%s AS TEXT),
+                        CAST(%s AS TEXT)
+                    );
+                    """,
+                    (
+                        memory_id,
+                        new_value,
+                        new_domain,
+                        new_title,
+                        source_reference,
+                    ),
+                )
+
+                row = cursor.fetchone()
+
+    except psycopg.Error as exc:
+        raise MemoryCorrectionError(
+            "Li OS could not correct the memory."
+        ) from exc
+
+    if row is None:
+        raise MemoryCorrectionError(
+            "Li OS memory correction returned no result."
+        )
+
+    return {
+        "previous_memory_id": str(row["previous_memory_id"]),
+        "memory_id": str(row["memory_id"]),
+        "outcome": str(row["outcome"]),
+    }
+
+
+def forget_memory(
+    *,
+    memory_id: str,
+    source_reference: str | None = None,
+) -> dict[str, object]:
+    """
+    Forget a canonical memory through the controlled
+    li_api.forget_memory() function.
+    """
+
+    try:
+        with _connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        memory_id,
+                        outcome
+                    FROM li_api.forget_memory(
+                        CAST(%s AS UUID),
+                        CAST(%s AS TEXT)
+                    );
+                    """,
+                    (
+                        memory_id,
+                        source_reference,
+                    ),
+                )
+
+                row = cursor.fetchone()
+
+    except psycopg.Error as exc:
+        raise MemoryForgetError(
+            "Li OS could not forget the memory."
+        ) from exc
+
+    if row is None:
+        raise MemoryForgetError(
+            "Li OS memory forget operation returned no result."
+        )
+
+    return {
+        "memory_id": str(row["memory_id"]),
+        "outcome": str(row["outcome"]),
+    }
 
 
 def propose_memory(

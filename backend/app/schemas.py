@@ -4,7 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-
 ExplicitMemoryClass = Literal[
     "explicit_fact",
     "explicit_preference",
@@ -121,6 +120,8 @@ class LiMemoryCaptureOutcome(BaseModel):
         "ignored",
         "stored",
         "proposed",
+        "corrected",
+        "forgotten",
     ]
     memory_class: ExplicitMemoryClass | None = None
     domain: str | None = None
@@ -135,8 +136,6 @@ class LiChatRequest(BaseModel):
 
 class LiChatResponse(BaseModel):
     response: str
-    memory_capture: list[LiMemoryCaptureOutcome] = Field(
-        default_factory=list
-    )
+    memory_capture: list[LiMemoryCaptureOutcome] = Field(default_factory=list)
     memory_capture_reference: str | None = None
     memory_capture_error: str | None = None
