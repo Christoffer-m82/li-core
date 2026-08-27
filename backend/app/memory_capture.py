@@ -221,11 +221,75 @@ _AMBIGUOUS_BARE_FORGET_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_TARGET_QUERY_WORD_PATTERN = re.compile(r"\b[A-Za-z][A-Za-z0-9'-]*\b")
+
+_TARGET_QUERY_STOPWORDS = {
+    "a",
+    "an",
+    "about",
+    "existing",
+    "fact",
+    "for",
+    "memory",
+    "my",
+    "opinion",
+    "preference",
+    "remembered",
+    "the",
+    "their",
+    "to",
+    "user",
+    "user's",
+    "users",
+}
+
 
 def _is_ambiguous_bare_forget(user_message: str) -> bool:
     """Return true when a forget request has no target in this message."""
 
     return bool(_AMBIGUOUS_BARE_FORGET_PATTERN.fullmatch(user_message))
+
+
+def _target_lookup_queries(target_query: str) -> list[str]:
+    """Build a literal query plus a safer content-word fallback."""
+
+    queries = [target_query.strip()]
+    content_words = [
+        word
+        for word in _TARGET_QUERY_WORD_PATTERN.findall(target_query)
+        if word.casefold() not in _TARGET_QUERY_STOPWORDS
+    ]
+    fallback = " ".join(content_words)
+
+    if fallback and fallback.casefold() != queries[0].casefold():
+        queries.append(fallback)
+
+    return queries
+
+
+def _resolve_memory_target(candidate: MemoryCandidate) -> dict[str, object]:
+    """Resolve exactly one current target without guessing across matches."""
+
+    if candidate.target_query is None:
+        raise MemoryCaptureError("Memory change has no target.")
+
+    for query in _target_lookup_queries(candidate.target_query):
+        try:
+            matches = recall_memory(
+                query=query,
+                domains=[candidate.domain] if candidate.domain else None,
+                limit=2,
+            )
+        except MemoryReadError as exc:
+            raise MemoryCaptureError("Automatic memory target lookup failed.") from exc
+
+        if len(matches) == 1:
+            return matches[0]
+
+        if len(matches) > 1:
+            break
+
+    raise MemoryCaptureError("Memory change target was missing or ambiguous.")
 
 
 def _extract_json_object(response_text: str) -> str:
@@ -300,22 +364,7 @@ def apply_memory_capture(
             continue
 
         if candidate.action in {"correct_explicit", "forget"}:
-            if candidate.target_query is None:
-                raise MemoryCaptureError("Memory change has no target.")
-
-            try:
-                matches = recall_memory(
-                    query=candidate.target_query,
-                    domains=[candidate.domain] if candidate.domain else None,
-                    limit=2,
-                )
-            except MemoryReadError as exc:
-                raise MemoryCaptureError("Automatic memory target lookup failed.") from exc
-
-            if len(matches) != 1:
-                raise MemoryCaptureError("Memory change target was missing or ambiguous.")
-
-            target = matches[0]
+            target = _resolve_memory_target(candidate)
             if target["memory_class"] not in {
                 "explicit_fact",
                 "explicit_preference",

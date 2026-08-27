@@ -49,6 +49,65 @@ def test_apply_memory_correction(monkeypatch) -> None:
     assert recorded["new_value"] == "Prefers purple notebooks"
 
 
+def test_memory_change_retries_with_content_word_target(monkeypatch) -> None:
+    queries = []
+
+    def fake_recall(**kwargs):
+        queries.append(kwargs["query"])
+        if kwargs["query"] == "orange notebook":
+            return [_memory()]
+        return []
+
+    monkeypatch.setattr("app.memory_capture.recall_memory", fake_recall)
+    monkeypatch.setattr(
+        "app.memory_capture.correct_explicit_memory",
+        lambda **kwargs: {"memory_id": "new-id", "outcome": "created_replacement"},
+    )
+    analysis = MemoryCaptureAnalysis(
+        candidates=[
+            MemoryCandidate(
+                action="correct_explicit",
+                memory_class="explicit_preference",
+                domain="preferences",
+                value="Prefers blue notebooks",
+                sensitivity="low",
+                target_query="User's preference for the orange notebook",
+            )
+        ]
+    )
+
+    outcomes = apply_memory_capture(analysis)
+
+    assert outcomes[0].status == "corrected"
+    assert queries == [
+        "User's preference for the orange notebook",
+        "orange notebook",
+    ]
+
+
+def test_memory_change_does_not_fallback_past_ambiguous_matches(monkeypatch) -> None:
+    queries = []
+
+    def fake_recall(**kwargs):
+        queries.append(kwargs["query"])
+        return [_memory("one"), _memory("two")]
+
+    monkeypatch.setattr("app.memory_capture.recall_memory", fake_recall)
+    analysis = MemoryCaptureAnalysis(
+        candidates=[
+            MemoryCandidate(
+                action="forget",
+                target_query="User's notebook preference",
+            )
+        ]
+    )
+
+    with pytest.raises(MemoryCaptureError, match="missing or ambiguous"):
+        apply_memory_capture(analysis)
+
+    assert queries == ["User's notebook preference"]
+
+
 def test_apply_memory_forget(monkeypatch) -> None:
     monkeypatch.setattr("app.memory_capture.recall_memory", lambda **kwargs: [_memory()])
     monkeypatch.setattr(
