@@ -5,6 +5,7 @@ import pytest
 from app.specialist_runtime import (
     SPECIALIST_PROFILES,
     NoraDelegationRequest,
+    ResearchRequest,
     SpecialistRequest,
     SpecialistRuntimeError,
     consult_specialists,
@@ -137,7 +138,67 @@ def test_multiple_specialists_are_collected_in_requested_order(monkeypatch) -> N
         )
 
     monkeypatch.setattr("app.specialist_runtime.delegate_to_specialist", fake_delegate)
-    results = consult_specialists(
+    consultation = consult_specialists(
         ["victor", "milo"], SpecialistRequest(current_user_message="Plan the offsite.")
     )
-    assert list(results) == ["victor", "milo"]
+    assert list(consultation.results) == ["victor", "milo"]
+    assert consultation.unavailable == []
+
+
+def test_one_of_two_specialist_failures_is_isolated(monkeypatch) -> None:
+    from app.specialist_runtime import SpecialistResult
+
+    def fake_delegate(name, request, *, max_tokens=None):
+        if name == "victor":
+            raise SpecialistRuntimeError("invalid output")
+        return SpecialistResult(
+            recommendation="Choose the quieter destination.",
+            confidence=0.8,
+            sources_needed=False,
+        )
+
+    monkeypatch.setattr("app.specialist_runtime.delegate_to_specialist", fake_delegate)
+    consultation = consult_specialists(
+        ["victor", "milo"], SpecialistRequest(current_user_message="Plan the offsite.")
+    )
+    assert list(consultation.results) == ["milo"]
+    assert consultation.unavailable == ["victor"]
+
+
+def test_nora_can_return_typed_research_request(monkeypatch) -> None:
+    payload = {
+        "recommendation": "Research current market evidence before deciding.",
+        "findings": [],
+        "confidence": 0.4,
+        "key_assumptions": [],
+        "sources_needed": True,
+        "follow_up_questions": [],
+        "research_request": {
+            "query": "Current market share for vendors A and B",
+            "freshness_requirement": "Published in the last 12 months",
+            "source_types": ["regulatory filings", "industry reports"],
+            "rationale": "The recommendation depends on current market position.",
+        },
+    }
+    monkeypatch.setattr(
+        "app.specialist_runtime.generate_claude_text", lambda **kwargs: json.dumps(payload)
+    )
+    result = delegate_to_nora(SpecialistRequest(current_user_message="Compare vendors."))
+    assert result.research_request == ResearchRequest(**payload["research_request"])
+
+
+def test_invalid_extra_output_is_rejected_and_isolated(monkeypatch) -> None:
+    payload = {
+        "recommendation": "Use A.",
+        "confidence": 0.8,
+        "sources_needed": False,
+        "tool_call": {"name": "web_search", "arguments": {}},
+    }
+    monkeypatch.setattr(
+        "app.specialist_runtime.generate_claude_text", lambda **kwargs: json.dumps(payload)
+    )
+    consultation = consult_specialists(
+        ["nora"], SpecialistRequest(current_user_message="Compare vendors.")
+    )
+    assert consultation.results == {}
+    assert consultation.unavailable == ["nora"]

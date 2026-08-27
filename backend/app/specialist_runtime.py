@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.claude import ClaudeError, generate_claude_text
 
@@ -35,8 +35,21 @@ class SpecialistRequest(BaseModel):
     canonical_memory: list[SpecialistMemoryContext] = Field(default_factory=list, max_length=4)
 
 
+class ResearchRequest(BaseModel):
+    """A bounded request for research that only Li may choose to execute."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1, max_length=1000)
+    freshness_requirement: str = Field(min_length=1, max_length=300)
+    source_types: list[str] = Field(default_factory=list, min_length=1, max_length=8)
+    rationale: str = Field(min_length=1, max_length=1000)
+
+
 class SpecialistResult(BaseModel):
     """Internal specialist output. Li remains the user-facing orchestrator."""
+
+    model_config = ConfigDict(extra="forbid")
 
     recommendation: str = Field(min_length=1, max_length=6000)
     findings: list[str] = Field(default_factory=list, max_length=12)
@@ -44,6 +57,14 @@ class SpecialistResult(BaseModel):
     key_assumptions: list[str] = Field(default_factory=list, max_length=10)
     sources_needed: bool
     follow_up_questions: list[str] = Field(default_factory=list, max_length=5)
+    research_request: ResearchRequest | None = None
+
+
+class SpecialistConsultation(BaseModel):
+    """Validated successes and isolated failures from one consultation."""
+
+    results: dict[SpecialistName, SpecialistResult] = Field(default_factory=dict)
+    unavailable: list[SpecialistName] = Field(default_factory=list)
 
 
 class SpecialistProfile(BaseModel):
@@ -229,6 +250,9 @@ Return only one JSON object with exactly these fields:
 - key_assumptions: array of strings
 - sources_needed: boolean
 - follow_up_questions: array of strings
+- research_request: null, except Nora may provide an object with exactly: query,
+  freshness_requirement, source_types, and rationale. This only asks Li to consider
+  research; it does not execute or authorize any tool.
 """.strip()
     try:
         raw = generate_claude_text(
@@ -236,7 +260,12 @@ Return only one JSON object with exactly these fields:
             system=system,
             max_tokens=max_tokens,
         )
-        return SpecialistResult.model_validate(_extract_json(raw))
+        result = SpecialistResult.model_validate(_extract_json(raw))
+        if specialist != "nora" and result.research_request is not None:
+            raise SpecialistRuntimeError(
+                f"{profile.name} returned a research request outside its contract."
+            )
+        return result
     except (ClaudeError, json.JSONDecodeError, ValidationError) as exc:
         raise SpecialistRuntimeError(
             f"{profile.name} did not return a valid structured analysis."
@@ -248,20 +277,31 @@ def consult_specialists(
     request: SpecialistRequest,
     *,
     max_tokens: int | None = None,
-) -> dict[SpecialistName, SpecialistResult]:
-    """Consult independent specialists concurrently, preserving deterministic order."""
+) -> SpecialistConsultation:
+    """Consult specialists independently and quarantine any failed response."""
 
     if not specialists:
-        return {}
+        return SpecialistConsultation()
+    results: dict[SpecialistName, SpecialistResult] = {}
+    unavailable: list[SpecialistName] = []
     if len(specialists) == 1:
         name = specialists[0]
-        return {name: delegate_to_specialist(name, request, max_tokens=max_tokens)}
+        try:
+            results[name] = delegate_to_specialist(name, request, max_tokens=max_tokens)
+        except SpecialistRuntimeError:
+            unavailable.append(name)
+        return SpecialistConsultation(results=results, unavailable=unavailable)
     with ThreadPoolExecutor(max_workers=len(specialists)) as executor:
         futures = {
             name: executor.submit(delegate_to_specialist, name, request, max_tokens=max_tokens)
             for name in specialists
         }
-        return {name: futures[name].result() for name in specialists}
+        for name in specialists:
+            try:
+                results[name] = futures[name].result()
+            except SpecialistRuntimeError:
+                unavailable.append(name)
+    return SpecialistConsultation(results=results, unavailable=unavailable)
 
 
 # Compatibility names for the first released specialist contract.

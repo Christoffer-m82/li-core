@@ -76,15 +76,14 @@ def test_private_memory_is_never_shared_with_nora(monkeypatch) -> None:
 
     def fake_consult(specialists, request):
         observed["request"] = request
-        from app.specialist_runtime import NoraSpecialistResult
+        from app.specialist_runtime import NoraSpecialistResult, SpecialistConsultation
 
-        return {
+        return SpecialistConsultation(results={
             "nora": NoraSpecialistResult(
-                recommendation="Use the available public criteria.",
-                confidence=0.5,
+                recommendation="Use the available public criteria.", confidence=0.5,
                 sources_needed=False,
             )
-        }
+        })
 
     monkeypatch.setattr("app.li_runtime.consult_specialists", fake_consult)
     monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: "My answer.")
@@ -93,19 +92,19 @@ def test_private_memory_is_never_shared_with_nora(monkeypatch) -> None:
 
 
 def test_li_synthesizes_multiple_specialists(monkeypatch) -> None:
-    from app.specialist_runtime import SpecialistResult
+    from app.specialist_runtime import SpecialistConsultation, SpecialistResult
 
     monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
     observed = {}
 
     def fake_consult(specialists, request):
         assert specialists == ["victor", "milo"]
-        return {
+        return SpecialistConsultation(results={
             name: SpecialistResult(
                 recommendation=f"{name} view", confidence=0.7, sources_needed=True
             )
             for name in specialists
-        }
+        })
 
     def fake_generate(**kwargs):
         observed.update(kwargs)
@@ -118,3 +117,89 @@ def test_li_synthesizes_multiple_specialists(monkeypatch) -> None:
     assert "victor view" in observed["system"]
     assert "milo view" in observed["system"]
     assert "Synthesize them in Li's voice" in observed["system"]
+
+
+def test_li_uses_valid_result_when_other_specialist_is_unavailable(monkeypatch) -> None:
+    from app.specialist_runtime import SpecialistConsultation, SpecialistResult
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *a, **k: SpecialistConsultation(
+            results={
+                "milo": SpecialistResult(
+                    recommendation="Prefer Lisbon.", confidence=0.8, sources_needed=False
+                )
+            },
+            unavailable=["victor"],
+        ),
+    )
+    observed = {}
+
+    def fake_generate(**kwargs):
+        observed.update(kwargs)
+        return "Lisbon is the strongest available choice."
+
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
+    response = talk_to_li("Consult Victor and Milo about this business travel decision.")
+    assert response == "Lisbon is the strongest available choice."
+    assert "Prefer Lisbon." in observed["system"]
+    assert "Victor" in observed["system"]
+    assert "validation details" in observed["system"]
+
+
+def test_all_specialists_failure_falls_back_to_direct_li_reasoning(monkeypatch) -> None:
+    from app.specialist_runtime import SpecialistConsultation
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *a, **k: SpecialistConsultation(unavailable=["victor", "milo"]),
+    )
+    observed = {}
+
+    def fake_generate(**kwargs):
+        observed.update(kwargs)
+        return "Here is my direct assessment."
+
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
+    response = talk_to_li("Consult Victor and Milo about this business travel decision.")
+    assert response == "Here is my direct assessment."
+    assert "INTERNAL SPECIALIST ANALYSES" not in observed["system"]
+    assert "Answer using Li's own reasoning" in observed["system"]
+
+
+def test_nora_research_request_is_handed_to_li_without_execution(monkeypatch) -> None:
+    from app.specialist_runtime import (
+        ResearchRequest,
+        SpecialistConsultation,
+        SpecialistResult,
+    )
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *a, **k: SpecialistConsultation(results={
+            "nora": SpecialistResult(
+                recommendation="Research first.",
+                confidence=0.4,
+                sources_needed=True,
+                research_request=ResearchRequest(
+                    query="Current vendor evidence",
+                    freshness_requirement="Last 12 months",
+                    source_types=["primary sources"],
+                    rationale="The facts may have changed.",
+                ),
+            )
+        }),
+    )
+    observed = {}
+
+    def fake_generate(**kwargs):
+        observed.update(kwargs)
+        return "I need current sources before making a firm recommendation."
+
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
+    talk_to_li("Ask Nora to research and compare these vendors.")
+    assert "Current vendor evidence" in observed["system"]
+    assert "no research has been executed" in observed["system"]
