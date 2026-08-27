@@ -7,6 +7,12 @@ from app.auth import (
     require_owner_api_token,
     require_theo_api_token,
 )
+from app.calendar_runtime import (
+    CalendarActionEnvelope,
+    CalendarActionOutcome,
+    UnavailableCalendarProvider,
+    execute_calendar_action,
+)
 from app.claude import ClaudeError
 from app.config import get_settings
 from app.database import (
@@ -64,6 +70,8 @@ app = FastAPI(
     version=APP_VERSION,
     description="Private backend and orchestration service for Li OS.",
 )
+
+app.state.calendar_provider = UnavailableCalendarProvider()
 
 
 @app.get("/", tags=["system"])
@@ -324,6 +332,20 @@ def owner_confirm_memory_proposal_endpoint(
         ) from exc
 
     return OwnerMemoryConfirmationResult.model_validate(result)
+
+
+@app.post(
+    "/li/actions/calendar",
+    response_model=CalendarActionOutcome,
+    tags=["li"],
+    dependencies=[Depends(require_api_token)],
+)
+def li_calendar_action_endpoint(
+    payload: CalendarActionEnvelope,
+) -> CalendarActionOutcome:
+    """Execute a typed calendar action at Li's approval-enforcing boundary."""
+
+    return execute_calendar_action(payload, app.state.calendar_provider)
 
 
 @app.post(
