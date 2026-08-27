@@ -25,8 +25,11 @@ from app.database import (
 )
 from app.li_runtime import LiRuntimeError, talk_to_li
 from app.memory_capture import (
+    MemoryCaptureAnalysis,
     MemoryCaptureError,
-    capture_memory_from_message,
+    analyze_memory_capture,
+    apply_memory_capture,
+    is_ambiguous_bare_forget,
 )
 from app.schemas import (
     ExplicitMemoryCreate,
@@ -43,7 +46,6 @@ from app.schemas import (
     PendingMemoryProposal,
     RecalledMemory,
 )
-
 
 APP_NAME = "Li OS Backend"
 APP_VERSION = "0.1.0"
@@ -311,16 +313,63 @@ def li_chat_endpoint(
     """
     Talk directly to Li.
 
-    Li first answers using her identity and relevant canonical memory.
-    After a successful answer, the user's message is independently
-    analyzed for governed memory capture.
+    Governed correction and forgetting requests are applied before Li
+    answers so the response can reflect the actual operation result.
+    Other capture actions remain deferred until after the answer.
 
     Memory-capture failure does not prevent Li from answering.
     """
 
+    capture_reference = f"li-chat:{uuid4()}"
+    capture_outcomes = []
+    capture_error: str | None = None
+    runtime_context: str | None = None
+
+    try:
+        analysis = analyze_memory_capture(payload.message)
+    except MemoryCaptureError:
+        analysis = None
+        capture_error = "Automatic memory capture failed."
+
+    if analysis is not None:
+        change_analysis = MemoryCaptureAnalysis(
+            candidates=[
+                candidate
+                for candidate in analysis.candidates
+                if candidate.action in {"correct_explicit", "forget"}
+            ]
+        )
+
+        if change_analysis.candidates:
+            try:
+                capture_outcomes = apply_memory_capture(
+                    change_analysis,
+                    source_reference=capture_reference,
+                )
+                statuses = ", ".join(
+                    outcome.status for outcome in capture_outcomes
+                )
+                runtime_context = (
+                    "Governed memory change result: success "
+                    f"({statuses})."
+                )
+            except MemoryCaptureError:
+                capture_error = "Automatic memory capture failed."
+                runtime_context = (
+                    "Governed memory change result: failed or blocked. "
+                    "No success may be claimed."
+                )
+        elif is_ambiguous_bare_forget(payload.message):
+            runtime_context = (
+                "Governed memory change result: blocked because the forget "
+                "request did not identify a specific target. No memory was "
+                "changed; ask the user what should be forgotten."
+            )
+
     try:
         response = talk_to_li(
             payload.message,
+            trusted_runtime_context=runtime_context,
         )
 
     except (ClaudeError, LiRuntimeError) as exc:
@@ -329,21 +378,24 @@ def li_chat_endpoint(
             detail="Li could not complete the conversation.",
         ) from exc
 
-    capture_reference = f"li-chat:{uuid4()}"
-
-    try:
-        capture_outcomes = capture_memory_from_message(
-            payload.message,
-            source_reference=capture_reference,
+    if analysis is not None and capture_error is None:
+        deferred_analysis = MemoryCaptureAnalysis(
+            candidates=[
+                candidate
+                for candidate in analysis.candidates
+                if candidate.action not in {"correct_explicit", "forget"}
+            ]
         )
-
-    except MemoryCaptureError:
-        return LiChatResponse(
-            response=response,
-            memory_capture=[],
-            memory_capture_reference=capture_reference,
-            memory_capture_error="Automatic memory capture failed.",
-        )
+        if deferred_analysis.candidates:
+            try:
+                capture_outcomes.extend(
+                    apply_memory_capture(
+                        deferred_analysis,
+                        source_reference=capture_reference,
+                    )
+                )
+            except MemoryCaptureError:
+                capture_error = "Automatic memory capture failed."
 
     return LiChatResponse(
         response=response,
@@ -354,5 +406,5 @@ def li_chat_endpoint(
             for outcome in capture_outcomes
         ],
         memory_capture_reference=capture_reference,
-        memory_capture_error=None,
+        memory_capture_error=capture_error,
     )

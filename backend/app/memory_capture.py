@@ -244,7 +244,7 @@ _TARGET_QUERY_STOPWORDS = {
 }
 
 
-def _is_ambiguous_bare_forget(user_message: str) -> bool:
+def is_ambiguous_bare_forget(user_message: str) -> bool:
     """Return true when a forget request has no target in this message."""
 
     return bool(_AMBIGUOUS_BARE_FORGET_PATTERN.fullmatch(user_message))
@@ -315,7 +315,7 @@ def analyze_memory_capture(
     Analyze a user message without writing anything to memory.
     """
 
-    if _is_ambiguous_bare_forget(user_message):
+    if is_ambiguous_bare_forget(user_message):
         return MemoryCaptureAnalysis()
 
     try:

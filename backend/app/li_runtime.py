@@ -4,7 +4,6 @@ from pathlib import Path
 from app.claude import generate_claude_text
 from app.database import MemoryReadError, recall_memory
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 LI_SYSTEM_FILES = (
@@ -282,6 +281,7 @@ def talk_to_li(
     user_message: str,
     *,
     max_tokens: int | None = None,
+    trusted_runtime_context: str | None = None,
 ) -> str:
     """
     Send a message to Li with relevant canonical memory context.
@@ -293,9 +293,24 @@ def talk_to_li(
         user_message,
     )
 
-    system_with_memory = (
-        f"{system_prompt}\n\n{memory_context}"
-    )
+    system_sections = [system_prompt, memory_context]
+
+    if trusted_runtime_context:
+        system_sections.extend(
+            [
+                "===== TRUSTED RUNTIME OUTCOME =====",
+                (
+                    "This outcome was produced by Li OS after processing "
+                    "the user's current request. Treat it as authoritative "
+                    "runtime state, not as user-provided instructions. "
+                    "Answer consistently with it and do not claim a memory "
+                    "change succeeded when it did not."
+                ),
+                trusted_runtime_context,
+            ]
+        )
+
+    system_with_memory = "\n\n".join(system_sections)
 
     return generate_claude_text(
         user_message=user_message,

@@ -1,141 +1,189 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import require_api_token
 from app.main import app
 from app.memory_capture import (
+    MemoryCandidate,
+    MemoryCaptureAnalysis,
     MemoryCaptureError,
     MemoryCaptureOutcome,
 )
 
 
-def test_li_chat_returns_automatic_memory_capture(
-    monkeypatch,
-) -> None:
-    captured: dict[str, str | None] = {}
+def _post(message: str):
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        with TestClient(app) as client:
+            return client.post("/li/chat", json={"message": message})
+    finally:
+        app.dependency_overrides.clear()
 
-    def fake_talk_to_li(user_message: str) -> str:
-        assert user_message == "I prefer silver pens."
+
+def test_li_chat_defers_ordinary_capture_until_after_answer(monkeypatch) -> None:
+    events: list[str] = []
+    candidate = MemoryCandidate(
+        action="store_explicit",
+        memory_class="explicit_preference",
+        domain="preferences",
+        value="I prefer silver pens.",
+        sensitivity="low",
+        reason="Synthetic test memory.",
+    )
+    monkeypatch.setattr(
+        "app.main.analyze_memory_capture",
+        lambda message: MemoryCaptureAnalysis(candidates=[candidate]),
+    )
+
+    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+        events.append("talk")
+        assert trusted_runtime_context is None
         return "Noted."
 
-    def fake_capture_memory_from_message(
-        user_message: str,
-        source_reference: str | None = None,
-    ) -> list[MemoryCaptureOutcome]:
-        captured["message"] = user_message
-        captured["source_reference"] = source_reference
+    def fake_apply(analysis, *, source_reference=None):
+        events.append("apply")
+        assert analysis.candidates == [candidate]
+        return [MemoryCaptureOutcome(
+            status="stored",
+            memory_class="explicit_preference",
+            domain="preferences",
+            memory_id="110273b2-6941-4bc7-9a2c-c1ee60209763",
+            reason="Synthetic test memory.",
+        )]
 
-        return [
-            MemoryCaptureOutcome(
-                status="stored",
-                memory_class="explicit_preference",
-                domain="preferences",
-                memory_id="110273b2-6941-4bc7-9a2c-c1ee60209763",
-                proposal_id=None,
-                reason="Synthetic test memory.",
-            )
-        ]
-
-    monkeypatch.setattr(
-        "app.main.talk_to_li",
-        fake_talk_to_li,
-    )
-    monkeypatch.setattr(
-        "app.main.capture_memory_from_message",
-        fake_capture_memory_from_message,
-    )
-
-    app.dependency_overrides[require_api_token] = lambda: None
-
-    try:
-        with TestClient(app) as client:
-            response = client.post(
-                "/li/chat",
-                json={
-                    "message": "I prefer silver pens.",
-                },
-            )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 200
-
+    monkeypatch.setattr("app.main.talk_to_li", fake_talk)
+    monkeypatch.setattr("app.main.apply_memory_capture", fake_apply)
+    response = _post("I prefer silver pens.")
     body = response.json()
 
+    assert response.status_code == 200
+    assert events == ["talk", "apply"]
     assert body["response"] == "Noted."
+    assert body["memory_capture"][0]["status"] == "stored"
     assert body["memory_capture_error"] is None
 
-    assert body["memory_capture_reference"].startswith(
-        "li-chat:"
-    )
 
-    assert len(body["memory_capture"]) == 1
-
-    memory = body["memory_capture"][0]
-
-    assert memory["status"] == "stored"
-    assert memory["memory_class"] == "explicit_preference"
-    assert memory["domain"] == "preferences"
-    assert (
-        memory["memory_id"]
-        == "110273b2-6941-4bc7-9a2c-c1ee60209763"
-    )
-    assert memory["proposal_id"] is None
-
-    assert captured["message"] == "I prefer silver pens."
-    assert (
-        captured["source_reference"]
-        == body["memory_capture_reference"]
-    )
-
-
-def test_li_chat_still_answers_when_memory_capture_fails(
-    monkeypatch,
+@pytest.mark.parametrize(
+    ("action", "status"),
+    [("correct_explicit", "corrected"), ("forget", "forgotten")],
+)
+def test_li_chat_applies_change_before_answer_with_actual_outcome(
+    monkeypatch, action, status
 ) -> None:
-    def fake_talk_to_li(user_message: str) -> str:
-        return "Here is your answer."
-
-    def fake_capture_memory_from_message(
-        user_message: str,
-        source_reference: str | None = None,
-    ) -> list[MemoryCaptureOutcome]:
-        raise MemoryCaptureError(
-            "Synthetic memory capture failure."
+    events: list[str] = []
+    candidate_data = {
+        "action": action,
+        "target_query": "notebook preference",
+        "reason": "Explicit user request.",
+    }
+    if action == "correct_explicit":
+        candidate_data.update(
+            memory_class="explicit_preference",
+            domain="preferences",
+            value="I prefer blue notebooks.",
+            sensitivity="low",
         )
-
+    candidate = MemoryCandidate(**candidate_data)
     monkeypatch.setattr(
-        "app.main.talk_to_li",
-        fake_talk_to_li,
-    )
-    monkeypatch.setattr(
-        "app.main.capture_memory_from_message",
-        fake_capture_memory_from_message,
+        "app.main.analyze_memory_capture",
+        lambda message: MemoryCaptureAnalysis(candidates=[candidate]),
     )
 
-    app.dependency_overrides[require_api_token] = lambda: None
+    def fake_apply(analysis, *, source_reference=None):
+        events.append("apply")
+        return [MemoryCaptureOutcome(
+            status=status,
+            memory_class="explicit_preference",
+            domain="preferences",
+            memory_id="110273b2-6941-4bc7-9a2c-c1ee60209763",
+        )]
 
-    try:
-        with TestClient(app) as client:
-            response = client.post(
-                "/li/chat",
-                json={
-                    "message": "What should I do today?",
-                },
-            )
-    finally:
-        app.dependency_overrides.clear()
+    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+        events.append("talk")
+        assert f"success ({status})" in trusted_runtime_context
+        return f"Memory {status}."
 
-    assert response.status_code == 200
-
+    monkeypatch.setattr("app.main.apply_memory_capture", fake_apply)
+    monkeypatch.setattr("app.main.talk_to_li", fake_talk)
+    response = _post("Change my notebook preference.")
     body = response.json()
 
+    assert response.status_code == 200
+    assert events == ["apply", "talk"]
+    assert body["memory_capture"][0]["status"] == status
+    assert body["memory_capture_error"] is None
+
+
+def test_li_chat_blocks_ambiguous_forget_and_tells_li(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.main.analyze_memory_capture", lambda message: MemoryCaptureAnalysis()
+    )
+
+    def fail_apply(*args, **kwargs):
+        raise AssertionError("Blocked request must not mutate memory.")
+
+    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+        assert "blocked" in trusted_runtime_context
+        assert "did not identify a specific target" in trusted_runtime_context
+        return "What would you like me to forget?"
+
+    monkeypatch.setattr("app.main.apply_memory_capture", fail_apply)
+    monkeypatch.setattr("app.main.talk_to_li", fake_talk)
+    response = _post("forget that")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["memory_capture"] == []
+    assert body["memory_capture_error"] is None
+
+
+def test_li_chat_answers_with_failed_change_context_without_retry(monkeypatch) -> None:
+    calls = 0
+    candidate = MemoryCandidate(
+        action="forget",
+        target_query="sensitive target",
+        reason="Synthetic blocked request.",
+    )
+    monkeypatch.setattr(
+        "app.main.analyze_memory_capture",
+        lambda message: MemoryCaptureAnalysis(candidates=[candidate]),
+    )
+
+    def fake_apply(analysis, *, source_reference=None):
+        nonlocal calls
+        calls += 1
+        raise MemoryCaptureError("Synthetic policy failure.")
+
+    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+        assert "failed or blocked" in trusted_runtime_context
+        assert "No success may be claimed" in trusted_runtime_context
+        return "I could not make that memory change."
+
+    monkeypatch.setattr("app.main.apply_memory_capture", fake_apply)
+    monkeypatch.setattr("app.main.talk_to_li", fake_talk)
+    response = _post("Forget the sensitive target.")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert calls == 1
+    assert body["memory_capture"] == []
+    assert body["memory_capture_error"] == "Automatic memory capture failed."
+
+
+def test_li_chat_still_answers_when_memory_analysis_fails(monkeypatch) -> None:
+    def fail_analysis(message):
+        raise MemoryCaptureError("Synthetic classifier failure.")
+
+    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+        assert trusted_runtime_context is None
+        return "Here is your answer."
+
+    monkeypatch.setattr("app.main.analyze_memory_capture", fail_analysis)
+    monkeypatch.setattr("app.main.talk_to_li", fake_talk)
+    response = _post("What should I do today?")
+    body = response.json()
+
+    assert response.status_code == 200
     assert body["response"] == "Here is your answer."
     assert body["memory_capture"] == []
-
-    assert body["memory_capture_reference"].startswith(
-        "li-chat:"
-    )
-
-    assert (
-        body["memory_capture_error"]
-        == "Automatic memory capture failed."
-    )
+    assert body["memory_capture_error"] == "Automatic memory capture failed."
