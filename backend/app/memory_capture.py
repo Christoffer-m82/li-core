@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -215,6 +216,18 @@ Rules:
 """.strip()
 
 
+_AMBIGUOUS_BARE_FORGET_PATTERN = re.compile(
+    r"^\s*(?:please\s+)?(?:forget|don['’]?t\s+remember)\s+(?:that|it)\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _is_ambiguous_bare_forget(user_message: str) -> bool:
+    """Return true when a forget request has no target in this message."""
+
+    return bool(_AMBIGUOUS_BARE_FORGET_PATTERN.fullmatch(user_message))
+
+
 def _extract_json_object(response_text: str) -> str:
     """
     Extract the outer JSON object from a classifier response.
@@ -237,6 +250,9 @@ def analyze_memory_capture(
     """
     Analyze a user message without writing anything to memory.
     """
+
+    if _is_ambiguous_bare_forget(user_message):
+        return MemoryCaptureAnalysis()
 
     try:
         response_text = generate_claude_text(
@@ -306,6 +322,11 @@ def apply_memory_capture(
                 "explicit_opinion",
             }:
                 raise MemoryCaptureError("Automatic memory changes require explicit memory.")
+
+            if target.get("sensitivity") not in {"low", "personal"}:
+                raise MemoryCaptureError(
+                    "Sensitive memory changes require Theo review."
+                )
 
             if candidate.action == "forget":
                 try:
