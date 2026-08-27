@@ -22,7 +22,7 @@ def _memory(*, private_to_li: bool = False) -> dict[str, object]:
 def test_direct_route_does_not_call_specialist(monkeypatch) -> None:
     monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
     monkeypatch.setattr(
-        "app.li_runtime.delegate_to_nora",
+        "app.li_runtime.consult_specialists",
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must stay with Li")),
     )
     monkeypatch.setattr(
@@ -48,7 +48,8 @@ def test_nora_gets_bounded_context_and_li_synthesizes(monkeypatch) -> None:
                 "sources_needed": False,
                 "follow_up_questions": [],
             })
-        assert "NORA SPECIALIST ANALYSIS" in str(kwargs["system"])
+        assert "INTERNAL SPECIALIST ANALYSES" in str(kwargs["system"])
+        assert "Nora: Research, Intelligence & Decision Adviser" in str(kwargs["system"])
         assert "Prefer the reversible option." in str(kwargs["system"])
         return "I would choose the reversible option."
 
@@ -73,17 +74,47 @@ def test_private_memory_is_never_shared_with_nora(monkeypatch) -> None:
     )
     observed = {}
 
-    def fake_delegate(request):
+    def fake_consult(specialists, request):
         observed["request"] = request
         from app.specialist_runtime import NoraSpecialistResult
-        return NoraSpecialistResult(
-            recommendation="Use the available public criteria.",
-            confidence=0.5,
-            sources_needed=False,
-        )
 
-    monkeypatch.setattr("app.li_runtime.delegate_to_nora", fake_delegate)
+        return {
+            "nora": NoraSpecialistResult(
+                recommendation="Use the available public criteria.",
+                confidence=0.5,
+                sources_needed=False,
+            )
+        }
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", fake_consult)
     monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: "My answer.")
     talk_to_li("Ask Nora to recommend the best option for my priorities.")
     assert observed["request"].canonical_memory == []
 
+
+def test_li_synthesizes_multiple_specialists(monkeypatch) -> None:
+    from app.specialist_runtime import SpecialistResult
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    observed = {}
+
+    def fake_consult(specialists, request):
+        assert specialists == ["victor", "milo"]
+        return {
+            name: SpecialistResult(
+                recommendation=f"{name} view", confidence=0.7, sources_needed=True
+            )
+            for name in specialists
+        }
+
+    def fake_generate(**kwargs):
+        observed.update(kwargs)
+        return "A synthesized answer."
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", fake_consult)
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
+    response = talk_to_li("Consult Victor and Milo about this business travel decision.")
+    assert response == "A synthesized answer."
+    assert "victor view" in observed["system"]
+    assert "milo view" in observed["system"]
+    assert "Synthesize them in Li's voice" in observed["system"]
