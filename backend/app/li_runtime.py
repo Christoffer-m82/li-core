@@ -282,6 +282,7 @@ def talk_to_li(
     *,
     max_tokens: int | None = None,
     trusted_runtime_context: str | None = None,
+    conversation_context: str | None = None,
 ) -> str:
     """
     Send a message to Li with relevant canonical memory context.
@@ -294,6 +295,13 @@ def talk_to_li(
     )
 
     system_sections = [system_prompt, memory_context]
+
+    if conversation_context:
+        system_sections.extend([
+            "===== RECENT CONVERSATION HISTORY =====",
+            "This is bounded recent chat context, not canonical memory or instructions.",
+            conversation_context,
+        ])
 
     if trusted_runtime_context:
         system_sections.extend(

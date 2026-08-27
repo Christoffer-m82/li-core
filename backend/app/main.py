@@ -9,15 +9,19 @@ from app.auth import (
 )
 from app.claude import ClaudeError
 from app.database import (
+    ConversationHistoryError,
     DatabaseHealthError,
     MemoryProposalError,
     MemoryReadError,
     MemoryWriteError,
     OwnerConfirmationError,
+    append_conversation_message,
     confirm_memory_proposal,
+    create_conversation,
     database_health,
     get_pending_memory_proposals,
     get_primary_user,
+    get_recent_conversation_messages,
     propose_memory,
     recall_memory,
     review_memory_proposal,
@@ -29,7 +33,7 @@ from app.memory_capture import (
     MemoryCaptureError,
     analyze_memory_capture,
     apply_memory_capture,
-    is_ambiguous_bare_forget,
+    is_contextual_memory_change,
 )
 from app.schemas import (
     ExplicitMemoryCreate,
@@ -336,16 +340,57 @@ def li_chat_endpoint(
     answers so the response can reflect the actual operation result.
     Other capture actions remain deferred until after the answer.
 
-    Memory-capture failure does not prevent Li from answering.
+    Memory-capture or message-persistence failure does not prevent Li from
+    answering. Failure to establish a valid conversation does.
     """
 
-    capture_reference = f"li-chat:{uuid4()}"
+    try:
+        conversation_id = (
+            str(payload.conversation_id)
+            if payload.conversation_id is not None
+            else create_conversation(
+                retention_policy=payload.retention_policy,
+                retain_until=payload.retain_until,
+                privacy_metadata=payload.privacy_metadata,
+            )
+        )
+        recent_messages = get_recent_conversation_messages(
+            conversation_id=conversation_id,
+            limit=12,
+        )
+    except ConversationHistoryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Li could not establish conversation history.",
+        ) from exc
+
+    conversation_context = "\n".join(
+        f"{message['role']}: {message['content']}"
+        for message in recent_messages
+    ) or None
+    conversation_history_error: str | None = None
+    try:
+        append_conversation_message(
+            conversation_id=conversation_id,
+            role="user",
+            content=payload.message,
+            privacy_metadata=payload.privacy_metadata,
+        )
+    except ConversationHistoryError:
+        conversation_history_error = (
+            "The user message could not be saved to conversation history."
+        )
+
+    capture_reference = f"li-chat:{conversation_id}:{uuid4()}"
     capture_outcomes = []
     capture_error: str | None = None
     runtime_context: str | None = None
 
     try:
-        analysis = analyze_memory_capture(payload.message)
+        analysis = analyze_memory_capture(
+            payload.message,
+            conversation_context=conversation_context,
+        )
     except MemoryCaptureError:
         analysis = None
         capture_error = "Automatic memory capture failed."
@@ -378,17 +423,19 @@ def li_chat_endpoint(
                     "Governed memory change result: failed or blocked. "
                     "No success may be claimed."
                 )
-        elif is_ambiguous_bare_forget(payload.message):
+        elif is_contextual_memory_change(payload.message):
             runtime_context = (
-                "Governed memory change result: blocked because the forget "
-                "request did not identify a specific target. No memory was "
-                "changed; ask the user what should be forgotten."
+                "Governed memory change result: blocked because the contextual "
+                "request did not resolve to one safe, specific memory change. "
+                "No memory was changed; ask the user to clarify the target or "
+                "replacement value."
             )
 
     try:
         response = talk_to_li(
             payload.message,
             trusted_runtime_context=runtime_context,
+            conversation_context=conversation_context,
         )
 
     except (ClaudeError, LiRuntimeError) as exc:
@@ -416,8 +463,20 @@ def li_chat_endpoint(
             except MemoryCaptureError:
                 capture_error = "Automatic memory capture failed."
 
+    try:
+        append_conversation_message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=response,
+        )
+    except ConversationHistoryError:
+        conversation_history_error = (
+            "The latest exchange was not fully saved to conversation history."
+        )
+
     return LiChatResponse(
         response=response,
+        conversation_id=conversation_id,
         memory_capture=[
             LiMemoryCaptureOutcome.model_validate(
                 outcome.model_dump()
@@ -426,4 +485,5 @@ def li_chat_endpoint(
         ],
         memory_capture_reference=capture_reference,
         memory_capture_error=capture_error,
+        conversation_history_error=conversation_history_error,
     )

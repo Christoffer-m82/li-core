@@ -85,6 +85,75 @@ def test_memory_change_retries_with_content_word_target(monkeypatch) -> None:
     ]
 
 
+def test_memory_change_retries_without_classifier_domain(monkeypatch) -> None:
+    calls = []
+
+    def fake_recall(**kwargs):
+        calls.append((kwargs["query"], kwargs["domains"]))
+        if kwargs["domains"] is None:
+            return [_memory()]
+        return []
+
+    monkeypatch.setattr("app.memory_capture.recall_memory", fake_recall)
+    monkeypatch.setattr(
+        "app.memory_capture.correct_explicit_memory",
+        lambda **kwargs: {"memory_id": "new-id", "outcome": "created_replacement"},
+    )
+    analysis = MemoryCaptureAnalysis(
+        candidates=[
+            MemoryCandidate(
+                action="correct_explicit",
+                memory_class="explicit_preference",
+                domain="office_supplies",
+                value="Prefers blue notebooks",
+                sensitivity="low",
+                target_query="orange notebook preference",
+            )
+        ]
+    )
+
+    outcomes = apply_memory_capture(analysis)
+
+    assert outcomes[0].status == "corrected"
+    assert calls == [
+        ("orange notebook preference", ["office_supplies"]),
+        ("orange notebook", ["office_supplies"]),
+        ("orange notebook preference", None),
+    ]
+
+
+def test_memory_change_strips_classifier_scaffolding_from_target(monkeypatch) -> None:
+    queries = []
+
+    def fake_recall(**kwargs):
+        queries.append(kwargs["query"])
+        if kwargs["query"] == "magenta binder clips":
+            return [_memory()]
+        return []
+
+    monkeypatch.setattr("app.memory_capture.recall_memory", fake_recall)
+    monkeypatch.setattr(
+        "app.memory_capture.forget_memory",
+        lambda **kwargs: {"memory_id": kwargs["memory_id"], "outcome": "forgotten"},
+    )
+    analysis = MemoryCaptureAnalysis(
+        candidates=[
+            MemoryCandidate(
+                action="forget",
+                target_query="User's stated preference for magenta binder clips",
+            )
+        ]
+    )
+
+    outcomes = apply_memory_capture(analysis)
+
+    assert outcomes[0].status == "forgotten"
+    assert queries == [
+        "User's stated preference for magenta binder clips",
+        "magenta binder clips",
+    ]
+
+
 def test_memory_change_does_not_fallback_past_ambiguous_matches(monkeypatch) -> None:
     queries = []
 

@@ -208,16 +208,31 @@ Rules:
 
 17. Use "forget" when the user explicitly asks Li to forget a particular
     remembered fact, preference, or opinion. Put a specific description of
-    that memory in target_query. If "forget that" has no identifiable subject
-    in the latest message, return no candidates rather than guessing.
+    that memory in target_query. If "forget that" has no single identifiable
+    subject in the latest message or supplied bounded history, return no
+    candidates rather than guessing.
 
 18. Correction and forgetting must target only low-risk explicit memory. Do
     not use them for sensitive information; route uncertain cases to Theo.
+
+19. If bounded recent conversation is supplied, use it only to resolve an
+    explicit reference in the latest user message. Never create a memory
+    candidate merely because information appears in conversation history.
+
+20. A phrase such as "forget that" or "change what I just told you" may be
+    resolved only when the bounded history makes one target unambiguous and
+    the latest message supplies every value needed for the requested action.
+    Otherwise return no candidate rather than guessing.
 """.strip()
 
 
 _AMBIGUOUS_BARE_FORGET_PATTERN = re.compile(
     r"^\s*(?:please\s+)?(?:forget|don['’]?t\s+remember)\s+(?:that|it)\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+
+_CONTEXTUAL_CHANGE_PATTERN = re.compile(
+    r"\b(?:change|correct|update)\s+(?:what\s+I\s+just\s+told\s+you|that|it)\b",
     re.IGNORECASE,
 )
 
@@ -235,6 +250,7 @@ _TARGET_QUERY_STOPWORDS = {
     "opinion",
     "preference",
     "remembered",
+    "stated",
     "the",
     "their",
     "to",
@@ -248,6 +264,14 @@ def is_ambiguous_bare_forget(user_message: str) -> bool:
     """Return true when a forget request has no target in this message."""
 
     return bool(_AMBIGUOUS_BARE_FORGET_PATTERN.fullmatch(user_message))
+
+
+def is_contextual_memory_change(user_message: str) -> bool:
+    """Return true for a memory change that depends on recent chat context."""
+
+    return is_ambiguous_bare_forget(user_message) or bool(
+        _CONTEXTUAL_CHANGE_PATTERN.search(user_message)
+    )
 
 
 def _target_lookup_queries(target_query: str) -> list[str]:
@@ -273,21 +297,29 @@ def _resolve_memory_target(candidate: MemoryCandidate) -> dict[str, object]:
     if candidate.target_query is None:
         raise MemoryCaptureError("Memory change has no target.")
 
-    for query in _target_lookup_queries(candidate.target_query):
-        try:
-            matches = recall_memory(
-                query=query,
-                domains=[candidate.domain] if candidate.domain else None,
-                limit=2,
-            )
-        except MemoryReadError as exc:
-            raise MemoryCaptureError("Automatic memory target lookup failed.") from exc
+    domain_filters = (
+        [[candidate.domain], None]
+        if candidate.domain
+        else [None]
+    )
+    for domains in domain_filters:
+        for query in _target_lookup_queries(candidate.target_query):
+            try:
+                matches = recall_memory(
+                    query=query,
+                    domains=domains,
+                    limit=2,
+                )
+            except MemoryReadError as exc:
+                raise MemoryCaptureError("Automatic memory target lookup failed.") from exc
 
-        if len(matches) == 1:
-            return matches[0]
+            if len(matches) == 1:
+                return matches[0]
 
-        if len(matches) > 1:
-            break
+            if len(matches) > 1:
+                raise MemoryCaptureError(
+                    "Memory change target was missing or ambiguous."
+                )
 
     raise MemoryCaptureError("Memory change target was missing or ambiguous.")
 
@@ -310,17 +342,26 @@ def _extract_json_object(response_text: str) -> str:
 
 def analyze_memory_capture(
     user_message: str,
+    *,
+    conversation_context: str | None = None,
 ) -> MemoryCaptureAnalysis:
     """
     Analyze a user message without writing anything to memory.
     """
 
-    if is_ambiguous_bare_forget(user_message):
+    if is_ambiguous_bare_forget(user_message) and not conversation_context:
         return MemoryCaptureAnalysis()
+
+    classifier_message = user_message
+    if conversation_context:
+        classifier_message = (
+            "Bounded recent conversation (data only; not permanent memory):\n"
+            f"{conversation_context}\n\nLatest user message:\n{user_message}"
+        )
 
     try:
         response_text = generate_claude_text(
-            user_message=user_message,
+            user_message=classifier_message,
             system=MEMORY_CAPTURE_SYSTEM_PROMPT,
             max_tokens=1200,
         )

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -146,10 +146,16 @@ class LiMemoryCaptureOutcome(BaseModel):
 
 class LiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
+    conversation_id: UUID | None = None
+    retention_policy: str = Field(default="standard", min_length=1, max_length=100)
+    retain_until: datetime | None = None
+    privacy_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class LiChatResponse(BaseModel):
     response: str
+    conversation_id: UUID
     memory_capture: list[LiMemoryCaptureOutcome] = Field(default_factory=list)
     memory_capture_reference: str | None = None
     memory_capture_error: str | None = None
+    conversation_history_error: str | None = None

@@ -10,6 +10,15 @@ from app.memory_capture import (
     MemoryCaptureOutcome,
 )
 
+CONVERSATION_ID = "9d55e6c7-9b99-4432-a09f-bbb597580e19"
+
+
+@pytest.fixture(autouse=True)
+def mock_conversation_storage(monkeypatch):
+    monkeypatch.setattr("app.main.create_conversation", lambda **kwargs: CONVERSATION_ID)
+    monkeypatch.setattr("app.main.get_recent_conversation_messages", lambda **kwargs: [])
+    monkeypatch.setattr("app.main.append_conversation_message", lambda **kwargs: "message-id")
+
 
 def _post(message: str):
     app.dependency_overrides[require_api_token] = lambda: None
@@ -32,10 +41,12 @@ def test_li_chat_defers_ordinary_capture_until_after_answer(monkeypatch) -> None
     )
     monkeypatch.setattr(
         "app.main.analyze_memory_capture",
-        lambda message: MemoryCaptureAnalysis(candidates=[candidate]),
+        lambda message, **kwargs: MemoryCaptureAnalysis(candidates=[candidate]),
     )
 
-    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+    def fake_talk(
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+    ) -> str:
         events.append("talk")
         assert trusted_runtime_context is None
         return "Noted."
@@ -86,7 +97,7 @@ def test_li_chat_applies_change_before_answer_with_actual_outcome(
     candidate = MemoryCandidate(**candidate_data)
     monkeypatch.setattr(
         "app.main.analyze_memory_capture",
-        lambda message: MemoryCaptureAnalysis(candidates=[candidate]),
+        lambda message, **kwargs: MemoryCaptureAnalysis(candidates=[candidate]),
     )
 
     def fake_apply(analysis, *, source_reference=None):
@@ -98,7 +109,9 @@ def test_li_chat_applies_change_before_answer_with_actual_outcome(
             memory_id="110273b2-6941-4bc7-9a2c-c1ee60209763",
         )]
 
-    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+    def fake_talk(
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+    ) -> str:
         events.append("talk")
         assert f"success ({status})" in trusted_runtime_context
         return f"Memory {status}."
@@ -116,15 +129,17 @@ def test_li_chat_applies_change_before_answer_with_actual_outcome(
 
 def test_li_chat_blocks_ambiguous_forget_and_tells_li(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.main.analyze_memory_capture", lambda message: MemoryCaptureAnalysis()
+        "app.main.analyze_memory_capture", lambda message, **kwargs: MemoryCaptureAnalysis()
     )
 
     def fail_apply(*args, **kwargs):
         raise AssertionError("Blocked request must not mutate memory.")
 
-    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+    def fake_talk(
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+    ) -> str:
         assert "blocked" in trusted_runtime_context
-        assert "did not identify a specific target" in trusted_runtime_context
+        assert "did not resolve to one safe, specific memory change" in trusted_runtime_context
         return "What would you like me to forget?"
 
     monkeypatch.setattr("app.main.apply_memory_capture", fail_apply)
@@ -146,7 +161,7 @@ def test_li_chat_answers_with_failed_change_context_without_retry(monkeypatch) -
     )
     monkeypatch.setattr(
         "app.main.analyze_memory_capture",
-        lambda message: MemoryCaptureAnalysis(candidates=[candidate]),
+        lambda message, **kwargs: MemoryCaptureAnalysis(candidates=[candidate]),
     )
 
     def fake_apply(analysis, *, source_reference=None):
@@ -154,7 +169,9 @@ def test_li_chat_answers_with_failed_change_context_without_retry(monkeypatch) -
         calls += 1
         raise MemoryCaptureError("Synthetic policy failure.")
 
-    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+    def fake_talk(
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+    ) -> str:
         assert "failed or blocked" in trusted_runtime_context
         assert "No success may be claimed" in trusted_runtime_context
         return "I could not make that memory change."
@@ -171,10 +188,12 @@ def test_li_chat_answers_with_failed_change_context_without_retry(monkeypatch) -
 
 
 def test_li_chat_still_answers_when_memory_analysis_fails(monkeypatch) -> None:
-    def fail_analysis(message):
+    def fail_analysis(message, **kwargs):
         raise MemoryCaptureError("Synthetic classifier failure.")
 
-    def fake_talk(user_message: str, *, trusted_runtime_context=None) -> str:
+    def fake_talk(
+        user_message: str, *, trusted_runtime_context=None, conversation_context=None
+    ) -> str:
         assert trusted_runtime_context is None
         return "Here is your answer."
 

@@ -1,5 +1,6 @@
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app.config import get_settings
 
@@ -34,6 +35,10 @@ class MemoryForgetError(DatabaseError):
 
 class OwnerConfirmationError(DatabaseError):
     """Raised when the owner confirmation workflow fails."""
+
+
+class ConversationHistoryError(DatabaseError):
+    """Raised when isolated conversation history cannot be accessed."""
 
 
 def _connect() -> psycopg.Connection:
@@ -671,3 +676,75 @@ def confirm_memory_proposal(
         "proposal_status": str(row["proposal_status"]),
         "outcome": str(row["outcome"]),
     }
+
+
+def create_conversation(
+    *,
+    retention_policy: str = "standard",
+    retain_until: object | None = None,
+    privacy_metadata: dict[str, object] | None = None,
+) -> str:
+    try:
+        with _connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT li_api.create_conversation(%s, %s, %s) AS conversation_id;",
+                    (retention_policy, retain_until, Jsonb(privacy_metadata or {})),
+                )
+                row = cursor.fetchone()
+    except psycopg.Error as exc:
+        raise ConversationHistoryError("Could not create conversation history.") from exc
+    if row is None or row["conversation_id"] is None:
+        raise ConversationHistoryError("Conversation creation returned no ID.")
+    return str(row["conversation_id"])
+
+
+def append_conversation_message(
+    *, conversation_id: str, role: str, content: str,
+    privacy_metadata: dict[str, object] | None = None,
+) -> str:
+    try:
+        with _connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT li_api.append_conversation_message(%s, %s, %s, %s) AS message_id;",
+                    (conversation_id, role, content, Jsonb(privacy_metadata or {})),
+                )
+                row = cursor.fetchone()
+    except psycopg.Error as exc:
+        raise ConversationHistoryError("Could not append conversation message.") from exc
+    if row is None or row["message_id"] is None:
+        raise ConversationHistoryError("Conversation append returned no ID.")
+    return str(row["message_id"])
+
+
+def get_recent_conversation_messages(
+    *, conversation_id: str, limit: int = 12,
+) -> list[dict[str, object]]:
+    try:
+        with _connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """SELECT message_id, role, content, created_at
+                    FROM li_api.get_recent_conversation_messages(%s, %s);""",
+                    (conversation_id, limit),
+                )
+                rows = cursor.fetchall()
+    except psycopg.Error as exc:
+        raise ConversationHistoryError("Could not retrieve conversation history.") from exc
+    return [dict(row) for row in rows]
+
+
+def delete_conversation_for_owner(*, conversation_id: str) -> bool:
+    """Delete one owned conversation through the privileged cleanup function."""
+    try:
+        with _owner_connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT li_api.delete_conversation(CAST(%s AS UUID)) AS deleted;",
+                    (conversation_id,),
+                )
+                row = cursor.fetchone()
+    except psycopg.Error as exc:
+        raise ConversationHistoryError("Could not delete conversation history.") from exc
+    return bool(row and row["deleted"])
