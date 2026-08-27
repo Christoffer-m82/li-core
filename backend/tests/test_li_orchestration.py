@@ -240,9 +240,18 @@ def test_nora_research_is_executed_then_nora_is_reinvoked(monkeypatch) -> None:
     observed = {}
 
     def fake_nora(request, **kwargs):
-        assert request.research_evidence[0]["title"] == "Vendor release"
+        evidence = request.research_evidence[0]
+        assert evidence["title"] == "Vendor release"
+        assert evidence["identifier"] == "https://example.test/release"
+        assert evidence["source"] == "Vendor"
+        assert evidence["publication_date"] == "2026-08-20"
+        assert evidence["source_type"] == "primary"
+        assert evidence["retrieved_at"]
         return SpecialistResult(
-            recommendation="Choose A based on the current release.",
+            recommendation=(
+                "Choose A based on Vendor's current release "
+                "(https://example.test/release)."
+            ),
             findings=["Current price is 10."],
             confidence=0.8,
             sources_needed=False,
@@ -257,7 +266,7 @@ def test_nora_research_is_executed_then_nora_is_reinvoked(monkeypatch) -> None:
         "Ask Nora to research and compare these vendors.", research_provider=Provider()
     )
     assert response == "Choose A."
-    assert "Choose A based on the current release." in observed["system"]
+    assert "https://example.test/release" in observed["system"]
 
 
 def test_specialist_prompt_explicitly_denies_direct_tool_access(monkeypatch) -> None:

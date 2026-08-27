@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     claude_model: str = "claude-opus-5"
     claude_max_tokens: int = 2048
 
+    # Optional Li-owned live research provider
+    brave_search_api_key: SecretStr | None = None
+    brave_search_timeout_seconds: float = 10.0
+
     # Shared database settings
     db_host: str
     db_port: int = 5432

@@ -63,6 +63,28 @@ class UnavailableResearchProvider:
         raise ResearchProviderError("No live research provider is configured.")
 
 
+def configured_research_provider(settings: object) -> ResearchProvider:
+    """Build Li's provider without exposing credentials to specialists."""
+
+    secret = getattr(settings, "brave_search_api_key", None)
+    if secret is None:
+        return UnavailableResearchProvider()
+    api_key = secret.get_secret_value().strip()
+    if not api_key:
+        return UnavailableResearchProvider()
+
+    from app.brave_research import BraveSearchProvider
+
+    return BraveSearchProvider(
+        api_key,
+        timeout_seconds=getattr(settings, "brave_search_timeout_seconds", 10.0),
+    )
+
+
+def is_research_provider_available(provider: ResearchProvider) -> bool:
+    return not isinstance(provider, UnavailableResearchProvider)
+
+
 _INSTRUCTION_BLOCK = re.compile(
     r"(?im)^\s*(?:system|assistant|developer|tool|instruction|prompt)\s*:\s*.*$"
 )

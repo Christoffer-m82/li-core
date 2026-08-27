@@ -8,6 +8,7 @@ from app.auth import (
     require_theo_api_token,
 )
 from app.claude import ClaudeError
+from app.config import get_settings
 from app.database import (
     ConversationHistoryError,
     DatabaseHealthError,
@@ -35,6 +36,7 @@ from app.memory_capture import (
     apply_memory_capture,
     is_contextual_memory_change,
 )
+from app.research_runtime import configured_research_provider, is_research_provider_available
 from app.schemas import (
     ExplicitMemoryCreate,
     ExplicitMemoryCreated,
@@ -432,11 +434,14 @@ def li_chat_endpoint(
             )
 
     try:
-        response = talk_to_li(
-            payload.message,
-            trusted_runtime_context=runtime_context,
-            conversation_context=conversation_context,
-        )
+        provider = configured_research_provider(get_settings())
+        runtime_kwargs = {
+            "trusted_runtime_context": runtime_context,
+            "conversation_context": conversation_context,
+        }
+        if is_research_provider_available(provider):
+            runtime_kwargs["research_provider"] = provider
+        response = talk_to_li(payload.message, **runtime_kwargs)
 
     except (ClaudeError, LiRuntimeError) as exc:
         raise HTTPException(
