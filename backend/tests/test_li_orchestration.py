@@ -169,7 +169,7 @@ def test_all_specialists_failure_falls_back_to_direct_li_reasoning(monkeypatch) 
     assert "Answer using Li's own reasoning" in observed["system"]
 
 
-def test_nora_research_request_is_handed_to_li_without_execution(monkeypatch) -> None:
+def test_nora_research_request_total_failure_falls_back_transparently(monkeypatch) -> None:
     from app.specialist_runtime import (
         ResearchRequest,
         SpecialistConsultation,
@@ -202,4 +202,83 @@ def test_nora_research_request_is_handed_to_li_without_execution(monkeypatch) ->
     monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
     talk_to_li("Ask Nora to research and compare these vendors.")
     assert "Current vendor evidence" in observed["system"]
-    assert "no research has been executed" in observed["system"]
+    assert "Live research was unavailable" in observed["system"]
+
+
+def test_nora_research_is_executed_then_nora_is_reinvoked(monkeypatch) -> None:
+    from app.specialist_runtime import ResearchRequest, SpecialistConsultation, SpecialistResult
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *a, **k: SpecialistConsultation(results={
+            "nora": SpecialistResult(
+                recommendation="Research first.",
+                confidence=0.4,
+                sources_needed=True,
+                research_request=ResearchRequest(
+                    query="current vendor evidence",
+                    freshness_requirement="last 30 days",
+                    source_types=["primary"],
+                    rationale="Facts change.",
+                ),
+            )
+        }),
+    )
+
+    class Provider:
+        def search(self, request):
+            return [{
+                "title": "Vendor release",
+                "identifier": "https://example.test/release",
+                "source": "Vendor",
+                "publication_date": "2026-08-20",
+                "excerpt": "The current price is 10.",
+                "source_type": "primary",
+            }]
+
+    observed = {}
+
+    def fake_nora(request, **kwargs):
+        assert request.research_evidence[0]["title"] == "Vendor release"
+        return SpecialistResult(
+            recommendation="Choose A based on the current release.",
+            findings=["Current price is 10."],
+            confidence=0.8,
+            sources_needed=False,
+        )
+
+    monkeypatch.setattr("app.li_runtime.delegate_to_nora", fake_nora)
+    monkeypatch.setattr(
+        "app.li_runtime.generate_claude_text",
+        lambda **kwargs: observed.update(kwargs) or "Choose A.",
+    )
+    response = talk_to_li(
+        "Ask Nora to research and compare these vendors.", research_provider=Provider()
+    )
+    assert response == "Choose A."
+    assert "Choose A based on the current release." in observed["system"]
+
+
+def test_specialist_prompt_explicitly_denies_direct_tool_access(monkeypatch) -> None:
+    from app.specialist_runtime import SpecialistRequest, delegate_to_nora
+
+    observed = {}
+    payload = {
+        "recommendation": "Use supplied evidence only.",
+        "findings": [],
+        "confidence": 0.5,
+        "key_assumptions": [],
+        "sources_needed": False,
+        "follow_up_questions": [],
+        "research_request": None,
+    }
+
+    def fake_generate(**kwargs):
+        observed.update(kwargs)
+        return json.dumps(payload)
+
+    monkeypatch.setattr("app.specialist_runtime.generate_claude_text", fake_generate)
+    delegate_to_nora(SpecialistRequest(current_user_message="Analyze this."))
+    assert "You have no tools and no database access" in observed["system"]
+    assert "Li is the sole orchestrator" in observed["system"]
