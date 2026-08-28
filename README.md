@@ -1,6 +1,13 @@
 # li-core
 Core architecture, identity, orchestration rules and configuration for Li OS — my personal AI operating system.
 
+## Mobile web interface
+
+Phase 1 of the responsive, installable Li web interface lives in `frontend/`. It uses a
+server-side BFF so Cloud Run IAM credentials and the Li API token are never exposed to the
+browser. See `frontend/README.md` for the security model, local validation, and staging
+deployment instructions.
+
 ## Secure remote deployment
 
 The recommended production target is **Google Cloud Run** in `europe-west1` (Belgium),

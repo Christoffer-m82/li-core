@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0910" />
+    <meta name="description" content="Li — your private AI operating system." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/app.css" />
+    <title>Li OS</title>
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <div class="brand"><span class="brand-mark">Li</span><span>Li OS</span></div>
+        <nav>
+          <button class="nav-item active" data-view="home"><span>⌂</span>Home</button>
+          <button class="nav-item" data-view="chat"><span>✦</span>Chat</button>
+          <button class="nav-item" data-view="history"><span>◷</span>History</button>
+          <button class="nav-item" data-view="settings"><span>⚙</span>Settings</button>
+        </nav>
+        <div class="sidebar-footer"><span class="status-dot"></span><span id="connection-label">Checking Li…</span></div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div><p class="eyebrow">PERSONAL AI OPERATING SYSTEM</p><h1 id="page-title">Good evening, Christoffer</h1></div>
+          <button id="account-button" class="account-button" aria-label="Account menu">CM</button>
+        </header>
+
+        <section id="signed-out" class="auth-card hidden">
+          <span class="li-orb large">Li</span>
+          <h2>Your private space with Li</h2>
+          <p>Sign in with the approved Google account to continue. Your Li credentials stay on the server.</p>
+          <a class="primary-button" href="/auth/login">Continue with Google</a>
+        </section>
+
+        <div id="workspace" class="workspace hidden">
+          <section class="view active" data-view-panel="home">
+            <button class="li-card" id="start-chat">
+              <span class="li-orb">Li</span>
+              <span><strong>What can I help you with?</strong><small>Ask, plan, research, or think something through.</small></span>
+              <span class="arrow">→</span>
+            </button>
+            <div class="dashboard-grid">
+              <article class="panel"><div class="panel-heading"><span>Today</span><small>Calendar</small></div><p class="empty-title">Your day, at a glance</p><p class="muted">Calendar read-only overview will appear here.</p></article>
+              <article class="panel"><div class="panel-heading"><span>Tasks</span><small>Commitments</small></div><p class="empty-title">Nothing urgent</p><p class="muted">Task summaries will appear here as the dashboard grows.</p></article>
+              <article class="panel wide"><div class="panel-heading"><span>Recent activity</span><small>Across Li</small></div><div class="activity-row"><span class="activity-icon">✦</span><span><strong>Li is ready</strong><small>Chat and secure backend connection available</small></span><time>Now</time></div></article>
+            </div>
+          </section>
+
+          <section class="view chat-view" data-view-panel="chat">
+            <div id="messages" class="messages" aria-live="polite">
+              <div class="message assistant"><span class="li-orb tiny">Li</span><div><p>Hi Christoffer. What’s on your mind?</p><time>Now</time></div></div>
+            </div>
+            <form id="composer" class="composer">
+              <textarea id="message-input" rows="1" maxlength="10000" placeholder="Message Li…" aria-label="Message Li"></textarea>
+              <button type="submit" aria-label="Send message">↑</button>
+            </form>
+            <p class="composer-note">Li can make mistakes. Review important information.</p>
+          </section>
+
+          <section class="view" data-view-panel="history"><article class="panel empty-panel"><span class="empty-symbol">◷</span><h2>Conversation history</h2><p class="muted">Conversations from this session appear here. Server-backed browsing is coming next.</p><div id="history-list"></div></article></section>
+          <section class="view" data-view-panel="settings"><article class="panel settings-panel"><h2>Settings</h2><div class="setting-row"><span><strong>Agent status</strong><small>Li is the active assistant</small></span><span class="pill">Online</span></div><div class="setting-row"><span><strong>Personality</strong><small>Controls coming in a future phase</small></span><span class="muted">Default</span></div><div class="setting-row"><span><strong>Email actions</strong><small>Sending remains unavailable by design</small></span><span class="pill safe">Read only</span></div><button id="logout-button" class="secondary-button">Sign out</button></article></section>
+        </div>
+      </main>
+
+      <nav class="bottom-nav" aria-label="Mobile navigation">
+        <button class="nav-item active" data-view="home"><span>⌂</span><small>Home</small></button>
+        <button class="nav-item" data-view="chat"><span>✦</span><small>Chat</small></button>
+        <button class="nav-item" data-view="history"><span>◷</span><small>History</small></button>
+        <button class="nav-item" data-view="settings"><span>⚙</span><small>Settings</small></button>
+      </nav>
+    </div>
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>
+

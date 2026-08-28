@@ -1,0 +1,41 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: li-os-web
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "2"
+    spec:
+      serviceAccountName: li-os-web-runtime@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: IMAGE_URI
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LI_WEB_ENVIRONMENT
+              value: production
+            - name: LI_WEB_PUBLIC_ORIGIN
+              value: FRONTEND_URL
+            - name: LI_WEB_BACKEND_URL
+              value: https://li-os-7gyegrz7vq-ew.a.run.app
+            - name: LI_WEB_BACKEND_AUDIENCE
+              value: https://li-os-7gyegrz7vq-ew.a.run.app
+            - name: LI_WEB_ALLOWED_EMAIL
+              value: Christoffer.Mellden@gmail.com
+            - name: LI_WEB_LI_API_TOKEN
+              valueFrom:
+                secretKeyRef: { name: LI_OS_API_TOKEN, key: latest }
+            - name: LI_WEB_SESSION_SECRET
+              valueFrom:
+                secretKeyRef: { name: LI_WEB_SESSION_SECRET, key: latest }
+            - name: LI_WEB_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: LI_WEB_GOOGLE_CLIENT_ID, key: latest }
+            - name: LI_WEB_GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: LI_WEB_GOOGLE_CLIENT_SECRET, key: latest }
+
