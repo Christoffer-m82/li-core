@@ -59,6 +59,12 @@ from app.schemas import (
     RecalledMemory,
     TheoAutomatedReviewResult,
 )
+from app.task_runtime import (
+    DatabaseTaskProvider,
+    TaskActionEnvelope,
+    TaskActionOutcome,
+    execute_task_action,
+)
 from app.theo_runtime import TheoRuntimeError, process_next_memory_proposal
 
 APP_NAME = "Li OS Backend"
@@ -72,6 +78,7 @@ app = FastAPI(
 )
 
 app.state.calendar_provider = configured_calendar_provider(get_settings())
+app.state.task_provider = DatabaseTaskProvider()
 
 
 @app.get("/", tags=["system"])
@@ -346,6 +353,17 @@ def li_calendar_action_endpoint(
     """Execute a typed calendar action at Li's approval-enforcing boundary."""
 
     return execute_calendar_action(payload, app.state.calendar_provider)
+
+
+@app.post(
+    "/li/actions/tasks",
+    response_model=TaskActionOutcome,
+    tags=["li"],
+    dependencies=[Depends(require_api_token)],
+)
+def li_task_action_endpoint(payload: TaskActionEnvelope) -> TaskActionOutcome:
+    """Execute typed commitment actions at Li's approval-enforcing boundary."""
+    return execute_task_action(payload, app.state.task_provider)
 
 
 @app.post(

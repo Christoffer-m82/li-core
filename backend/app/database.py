@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -41,6 +43,10 @@ class ConversationHistoryError(DatabaseError):
     """Raised when isolated conversation history cannot be accessed."""
 
 
+class TaskStoreError(DatabaseError):
+    """Raised when Li's isolated commitment store cannot be accessed."""
+
+
 def _connect() -> psycopg.Connection:
     settings = get_settings()
 
@@ -69,6 +75,56 @@ def _owner_connect() -> psycopg.Connection:
         row_factory=dict_row,
         connect_timeout=10,
     )
+
+
+def _task_row(operation: str, parameters: tuple[object, ...]) -> dict[str, object]:
+    try:
+        with _connect() as connection, connection.cursor() as cursor:
+            placeholders = ", ".join(["%s"] * len(parameters))
+            cursor.execute(
+                f"SELECT * FROM li_api.{operation}({placeholders});",
+                parameters,
+            )
+            row = cursor.fetchone()
+    except psycopg.Error as exc:
+        raise TaskStoreError("Li OS task operation failed.") from exc
+    if row is None:
+        raise TaskStoreError("Li OS task operation returned no result.")
+    return dict(row)
+
+
+def create_task(
+    *,
+    title: str,
+    notes: str | None,
+    due_at: object | None,
+    timezone: str | None,
+    idempotency_key: str,
+) -> dict[str, object]:
+    return _task_row("create_task", (title, notes, due_at, timezone, idempotency_key))
+
+
+def list_open_tasks(
+    *, due_before: object | None, include_undated: bool, max_results: int
+) -> list[dict[str, object]]:
+    try:
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM li_api.list_open_tasks(%s, %s, %s);",
+                (due_before, include_undated, max_results),
+            )
+            rows = cursor.fetchall()
+    except psycopg.Error as exc:
+        raise TaskStoreError("Li OS task listing failed.") from exc
+    return [dict(row) for row in rows]
+
+
+def complete_task(*, task_id: str) -> dict[str, object]:
+    return _task_row("complete_task", (UUID(task_id),))
+
+
+def cancel_task(*, task_id: str) -> dict[str, object]:
+    return _task_row("cancel_task", (UUID(task_id),))
 
 
 def database_health() -> dict[str, str | int]:
