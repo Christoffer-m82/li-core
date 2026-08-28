@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "development"
     log_level: str = "INFO"
+    allowed_origins: list[str] = Field(default_factory=list)
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: int = 60
+    trust_proxy_headers: bool = False
 
     # Application authentication
     api_token: SecretStr
@@ -70,6 +74,46 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, value: object) -> object:
+        if isinstance(value, str) and not value.lstrip().startswith("["):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @model_validator(mode="after")
+    def validate_runtime_security(self) -> "Settings":
+        if self.environment.lower() != "production":
+            return self
+        if any(
+            len(secret.get_secret_value()) < 32
+            for secret in (self.api_token, self.theo_api_token, self.owner_api_token)
+        ):
+            raise ValueError("Production API tokens must contain at least 32 characters.")
+        if "*" in self.allowed_origins:
+            raise ValueError("Wildcard CORS is forbidden in production.")
+        if self.db_sslmode not in {"require", "verify-ca", "verify-full"}:
+            raise ValueError("Production database connections must require TLS.")
+        self._validate_optional_group(
+            "Google Calendar",
+            self.google_calendar_client_id,
+            self.google_calendar_client_secret,
+            self.google_calendar_refresh_token,
+        )
+        self._validate_optional_group(
+            "Google Gmail",
+            self.google_gmail_client_id,
+            self.google_gmail_client_secret,
+            self.google_gmail_refresh_token,
+        )
+        return self
+
+    @staticmethod
+    def _validate_optional_group(name: str, *values: SecretStr | None) -> None:
+        configured = [bool(value and value.get_secret_value().strip()) for value in values]
+        if any(configured) and not all(configured):
+            raise ValueError(f"{name} credentials must be configured as a complete set.")
 
     def database_connect_kwargs(self) -> dict[str, object]:
         return {

@@ -1,6 +1,7 @@
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import (
     require_api_token,
@@ -48,6 +49,7 @@ from app.memory_capture import (
     apply_memory_capture,
     is_contextual_memory_change,
 )
+from app.production import SecurityMiddleware, configure_logging
 from app.research_runtime import configured_research_provider, is_research_provider_available
 from app.schemas import (
     ExplicitMemoryCreate,
@@ -77,11 +79,34 @@ APP_NAME = "Li OS Backend"
 APP_VERSION = "0.1.0"
 
 
+settings = get_settings()
+configure_logging(settings.log_level)
+
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
     description="Private backend and orchestration service for Li OS.",
+    debug=False,
+    docs_url=None if settings.environment.lower() == "production" else "/docs",
+    redoc_url=None if settings.environment.lower() == "production" else "/redoc",
+    openapi_url=None if settings.environment.lower() == "production" else "/openapi.json",
 )
+
+app.add_middleware(
+    SecurityMiddleware,
+    requests=settings.rate_limit_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+    trust_proxy_headers=settings.trust_proxy_headers,
+)
+if settings.allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        max_age=600,
+    )
 
 app.state.calendar_provider = configured_calendar_provider(get_settings())
 app.state.email_provider = configured_email_provider(get_settings())
@@ -103,6 +128,26 @@ async def health() -> dict[str, str]:
         "status": "ok",
         "service": APP_NAME,
         "version": APP_VERSION,
+    }
+
+
+@app.get("/ready", tags=["system"], dependencies=[Depends(require_api_token)])
+def readiness() -> dict[str, object]:
+    """Report core readiness and optional-provider availability without secret details."""
+    try:
+        database_health()
+    except DatabaseHealthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Li OS is not ready.",
+        ) from exc
+    return {
+        "status": "ready",
+        "providers": {
+            "research": is_research_provider_available(configured_research_provider(settings)),
+            "calendar": app.state.calendar_provider.__class__.__name__ != "UnavailableCalendarProvider",
+            "gmail": app.state.email_provider.__class__.__name__ != "UnavailableEmailProvider",
+        },
     }
 
 
