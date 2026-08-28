@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.email_runtime import EmailActionEnvelope, EmailActionOutcome
+
 ExplicitMemoryClass = Literal[
     "explicit_fact",
     "explicit_preference",
@@ -146,6 +148,7 @@ class LiMemoryCaptureOutcome(BaseModel):
 
 class LiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
+    email_action: EmailActionEnvelope | None = None
     conversation_id: UUID | None = None
     retention_policy: str = Field(default="standard", min_length=1, max_length=100)
     retain_until: datetime | None = None
@@ -159,3 +162,4 @@ class LiChatResponse(BaseModel):
     memory_capture_reference: str | None = None
     memory_capture_error: str | None = None
     conversation_history_error: str | None = None
+    email_action: EmailActionOutcome | None = None

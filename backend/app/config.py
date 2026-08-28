@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     google_calendar_id: str = "primary"
     google_calendar_timeout_seconds: float = 10.0
 
+    # Optional Li-owned Gmail OAuth provider. Read/search requires gmail.readonly;
+    # draft creation additionally requires gmail.compose. Sending is not exposed.
+    google_gmail_client_id: SecretStr | None = None
+    google_gmail_client_secret: SecretStr | None = None
+    google_gmail_refresh_token: SecretStr | None = None
+    google_gmail_user_id: str = "me"
+    google_gmail_timeout_seconds: float = 10.0
+
     # Shared database settings
     db_host: str
     db_port: int = 5432
