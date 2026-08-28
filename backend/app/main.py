@@ -77,13 +77,14 @@ from app.schemas import (
     RetentionUpdate,
     AgentSettingsUpdate,
     AgentActionReview,
+    AgentExecutionConfirmation,
 )
 from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages, expired_artifacts,
     finalize_artifact, get_artifact, get_privacy_settings, list_conversations,
     list_interactions, mark_expired, reserve_artifact, set_retention, analytics_events,
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
-    review_agent_recommendation, agent_states,
+    review_agent_recommendation, execute_agent_recommendation, agent_states,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -351,6 +352,20 @@ def review_agent_action(recommendation_id: UUID, payload: AgentActionReview) -> 
                 "message": "Permanent registry changes use the controlled governance executor and are not applied by this API."}
     except RuntimeDataError as exc:
         raise HTTPException(status_code=404, detail="Recommendation not found.") from exc
+
+
+@app.post("/owner/agents/recommendations/{recommendation_id}/execute",
+          dependencies=[Depends(require_owner_api_token)], tags=["owner"])
+def execute_agent_action(recommendation_id: UUID,
+                         payload: AgentExecutionConfirmation) -> dict[str, object]:
+    try:
+        result = execute_agent_recommendation(str(recommendation_id), str(payload.idempotency_key),
+                                              payload.confirmation, payload.note)
+        if result.get("outcome") == "failed":
+            result = {**result, "error": "Execution failed safely; details are in the private audit trail."}
+        return result
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Agent recommendation could not be executed safely.") from exc
 
 
 @app.get("/conversations", dependencies=[Depends(require_api_token)])

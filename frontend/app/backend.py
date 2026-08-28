@@ -26,9 +26,13 @@ async def request_backend(
     path: str,
     *,
     json_body: dict | None = None,
+    authority: str = "li",
 ) -> httpx.Response:
+    if authority not in {"li", "owner"}:
+        raise ValueError("Unsupported backend authority.")
+    token = settings.owner_api_token if authority == "owner" else settings.li_api_token
     headers = {
-        "Authorization": f"Bearer {settings.li_api_token.get_secret_value()}",
+        "Authorization": f"Bearer {token.get_secret_value()}",
         "X-Serverless-Authorization": (
             f"Bearer {cloud_run_identity_token(settings.backend_audience)}"
         ),
@@ -40,4 +44,3 @@ async def request_backend(
             headers=headers,
             json=json_body,
         )
-

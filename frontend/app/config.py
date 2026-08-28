@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     backend_url: str = "https://li-os-7gyegrz7vq-ew.a.run.app"
     backend_audience: str = "https://li-os-7gyegrz7vq-ew.a.run.app"
     li_api_token: SecretStr = SecretStr("development-token")
+    owner_api_token: SecretStr = SecretStr("development-owner-token")
     session_secret: SecretStr = SecretStr("development-session-secret-change-me")
     google_client_id: str = ""
     google_client_secret: SecretStr = SecretStr("")
@@ -26,4 +27,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

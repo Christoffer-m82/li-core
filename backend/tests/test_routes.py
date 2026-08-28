@@ -13,6 +13,7 @@ EXPECTED_ROUTES = {
     ("POST", "/theo/memory/proposals/{proposal_id}/review"),
     ("POST", "/theo/memory/proposals/process-next"),
     ("POST", "/owner/memory/proposals/{proposal_id}/confirm"),
+    ("POST", "/owner/agents/recommendations/{recommendation_id}/execute"),
     ("POST", "/li/chat"),
     ("POST", "/artifacts/uploads"),
     ("POST", "/artifacts/generated"),

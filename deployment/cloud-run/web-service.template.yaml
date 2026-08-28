@@ -29,6 +29,9 @@ spec:
             - name: LI_WEB_LI_API_TOKEN
               valueFrom:
                 secretKeyRef: { name: LI_OS_API_TOKEN, key: latest }
+            - name: LI_WEB_OWNER_API_TOKEN
+              valueFrom:
+                secretKeyRef: { name: LI_OS_OWNER_API_TOKEN, key: latest }
             - name: LI_WEB_SESSION_SECRET
               valueFrom:
                 secretKeyRef: { name: LI_WEB_SESSION_SECRET, key: latest }
@@ -38,4 +41,3 @@ spec:
             - name: LI_WEB_GOOGLE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef: { name: LI_WEB_GOOGLE_CLIENT_SECRET, key: latest }
-

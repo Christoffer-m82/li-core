@@ -27,6 +27,18 @@ def _call(name: str, params: tuple[object, ...] = ()) -> list[dict[str, object]]
         raise RuntimeDataError(f"Runtime data operation {name} failed.") from exc
 
 
+def _owner_call(name: str, params: tuple[object, ...]) -> list[dict[str, object]]:
+    settings = get_settings()
+    placeholders = ",".join(["%s"] * len(params))
+    try:
+        with psycopg.connect(**settings.owner_database_connect_kwargs(), row_factory=dict_row) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(f"SELECT * FROM li_api.{name}({placeholders});", params)
+                return [dict(row) for row in cursor.fetchall()]
+    except psycopg.Error as exc:
+        raise RuntimeDataError(f"Owner runtime operation {name} failed.") from exc
+
+
 def get_privacy_settings() -> dict[str, object]:
     rows = _call("get_privacy_settings")
     if not rows:
@@ -116,6 +128,16 @@ def review_agent_recommendation(recommendation_id: str, decision: str) -> dict[s
     rows = _call("review_agent_recommendation", (UUID(recommendation_id), decision))
     if not rows:
         raise RuntimeDataError("Recommendation was not found.")
+    return rows[0]
+
+
+def execute_agent_recommendation(recommendation_id: str, idempotency_key: str,
+                                 confirmation: str, note: str | None) -> dict[str, object]:
+    rows = _owner_call("execute_agent_recommendation", (
+        UUID(recommendation_id), UUID(idempotency_key), confirmation, note,
+    ))
+    if not rows:
+        raise RuntimeDataError("Agent recommendation execution returned no result.")
     return rows[0]
 
 

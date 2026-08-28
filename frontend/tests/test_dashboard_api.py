@@ -125,3 +125,16 @@ def test_agent_analytics_bff_proxy(monkeypatch):
     response = signed_in_client().get("/api/agents/analytics?period=90d")
     assert response.status_code == 200
     assert response.json()["period"] == "90d"
+
+
+def test_agent_execution_uses_owner_boundary(monkeypatch):
+    observed = {}
+    async def backend(*args, **kwargs):
+        observed.update(path=args[2], authority=kwargs.get("authority"))
+        return httpx.Response(200, json={"outcome": "no_op"})
+    monkeypatch.setattr("app.main.request_backend", backend)
+    rec_id, key = "d7d0fbbb-d650-4ec3-a053-f5e6022267da", "6e12f41d-c909-4353-9435-e0d4779cfa43"
+    response = signed_in_client().post(f"/api/agents/recommendations/{rec_id}/execute", json={
+        "confirmation": "confirm_permanent_agent_change", "idempotency_key": key})
+    assert response.status_code == 200
+    assert observed == {"path": f"/owner/agents/recommendations/{rec_id}/execute", "authority": "owner"}

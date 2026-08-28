@@ -192,3 +192,9 @@ class AgentSettingsUpdate(BaseModel):
 
 class AgentActionReview(BaseModel):
     decision: Literal["approve", "reject"]
+
+
+class AgentExecutionConfirmation(BaseModel):
+    confirmation: Literal["confirm_permanent_agent_change"]
+    idempotency_key: UUID
+    note: str | None = Field(default=None, max_length=2000)

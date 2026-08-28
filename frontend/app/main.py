@@ -294,6 +294,18 @@ async def agent_recommendation_review(recommendation_id: str, request: Request,
                        json_body=await request.json())
 
 
+@app.post("/api/agents/recommendations/{recommendation_id}/execute")
+async def agent_recommendation_execute(recommendation_id: str, request: Request,
+                                       _: str = Depends(require_user)) -> Response:
+    try:
+        from uuid import UUID
+        UUID(recommendation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid recommendation identifier.")
+    return await proxy("POST", f"/owner/agents/recommendations/{recommendation_id}/execute",
+                       json_body=await request.json(), authority="owner")
+
+
 @app.get("/api/conversations/{conversation_id}")
 async def conversation(conversation_id: str, _: str = Depends(require_user)) -> Response:
     return await proxy("GET", f"/conversations/{conversation_id}")
@@ -309,9 +321,11 @@ async def update_privacy_settings(request: Request, _: str = Depends(require_use
     return await proxy("POST", "/privacy/settings", json_body=await request.json())
 
 
-async def proxy(method: str, path: str, json_body: dict | None = None) -> Response:
+async def proxy(method: str, path: str, json_body: dict | None = None,
+                authority: str = "li") -> Response:
     try:
-        upstream = await request_backend(settings, method, path, json_body=json_body)
+        upstream = await request_backend(settings, method, path, json_body=json_body,
+                                         authority=authority)
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Li is temporarily unreachable.") from exc
     content_type = upstream.headers.get("content-type", "application/json")
