@@ -11,6 +11,8 @@ WORKDIR /app
 COPY backend/pyproject.toml ./
 COPY backend/app ./app
 COPY agents /agents
+COPY CONSTITUTION.md /CONSTITUTION.md
+COPY li /li
 RUN pip install --upgrade pip && pip install .
 
 USER li
