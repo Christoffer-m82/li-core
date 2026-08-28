@@ -2,8 +2,8 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -32,9 +32,38 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None
 
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+ALLOWED_UPLOAD_TYPES = {
+    "application/pdf", "text/plain", "text/markdown", "text/csv",
+    "application/json", "image/png", "image/jpeg", "image/webp",
+}
+SPECIALISTS = (
+    {"id": "sofia", "name": "Sofia", "role": "Health & medical", "initials": "SO"},
+    {"id": "marco", "name": "Marco", "role": "Fitness & performance", "initials": "MA"},
+    {"id": "elena", "name": "Elena", "role": "Nutrition, food & drink", "initials": "EL"},
+    {"id": "amelia", "name": "Amelia", "role": "Relationships & social", "initials": "AM"},
+    {"id": "freja", "name": "Freja", "role": "Parenting & family", "initials": "FR"},
+    {"id": "oliver", "name": "Oliver", "role": "Legal & regulatory", "initials": "OL"},
+    {"id": "james", "name": "James", "role": "Finance & wealth", "initials": "JA"},
+    {"id": "nora", "name": "Nora", "role": "Research & evidence", "initials": "NO"},
+    {"id": "victor", "name": "Victor", "role": "Strategy & decisions", "initials": "VI"},
+    {"id": "milo", "name": "Milo", "role": "Travel & experiences", "initials": "MI"},
+    {"id": "iris", "name": "Iris", "role": "Home, design & garden", "initials": "IR"},
+    {"id": "clara", "name": "Clara", "role": "Wellbeing & habits", "initials": "CL"},
+)
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    response = await call_next(request)
+    content_length = request.headers.get("content-length")
+    if (
+        request.url.path == "/api/uploads"
+        and content_length
+        and int(content_length) > MAX_UPLOAD_BYTES + 256 * 1024
+    ):
+        response = JSONResponse(status_code=413, content={"detail": "Files must be 10 MB or smaller."})
+    else:
+        response = await call_next(request)
     response.headers.update(
         {
             "Cache-Control": "no-store",
@@ -46,7 +75,7 @@ async def security_headers(request: Request, call_next):
             "Referrer-Policy": "no-referrer",
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
-            "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)",
         }
     )
     return response
@@ -157,6 +186,64 @@ async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response
     return await proxy("POST", "/li/chat", json_body=body)
 
 
+@app.post("/api/uploads")
+async def upload_for_chat(
+    file: UploadFile = File(...), _: str = Depends(require_user)
+) -> Response:
+    """Validate and discard an upload until Li has a governed ingestion boundary."""
+    filename = Path(file.filename or "").name
+    if not filename or filename != (file.filename or ""):
+        await file.close()
+        raise HTTPException(status_code=400, detail="The filename is invalid.")
+    if file.content_type not in ALLOWED_UPLOAD_TYPES:
+        await file.close()
+        raise HTTPException(status_code=415, detail="This file type is not supported.")
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    await file.close()
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Files must be 10 MB or smaller.")
+    return JSONResponse(
+        status_code=501,
+        content={
+            "detail": "File analysis is not enabled yet. The file was validated and discarded.",
+            "filename": filename,
+            "content_type": file.content_type,
+            "retained": False,
+        },
+    )
+
+
+@app.get("/api/artifacts/{artifact_id}")
+async def download_artifact(artifact_id: str, _: str = Depends(require_user)) -> Response:
+    if not artifact_id.isalnum() or len(artifact_id) > 80:
+        raise HTTPException(status_code=400, detail="Invalid artifact identifier.")
+    raise HTTPException(status_code=404, detail="No such Li artifact exists.")
+
+
+@app.get("/api/specialists")
+def specialists(_: str = Depends(require_user)) -> dict[str, object]:
+    return {
+        "specialists": [dict(item, active=False, status="Available") for item in SPECIALISTS],
+        "live_events_available": False,
+    }
+
+
+@app.get("/api/specialists/{specialist_id}/interactions")
+def specialist_interactions(
+    specialist_id: str, _: str = Depends(require_user)
+) -> dict[str, object]:
+    specialist = next((item for item in SPECIALISTS if item["id"] == specialist_id), None)
+    if specialist is None:
+        raise HTTPException(status_code=404, detail="Specialist not found.")
+    return {
+        "specialist": specialist,
+        "active": False,
+        "interactions": [],
+        "live_events_available": False,
+        "message": "Live and historical specialist events are not exposed by orchestration yet.",
+    }
+
+
 async def proxy(method: str, path: str, json_body: dict | None = None) -> Response:
     try:
         upstream = await request_backend(settings, method, path, json_body=json_body)
@@ -174,6 +261,12 @@ def manifest() -> FileResponse:
 @app.get("/sw.js", include_in_schema=False)
 def service_worker() -> FileResponse:
     return FileResponse(STATIC_DIR / "sw.js", media_type="application/javascript")
+
+
+@app.api_route("/api/{path:path}", methods=["GET", "POST"], include_in_schema=False)
+def unknown_api(path: str) -> Response:
+    del path
+    raise HTTPException(status_code=404, detail="API route not found.")
 
 
 @app.get("/{path:path}", include_in_schema=False)

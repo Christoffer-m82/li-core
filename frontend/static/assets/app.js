@@ -1,69 +1,32 @@
-const state = { conversationId: null, history: [], signedIn: false, sending: false };
+const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], theme: localStorage.getItem('li-theme') || 'dark' };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
 
-function setView(view) {
-  $$('.view').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view));
-  $$('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
-  const labels = { home: 'Good evening, Christoffer', chat: 'Talk with Li', history: 'Conversation history', settings: 'Settings' };
-  $('#page-title').textContent = labels[view];
-  if (view === 'chat') setTimeout(() => $('#message-input').focus(), 100);
-}
+function greeting() { const hour = new Date().getHours(); return `Good ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, Christoffer`; }
+function setView(view) { $$('.view').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view)); $$('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view)); $('#page-title').textContent = { home: greeting(), history: 'Conversation history', settings: 'Settings', specialist: 'Specialist activity' }[view]; if (view === 'home') setTimeout(() => $('#message-input').focus(), 100); }
+function setLiState(mode, intensity = 1) { const orb = $('#li-orb'); if (!orb) return; orb.dataset.liState = mode; orb.style.setProperty('--thinking-intensity', Math.max(0.35, Math.min(intensity, 1))); orb.setAttribute('aria-label', `Li is ${mode}`); $('#li-state-label').textContent = { idle: 'Here with you', listening: 'Listening…', thinking: 'Thinking…' }[mode]; }
 
-function addMessage(role, text, temporary = false) {
-  const row = document.createElement('div');
-  row.className = `message ${role}${temporary ? ' typing' : ''}`;
-  if (role === 'assistant') {
-    const orb = document.createElement('span'); orb.className = 'li-orb tiny'; orb.textContent = 'Li'; row.appendChild(orb);
-  }
-  const content = document.createElement('div');
-  const body = document.createElement('p'); body.textContent = text;
-  const time = document.createElement('time'); time.textContent = 'Now';
-  content.append(body, time); row.appendChild(content); $('#messages').appendChild(row);
-  row.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  return row;
-}
+function attachmentChip(attachment) { const link = document.createElement(attachment.url ? 'a' : 'span'); link.className = 'chat-attachment'; link.textContent = `↧ ${attachment.filename}`; if (attachment.url) { link.href = attachment.url; link.download = attachment.filename; } return link; }
+function addMessage(role, text, options = {}) { const row = document.createElement('div'); row.className = `message ${role}${options.temporary ? ' typing' : ''}`; if (role === 'assistant') { const avatar = document.createElement('span'); avatar.className = 'mini-avatar'; avatar.textContent = 'Li'; row.appendChild(avatar); } const content = document.createElement('div'); if (text) { const body = document.createElement('p'); body.textContent = text; content.appendChild(body); } (options.attachments || []).forEach((item) => content.appendChild(attachmentChip(item))); const time = document.createElement('time'); time.textContent = 'Now'; content.appendChild(time); row.appendChild(content); $('#messages').appendChild(row); $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' }); return row; }
 
-async function loadSession() {
-  try {
-    const response = await fetch('/api/session');
-    state.signedIn = response.ok;
-  } catch { state.signedIn = false; }
-  $('#signed-out').classList.toggle('hidden', state.signedIn);
-  $('#workspace').classList.toggle('hidden', !state.signedIn);
-  if (!state.signedIn) { $('#connection-label').textContent = 'Sign in required'; return; }
-  try {
-    const ready = await fetch('/api/ready');
-    $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention';
-  } catch { $('#connection-label').textContent = 'Li is unreachable'; }
-}
+async function loadSession() { try { state.signedIn = (await fetch('/api/session')).ok; } catch { state.signedIn = false; } $('#signed-out').classList.toggle('hidden', state.signedIn); $('#workspace').classList.toggle('hidden', !state.signedIn); if (!state.signedIn) { $('#connection-label').textContent = 'Sign in required'; return; } try { const ready = await fetch('/api/ready'); $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention'; } catch { $('#connection-label').textContent = 'Li is unreachable'; } await loadSpecialists(); }
 
-async function sendMessage(message) {
-  if (state.sending) return;
-  state.sending = true; addMessage('user', message); state.history.push(message);
-  const pending = addMessage('assistant', 'Thinking…', true);
-  $('#message-input').value = ''; $('#composer button').disabled = true;
-  try {
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, conversation_id: state.conversationId }) });
-    if (response.status === 401) { await loadSession(); throw new Error('Your session has expired. Please sign in again.'); }
-    if (!response.ok) throw new Error('Li could not respond just now. Please try again.');
-    const data = await response.json(); state.conversationId = data.conversation_id; pending.remove(); addMessage('assistant', data.response); renderHistory();
-  } catch (error) { pending.remove(); addMessage('assistant', error.message || 'Something went wrong.'); }
-  finally { state.sending = false; $('#composer button').disabled = false; $('#message-input').focus(); }
-}
+async function sendMessage(message) { if (state.sending) return; state.sending = true; addMessage('user', message); state.history.push({ role: 'user', text: message }); setLiState('thinking', 0.75); const pending = addMessage('assistant', 'Thinking…', { temporary: true }); $('#message-input').value = ''; $('.send-button').disabled = true; try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, conversation_id: state.conversationId }) }); if (response.status === 401) { await loadSession(); throw new Error('Your session has expired. Please sign in again.'); } if (!response.ok) throw new Error('Li could not respond just now. Please try again.'); const data = await response.json(); state.conversationId = data.conversation_id; pending.remove(); addMessage('assistant', data.response, { attachments: data.artifacts || [] }); state.history.push({ role: 'assistant', text: data.response }); renderHistory(); } catch (error) { pending.remove(); addMessage('assistant', error.message || 'Something went wrong.'); } finally { state.sending = false; $('.send-button').disabled = false; setLiState('idle'); $('#message-input').focus(); } }
 
-function renderHistory() {
-  const list = $('#history-list'); list.replaceChildren();
-  state.history.slice().reverse().forEach((message) => { const p = document.createElement('p'); p.className = 'muted'; p.textContent = message; list.appendChild(p); });
-}
+async function handleFile(file) { const tray = $('#attachment-tray'); tray.classList.remove('hidden'); tray.replaceChildren(); const chip = document.createElement('span'); chip.className = 'upload-chip pending'; chip.textContent = `${file.name} · checking…`; tray.appendChild(chip); const form = new FormData(); form.append('file', file); try { const response = await fetch('/api/uploads', { method: 'POST', body: form }); const data = await response.json(); chip.classList.remove('pending'); chip.classList.add(response.ok ? 'ready' : 'unavailable'); chip.textContent = response.ok ? `${file.name} · ready` : `${file.name} · ${data.detail || 'could not be attached'}`; } catch { chip.className = 'upload-chip unavailable'; chip.textContent = `${file.name} · upload unavailable`; } }
+
+function renderSpecialists() { const list = $('#specialist-list'); list.replaceChildren(); const sorted = [...state.specialists].sort((a, b) => Number(b.active) - Number(a.active)); sorted.forEach((item) => { const button = document.createElement('button'); button.className = `specialist-card${item.active ? ' active' : ''}`; button.dataset.specialistId = item.id; const avatar = document.createElement('span'); avatar.className = 'specialist-avatar'; avatar.textContent = item.initials; const copy = document.createElement('span'); const name = document.createElement('strong'); name.textContent = item.name; const role = document.createElement('small'); role.textContent = item.role; copy.append(name, role); const status = document.createElement('span'); status.className = 'specialist-status'; status.textContent = item.status; button.append(avatar, copy, status); button.addEventListener('click', () => openSpecialist(item)); list.appendChild(button); }); $('#specialist-count').textContent = `${sorted.filter((item) => item.active).length} active`; }
+async function loadSpecialists() { try { const response = await fetch('/api/specialists'); if (!response.ok) throw new Error(); state.specialists = (await response.json()).specialists; } catch { state.specialists = []; } renderSpecialists(); }
+async function openSpecialist(item) { setView('specialist'); const heading = $('#specialist-detail-heading'); heading.replaceChildren(); const title = document.createElement('h2'); title.textContent = item.name; const role = document.createElement('p'); role.className = 'muted'; role.textContent = `${item.role} · adviser to Li`; heading.append(title, role); const list = $('#specialist-interactions'); list.replaceChildren(); const loading = document.createElement('p'); loading.className = 'muted'; loading.textContent = 'Loading real interaction history…'; list.appendChild(loading); try { const response = await fetch(`/api/specialists/${encodeURIComponent(item.id)}/interactions`); const data = await response.json(); list.replaceChildren(); if (!data.interactions.length) { const empty = document.createElement('div'); empty.className = 'detail-empty'; const h = document.createElement('h3'); h.textContent = 'No recorded conversations yet'; const p = document.createElement('p'); p.textContent = data.message; empty.append(h, p); list.appendChild(empty); return; } data.interactions.forEach((entry) => addSpecialistInteraction(list, entry)); } catch { loading.textContent = 'Specialist history is unavailable right now.'; } }
+function addSpecialistInteraction(list, entry) { const row = document.createElement('article'); row.className = 'interaction'; const title = document.createElement('strong'); title.textContent = entry.title; const summary = document.createElement('p'); summary.textContent = entry.summary; row.append(title, summary); list.appendChild(row); }
+function renderHistory() { const list = $('#history-list'); list.replaceChildren(); state.history.forEach((entry) => { const item = document.createElement('div'); item.className = `history-item ${entry.role}`; const label = document.createElement('strong'); label.textContent = entry.role === 'user' ? 'You' : 'Li'; const text = document.createElement('p'); text.textContent = entry.text; item.append(label, text); list.appendChild(item); }); }
+
+function systemTheme() { return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+function sunTimes(date, latitude, longitude) { const rad = Math.PI / 180; const day = Math.floor((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(date.getFullYear(), 0, 0)) / 86400000); const lngHour = longitude / 15; function eventTime(rise) { const t = day + ((rise ? 6 : 18) - lngHour) / 24; const m = 0.9856 * t - 3.289; let l = m + 1.916 * Math.sin(m * rad) + 0.02 * Math.sin(2 * m * rad) + 282.634; l = (l + 360) % 360; let ra = Math.atan(0.91764 * Math.tan(l * rad)) / rad; ra = ((ra + 360) % 360 + (Math.floor(l / 90) * 90 - Math.floor(ra / 90) * 90)) / 15; const sinDec = 0.39782 * Math.sin(l * rad); const cosDec = Math.cos(Math.asin(sinDec)); const cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(latitude * rad)) / (cosDec * Math.cos(latitude * rad)); if (cosH < -1 || cosH > 1) return null; let h = (rise ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad) / 15; const utc = (h + ra - 0.06571 * t - 6.622 - lngHour + 24) % 24; return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, Math.round(utc * 60))); } return { sunrise: eventTime(true), sunset: eventTime(false) }; }
+function applyTheme(theme, note = '') { document.documentElement.dataset.theme = theme; document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#f4f1f7' : '#0b0910'; $('#theme-status').textContent = note; $$('[data-theme-choice]').forEach((button) => { button.classList.toggle('active', button.dataset.themeChoice === state.theme); button.setAttribute('aria-checked', button.dataset.themeChoice === state.theme); }); }
+function activateTheme(choice) { state.theme = choice; localStorage.setItem('li-theme', choice); if (choice !== 'auto') { applyTheme(choice); return; } if (!navigator.geolocation) { applyTheme(systemTheme(), 'Location is unavailable, so Auto follows your system theme.'); return; } $('#theme-status').textContent = 'Waiting for location permission…'; navigator.geolocation.getCurrentPosition(({ coords }) => { const times = sunTimes(new Date(), coords.latitude, coords.longitude); if (!times.sunrise || !times.sunset) { applyTheme(systemTheme(), 'Sunrise/sunset is unavailable here today, so Auto follows your system theme.'); return; } const now = new Date(); applyTheme(now >= times.sunrise && now < times.sunset ? 'light' : 'dark', 'Following today’s local sunrise and sunset. Your coordinates were not saved.'); }, () => applyTheme(systemTheme(), 'Location was not shared, so Auto follows your system theme.'), { enableHighAccuracy: false, timeout: 8000, maximumAge: 3600000 }); }
 
 $$('.nav-item[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
-$('#start-chat').addEventListener('click', () => setView('chat'));
-$('#composer').addEventListener('submit', (event) => { event.preventDefault(); const value = $('#message-input').value.trim(); if (value) sendMessage(value); });
-$('#message-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#composer').requestSubmit(); } });
-$('#message-input').addEventListener('input', (event) => { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 140)}px`; });
-$('#logout-button').addEventListener('click', async () => { await fetch('/auth/logout', { method: 'POST' }); await loadSession(); });
-$('#account-button').addEventListener('click', () => setView('settings'));
+$('#back-home').addEventListener('click', () => setView('home')); $('#composer').addEventListener('submit', (event) => { event.preventDefault(); const value = $('#message-input').value.trim(); if (value) sendMessage(value); }); $('#message-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#composer').requestSubmit(); } }); $('#message-input').addEventListener('input', (event) => { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`; setLiState(event.target.value ? 'listening' : 'idle'); }); $('#attach-button').addEventListener('click', () => $('#file-input').click()); $('#file-input').addEventListener('change', (event) => { if (event.target.files[0]) handleFile(event.target.files[0]); event.target.value = ''; }); const drop = $('#conversation-panel'); ['dragenter', 'dragover'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.add('dragging'); })); ['dragleave', 'drop'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.remove('dragging'); })); drop.addEventListener('drop', (event) => { if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]); }); $$('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => activateTheme(button.dataset.themeChoice))); $('#logout-button').addEventListener('click', async () => { await fetch('/auth/logout', { method: 'POST' }); await loadSession(); }); $('#account-button').addEventListener('click', () => setView('settings')); matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (state.theme === 'auto') activateTheme('auto'); });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
-loadSession();
-
+$('#page-title').textContent = greeting(); activateTheme(state.theme); loadSession();
