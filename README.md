@@ -57,7 +57,8 @@ script from `.env`):
 
 Set non-secret configuration directly on the service: `LI_OS_ENVIRONMENT=production`,
 `LI_OS_ALLOWED_ORIGINS` to the exact trusted web origin (or leave it empty for non-browser
-clients), the model names/timeouts, database port/name/TLS mode, Google calendar ID, and
+clients), `LI_OS_CLAUDE_MODEL` (currently `claude-sonnet-5`), the model timeouts, database
+port/name/TLS mode, Google calendar ID, and
 Gmail user ID. Use the placeholders in `deployment/cloud-run/service.template.yaml` as a
 reviewable baseline; do not commit a rendered manifest containing project identifiers or
 secret values.

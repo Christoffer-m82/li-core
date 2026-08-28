@@ -23,6 +23,18 @@ BASE = {
 }
 
 
+def test_default_claude_model_is_current_sonnet() -> None:
+    settings = Settings(_env_file=None, **BASE)
+
+    assert settings.claude_model == "claude-sonnet-5"
+
+
+def test_claude_model_can_be_overridden() -> None:
+    settings = Settings(claude_model="claude-opus-5", _env_file=None, **BASE)
+
+    assert settings.claude_model == "claude-opus-5"
+
+
 def test_production_rejects_short_tokens() -> None:
     with pytest.raises(ValidationError, match="at least 32"):
         Settings(environment="production", _env_file=None, **{**BASE, "api_token": "short"})

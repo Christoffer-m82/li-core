@@ -51,5 +51,7 @@ spec:
               value: "60"
             - name: LI_OS_TRUST_PROXY_HEADERS
               value: "true"
+            - name: LI_OS_CLAUDE_MODEL
+              value: claude-sonnet-5
             # Add non-secret configuration and Secret Manager references at deploy time.
             # Never put secret values in this file.

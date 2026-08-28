@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # Claude / Anthropic
     anthropic_api_key: SecretStr
-    claude_model: str = "claude-opus-5"
+    claude_model: str = "claude-sonnet-5"
     claude_max_tokens: int = 2048
 
     # Optional Li-owned live research provider
