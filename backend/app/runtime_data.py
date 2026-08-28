@@ -91,6 +91,34 @@ def list_interactions(specialist: str | None = None, limit: int = 50) -> list[di
     return _call("list_specialist_interactions", (specialist, limit))
 
 
+def analytics_events() -> list[dict[str, object]]:
+    return _call("list_agent_analytics_events")
+
+
+def get_agent_settings() -> dict[str, object]:
+    rows = _call("get_agent_analytics_settings")
+    return rows[0]
+
+
+def agent_states() -> list[dict[str, object]]:
+    return _call("list_agent_states")
+
+
+def set_agent_cadence(months: int | None) -> dict[str, object]:
+    return _call("set_agent_relevance_cadence", (months,))[0]
+
+
+def create_agent_recommendations(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    return _call("replace_agent_recommendations", (Jsonb(items),))
+
+
+def review_agent_recommendation(recommendation_id: str, decision: str) -> dict[str, object]:
+    rows = _call("review_agent_recommendation", (UUID(recommendation_id), decision))
+    if not rows:
+        raise RuntimeDataError("Recommendation was not found.")
+    return rows[0]
+
+
 def list_conversations(limit: int = 30) -> list[dict[str, object]]:
     return _call("list_conversations", (limit,))
 

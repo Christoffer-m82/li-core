@@ -46,6 +46,7 @@ from app.email_runtime import (
     execute_email_action,
 )
 from app.li_runtime import LiRuntimeError, specialist_recording_context, talk_to_li
+from app.agent_analytics import calculate_analytics, generate_recommendations
 from app.memory_capture import (
     MemoryCaptureAnalysis,
     MemoryCaptureError,
@@ -74,11 +75,15 @@ from app.schemas import (
     GeneratedArtifactCreate,
     PrivacySettingsUpdate,
     RetentionUpdate,
+    AgentSettingsUpdate,
+    AgentActionReview,
 )
 from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages, expired_artifacts,
     finalize_artifact, get_artifact, get_privacy_settings, list_conversations,
-    list_interactions, mark_expired, reserve_artifact, set_retention,
+    list_interactions, mark_expired, reserve_artifact, set_retention, analytics_events,
+    get_agent_settings, set_agent_cadence, create_agent_recommendations,
+    review_agent_recommendation, agent_states,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -130,6 +135,20 @@ ALLOWED_ARTIFACT_TYPES = {
     "application/json", "image/png", "image/jpeg", "image/webp",
 }
 MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
+AGENT_ROSTER = (
+    {"id": "sofia", "name": "Sofia", "role": "Health & medical"},
+    {"id": "marco", "name": "Marco", "role": "Fitness & performance"},
+    {"id": "elena", "name": "Elena", "role": "Nutrition, food & drink"},
+    {"id": "amelia", "name": "Amelia", "role": "Relationships & social"},
+    {"id": "freja", "name": "Freja", "role": "Parenting & family"},
+    {"id": "oliver", "name": "Oliver", "role": "Legal & regulatory"},
+    {"id": "james", "name": "James", "role": "Finance & wealth"},
+    {"id": "nora", "name": "Nora", "role": "Research & evidence"},
+    {"id": "victor", "name": "Victor", "role": "Strategy & decisions"},
+    {"id": "milo", "name": "Milo", "role": "Travel & experiences"},
+    {"id": "iris", "name": "Iris", "role": "Home, design & garden"},
+    {"id": "clara", "name": "Clara", "role": "Wellbeing & habits"},
+)
 
 
 def _artifact_store() -> PrivateArtifactStore:
@@ -286,6 +305,52 @@ def specialist_history(specialist: str | None = None) -> dict[str, object]:
         return {"interactions": list_interactions(specialist)}
     except RuntimeDataError as exc:
         raise HTTPException(status_code=503, detail="Specialist history unavailable.") from exc
+
+
+@app.get("/agents/analytics", dependencies=[Depends(require_api_token)])
+def agent_analytics(period: str = "30d") -> dict[str, object]:
+    try:
+        settings_value = get_agent_settings()
+        states = {row["agent_key"]: row["state"] for row in agent_states()}
+        roster = [dict(profile, state=states.get(profile["id"], "idle")) for profile in AGENT_ROSTER]
+        analytics = calculate_analytics(roster, analytics_events(), period)
+        return {**analytics, "settings": settings_value,
+                "measurement_notes": {"measured": ["request_count", "usage_share_pct", "workload_share_pct", "active_days", "solo_usage", "multi_agent_usage", "average_response_seconds"],
+                    "inferred": ["impact_score", "uniqueness_score", "dependency_score"],
+                    "unavailable": ["depth_score", "user_value_score"]}}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Agent analytics unavailable.") from exc
+
+
+@app.post("/agents/relevance-review", dependencies=[Depends(require_api_token)])
+def run_agent_relevance_review(period: str = "90d") -> dict[str, object]:
+    try:
+        recommendations = generate_recommendations(calculate_analytics(
+            AGENT_ROSTER, analytics_events(), period))
+        return {"recommendations": create_agent_recommendations(recommendations),
+                "permanent_changes_automatic": False}
+    except (ValueError, RuntimeDataError) as exc:
+        raise HTTPException(status_code=503, detail="Relevance review unavailable.") from exc
+
+
+@app.post("/agents/settings", dependencies=[Depends(require_api_token)])
+def update_agent_settings(payload: AgentSettingsUpdate) -> dict[str, object]:
+    try:
+        return set_agent_cadence(payload.relevance_cadence_months)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Agent settings unavailable.") from exc
+
+
+@app.post("/agents/recommendations/{recommendation_id}/review", dependencies=[Depends(require_api_token)])
+def review_agent_action(recommendation_id: UUID, payload: AgentActionReview) -> dict[str, object]:
+    try:
+        result = review_agent_recommendation(str(recommendation_id), payload.decision)
+        return {**result, "execution_status": "approved_pending_execution" if payload.decision == "approve" else "rejected",
+                "message": "Permanent registry changes use the controlled governance executor and are not applied by this API."}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=404, detail="Recommendation not found.") from exc
 
 
 @app.get("/conversations", dependencies=[Depends(require_api_token)])

@@ -184,3 +184,11 @@ class RetentionUpdate(BaseModel):
 
 class PrivacySettingsUpdate(BaseModel):
     artifact_retention_days: Literal[7, 14, 30, 60, 90]
+
+
+class AgentSettingsUpdate(BaseModel):
+    relevance_cadence_months: Literal[1, 2, 3, 6] | None
+
+
+class AgentActionReview(BaseModel):
+    decision: Literal["approve", "reject"]

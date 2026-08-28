@@ -266,6 +266,34 @@ async def conversations(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/conversations")
 
 
+@app.get("/api/agents/analytics")
+async def agents_analytics(period: str = "30d", _: str = Depends(require_user)) -> Response:
+    return await proxy("GET", f"/agents/analytics?period={period}")
+
+
+@app.post("/api/agents/relevance-review")
+async def agents_relevance_review(request: Request, _: str = Depends(require_user)) -> Response:
+    period = (await request.json()).get("period", "90d")
+    return await proxy("POST", f"/agents/relevance-review?period={period}")
+
+
+@app.post("/api/agents/settings")
+async def agents_settings(request: Request, _: str = Depends(require_user)) -> Response:
+    return await proxy("POST", "/agents/settings", json_body=await request.json())
+
+
+@app.post("/api/agents/recommendations/{recommendation_id}/review")
+async def agent_recommendation_review(recommendation_id: str, request: Request,
+                                      _: str = Depends(require_user)) -> Response:
+    try:
+        from uuid import UUID
+        UUID(recommendation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid recommendation identifier.")
+    return await proxy("POST", f"/agents/recommendations/{recommendation_id}/review",
+                       json_body=await request.json())
+
+
 @app.get("/api/conversations/{conversation_id}")
 async def conversation(conversation_id: str, _: str = Depends(require_user)) -> Response:
     return await proxy("GET", f"/conversations/{conversation_id}")

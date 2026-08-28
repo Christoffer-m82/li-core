@@ -105,3 +105,23 @@ def test_responsive_breakpoints_are_present():
     )
     assert "@media(max-width:1050px)" in css
     assert "@media(max-width:680px)" in css
+
+
+def test_agent_analytics_page_and_controls_are_rendered():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    assert 'data-view-panel="agents"' in html
+    assert 'id="analytics-period"' in html
+    assert 'id="relevance-cadence"' in html
+    assert "approved · execution pending".casefold() in javascript.casefold()
+
+
+def test_agent_analytics_bff_proxy(monkeypatch):
+    async def backend(*args, **kwargs):
+        assert args[2] == "/agents/analytics?period=90d"
+        return httpx.Response(200, json={"period": "90d", "agents": []})
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().get("/api/agents/analytics?period=90d")
+    assert response.status_code == 200
+    assert response.json()["period"] == "90d"

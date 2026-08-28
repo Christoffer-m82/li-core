@@ -132,6 +132,32 @@ immutable migration process before deploying the application revision. Run the i
 Cloud Run retention job daily through Cloud Scheduler's authenticated Jobs API. Scheduler
 needs permission to execute only that job and stores no Li API token.
 
+## Agent Status and Agent Analytics
+
+Migration `018_agent_analytics_and_relevance.sql` adds operational analytics state without
+mixing it into canonical personal memory. It preserves Phase 2 interaction rows, adds bounded
+measurement flags, persists a 1/2/3/6-month or manual relevance cadence, and stores an
+owner-reviewed recommendation queue. Approval records never mutate the permanent registry;
+approved permanent changes remain `approved_pending_execution` for the controlled governance
+executor.
+
+For a selected period, request count is the number of specialist interaction rows and usage
+share is an agent's rows divided by all specialist rows. Workload is measured elapsed time
+from `started_at` to `completed_at`; response time uses that same reliable interval. Active
+days are distinct UTC activity dates. Solo/multi-agent usage groups rows by request ID.
+Explicit use is detected from an explicit specialist name in the original request; otherwise
+the use is Li-selected. Trend compares request count with the immediately preceding period.
+Overlap is the share of other permanent agents co-used with the agent. Topic recurrence uses
+stored topic keys.
+
+Impact, uniqueness, and dependency are explicitly labelled inferred. Depth and user value are
+reported as unavailable until trustworthy signals exist. Recommendation contribution and
+action conversion remain unavailable unless `used_in_final` and `action_taken` have been
+recorded. Relevance review defaults to monthly, conservatively keeps zero-use agents when the
+evidence is insufficient, flags material overlap for review, and may propose a new agent when
+the same uncovered topic recurs at least three times inside an overloaded workload. It never
+creates, merges, archives, or removes an agent automatically.
+
 ## Google Calendar provider setup
 
 The backend keeps Calendar unavailable unless all three OAuth secrets are configured. To enable it:
