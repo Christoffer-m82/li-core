@@ -1,6 +1,9 @@
+import base64
+import binascii
+import re
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import (
@@ -16,6 +19,7 @@ from app.calendar_runtime import (
 )
 from app.claude import ClaudeError
 from app.config import get_settings
+from app.artifacts import ArtifactStorageError, PrivateArtifactStore, safe_filename
 from app.database import (
     ConversationHistoryError,
     DatabaseHealthError,
@@ -41,7 +45,7 @@ from app.email_runtime import (
     configured_email_provider,
     execute_email_action,
 )
-from app.li_runtime import LiRuntimeError, talk_to_li
+from app.li_runtime import LiRuntimeError, specialist_recording_context, talk_to_li
 from app.memory_capture import (
     MemoryCaptureAnalysis,
     MemoryCaptureError,
@@ -66,6 +70,15 @@ from app.schemas import (
     PendingMemoryProposal,
     RecalledMemory,
     TheoAutomatedReviewResult,
+    ArtifactUpload,
+    GeneratedArtifactCreate,
+    PrivacySettingsUpdate,
+    RetentionUpdate,
+)
+from app.runtime_data import (
+    RuntimeDataError, change_artifact, conversation_messages, expired_artifacts,
+    finalize_artifact, get_artifact, get_privacy_settings, list_conversations,
+    list_interactions, mark_expired, reserve_artifact, set_retention,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -111,6 +124,185 @@ if settings.allowed_origins:
 app.state.calendar_provider = configured_calendar_provider(get_settings())
 app.state.email_provider = configured_email_provider(get_settings())
 app.state.task_provider = DatabaseTaskProvider()
+
+ALLOWED_ARTIFACT_TYPES = {
+    "application/pdf", "text/plain", "text/markdown", "text/csv",
+    "application/json", "image/png", "image/jpeg", "image/webp",
+}
+MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
+
+
+def _artifact_store() -> PrivateArtifactStore:
+    return PrivateArtifactStore(get_settings().artifact_bucket)
+
+
+def _decode_artifact(payload: ArtifactUpload) -> tuple[str, bytes]:
+    filename = safe_filename(payload.filename)
+    if filename != payload.filename or payload.content_type not in ALLOWED_ARTIFACT_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid artifact metadata.")
+    try:
+        contents = base64.b64decode(payload.data_base64, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(status_code=400, detail="Invalid artifact data.") from exc
+    if not contents or len(contents) > MAX_ARTIFACT_BYTES:
+        raise HTTPException(status_code=413, detail="Artifact must be 10 MB or smaller.")
+    signatures = {
+        "application/pdf": b"%PDF-", "image/png": b"\x89PNG\r\n\x1a\n",
+        "image/jpeg": b"\xff\xd8\xff", "image/webp": b"RIFF",
+    }
+    expected = signatures.get(payload.content_type)
+    if expected and not contents.startswith(expected):
+        raise HTTPException(status_code=415, detail="File contents do not match the declared type.")
+    if payload.content_type == "image/webp" and contents[8:12] != b"WEBP":
+        raise HTTPException(status_code=415, detail="File contents do not match the declared type.")
+    if payload.content_type.startswith("text/") and b"\x00" in contents[:4096]:
+        raise HTTPException(status_code=415, detail="Invalid text file.")
+    return filename, contents
+
+
+def _persist_artifact(payload: ArtifactUpload, source: str, keep: bool) -> dict[str, object]:
+    filename, contents = _decode_artifact(payload)
+    try:
+        reservation = reserve_artifact(
+            filename=filename, content_type=payload.content_type, size_bytes=len(contents),
+            source=source, conversation_id=payload.conversation_id,
+        )
+        artifact_id = str(reservation["artifact_id"])
+        stored = _artifact_store().put(
+            owner_id=str(reservation["owner_user_id"]), artifact_id=artifact_id,
+            filename=filename, content_type=payload.content_type, contents=contents,
+        )
+        if not finalize_artifact(artifact_id, stored.object_name, stored.generation, keep):
+            _artifact_store().delete(stored.object_name)
+            raise RuntimeDataError("Artifact metadata finalization failed.")
+    except (RuntimeDataError, ArtifactStorageError) as exc:
+        raise HTTPException(status_code=503, detail="Private artifact storage is unavailable.") from exc
+    return {
+        "artifact_id": artifact_id, "filename": filename,
+        "content_type": payload.content_type, "size_bytes": len(contents),
+        "source": source, "kept": keep,
+        "expires_at": None if keep else reservation["expires_at"],
+        "url": f"/api/artifacts/{artifact_id}",
+    }
+
+
+def _requested_text_artifact(message: str) -> bool:
+    return bool(re.search(
+        r"\b(?:create|make|generate|return|give me|save)(?:\s+\w+){0,5}\s+"
+        r"(?:text|markdown|txt|md)?\s*file\b", message, re.IGNORECASE,
+    ))
+
+
+@app.post("/artifacts/uploads", dependencies=[Depends(require_api_token)])
+def artifact_upload(payload: ArtifactUpload) -> dict[str, object]:
+    """Process an upload in memory; persist only after an explicit Save request."""
+    filename, contents = _decode_artifact(payload)
+    preview = None
+    if payload.content_type in {"text/plain", "text/markdown", "text/csv", "application/json"}:
+        preview = contents.decode("utf-8", errors="replace")[:4000]
+    if not payload.save:
+        return {"filename": filename, "content_type": payload.content_type,
+                "retained": False, "analysis_text": preview}
+    result = _persist_artifact(payload, "upload", keep=True)
+    result["retained"] = True
+    return result
+
+
+@app.post("/artifacts/generated", dependencies=[Depends(require_api_token)])
+def generated_artifact(payload: GeneratedArtifactCreate) -> dict[str, object]:
+    return _persist_artifact(payload, "li_generated", keep=False)
+
+
+@app.get("/artifacts/{artifact_id}", dependencies=[Depends(require_api_token)])
+def artifact_download(artifact_id: UUID) -> Response:
+    try:
+        record = get_artifact(str(artifact_id))
+        if not record or record["retention_state"] == "deleted" or not record["storage_object"]:
+            raise HTTPException(status_code=404, detail="Artifact not found.")
+        contents = _artifact_store().get(str(record["storage_object"]))
+    except (RuntimeDataError, ArtifactStorageError) as exc:
+        raise HTTPException(status_code=503, detail="Artifact is unavailable.") from exc
+    filename = str(record["safe_filename"]).replace('"', "")
+    return Response(contents, media_type=str(record["content_type"]), headers={
+        "Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store",
+    })
+
+
+@app.post("/artifacts/{artifact_id}/retention", dependencies=[Depends(require_api_token)])
+def artifact_retention(artifact_id: UUID, payload: RetentionUpdate) -> dict[str, object]:
+    try:
+        current = get_artifact(str(artifact_id))
+        if not current or current["retention_state"] == "deleted" or not current.get("storage_object"):
+            raise HTTPException(status_code=404, detail="Artifact not found.")
+        if payload.action == "delete":
+            _artifact_store().delete(str(current["storage_object"]))
+        changed = change_artifact(str(artifact_id), payload.action)
+        if not changed:
+            raise HTTPException(status_code=404, detail="Artifact not found.")
+    except (RuntimeDataError, ArtifactStorageError) as exc:
+        raise HTTPException(status_code=503, detail="Artifact retention update failed.") from exc
+    return {"artifact_id": artifact_id, "state": changed["retention_state"]}
+
+
+@app.post("/internal/retention/cleanup", dependencies=[Depends(require_api_token)])
+def cleanup_artifacts() -> dict[str, int]:
+    deleted = 0
+    try:
+        for record in expired_artifacts():
+            if record.get("storage_object"):
+                _artifact_store().delete(str(record["storage_object"]))
+            if mark_expired(str(record["artifact_id"])):
+                deleted += 1
+    except (RuntimeDataError, ArtifactStorageError) as exc:
+        raise HTTPException(status_code=503, detail="Retention cleanup failed.") from exc
+    return {"deleted": deleted}
+
+
+@app.get("/privacy/settings", dependencies=[Depends(require_api_token)])
+def privacy_settings() -> dict[str, object]:
+    try:
+        value = get_privacy_settings()
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Privacy settings unavailable.") from exc
+    return {**value, "allowed_retention_days": [7, 14, 30, 60, 90],
+            "upload_policy": "temporary_unless_saved",
+            "generated_artifact_policy": "private_expiring",
+            "specialist_history_policy": "until_owner_deletes"}
+
+
+@app.post("/privacy/settings", dependencies=[Depends(require_api_token)])
+def update_privacy_settings(payload: PrivacySettingsUpdate) -> dict[str, int]:
+    try:
+        return {"artifact_retention_days": set_retention(payload.artifact_retention_days)}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Privacy settings update failed.") from exc
+
+
+@app.get("/specialists/interactions", dependencies=[Depends(require_api_token)])
+def specialist_history(specialist: str | None = None) -> dict[str, object]:
+    if specialist is not None and specialist not in {"nora", "victor", "milo"}:
+        raise HTTPException(status_code=404, detail="Specialist not found.")
+    try:
+        return {"interactions": list_interactions(specialist)}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Specialist history unavailable.") from exc
+
+
+@app.get("/conversations", dependencies=[Depends(require_api_token)])
+def conversations() -> dict[str, object]:
+    try:
+        return {"conversations": list_conversations()}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Conversation history unavailable.") from exc
+
+
+@app.get("/conversations/{conversation_id}", dependencies=[Depends(require_api_token)])
+def conversation(conversation_id: UUID) -> dict[str, object]:
+    try:
+        return {"conversation_id": conversation_id,
+                "messages": conversation_messages(str(conversation_id))}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=404, detail="Conversation not found.") from exc
 
 
 @app.get("/", tags=["system"])
@@ -556,7 +748,8 @@ def li_chat_endpoint(
         }
         if is_research_provider_available(provider):
             runtime_kwargs["research_provider"] = provider
-        response = talk_to_li(payload.message, **runtime_kwargs)
+        with specialist_recording_context(conversation_id):
+            response = talk_to_li(payload.message, **runtime_kwargs)
 
     except (ClaudeError, LiRuntimeError) as exc:
         raise HTTPException(
@@ -594,6 +787,18 @@ def li_chat_endpoint(
             "The latest exchange was not fully saved to conversation history."
         )
 
+    artifacts: list[dict[str, object]] = []
+    if _requested_text_artifact(payload.message):
+        artifact_payload = GeneratedArtifactCreate(
+            filename="li-response.txt", content_type="text/plain",
+            data_base64=base64.b64encode(response.encode("utf-8")).decode("ascii"),
+            conversation_id=UUID(conversation_id), source="li_generated",
+        )
+        try:
+            artifacts.append(_persist_artifact(artifact_payload, "li_generated", keep=False))
+        except HTTPException:
+            pass
+
     return LiChatResponse(
         response=response,
         conversation_id=conversation_id,
@@ -607,4 +812,5 @@ def li_chat_endpoint(
         memory_capture_error=capture_error,
         conversation_history_error=conversation_history_error,
         email_action=email_outcome,
+        artifacts=artifacts,
     )

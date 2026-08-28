@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     owner_db_user: str
     owner_db_password: SecretStr
 
+    # Governed private artifacts. The bucket is private and accessed only by
+    # the backend runtime service account.
+    artifact_bucket: str = ""
+    artifact_default_retention_days: int = Field(default=30, ge=1, le=365)
+
     model_config = SettingsConfigDict(
         env_prefix="LI_OS_",
         env_file=".env",

@@ -163,3 +163,24 @@ class LiChatResponse(BaseModel):
     memory_capture_error: str | None = None
     conversation_history_error: str | None = None
     email_action: EmailActionOutcome | None = None
+    artifacts: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ArtifactUpload(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str = Field(min_length=1, max_length=150)
+    data_base64: str = Field(min_length=1, max_length=14_000_000)
+    save: bool = False
+    conversation_id: UUID | None = None
+
+
+class GeneratedArtifactCreate(ArtifactUpload):
+    source: Literal["li_generated"] = "li_generated"
+
+
+class RetentionUpdate(BaseModel):
+    action: Literal["keep", "delete"]
+
+
+class PrivacySettingsUpdate(BaseModel):
+    artifact_retention_days: Literal[7, 14, 30, 60, 90]

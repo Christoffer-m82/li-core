@@ -53,5 +53,9 @@ spec:
               value: "true"
             - name: LI_OS_CLAUDE_MODEL
               value: claude-sonnet-5
+            - name: LI_OS_ARTIFACT_BUCKET
+              value: PRIVATE_ARTIFACT_BUCKET
+            - name: LI_OS_ARTIFACT_DEFAULT_RETENTION_DAYS
+              value: "30"
             # Add non-secret configuration and Secret Manager references at deploy time.
             # Never put secret values in this file.

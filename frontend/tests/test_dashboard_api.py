@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import httpx
 from fastapi.testclient import TestClient
 
 from app.main import MAX_UPLOAD_BYTES, app
@@ -15,20 +16,26 @@ def teardown_function() -> None:
     app.dependency_overrides.clear()
 
 
-def test_specialist_roster_is_single_and_inactive_without_real_events():
+def test_specialist_roster_is_single_and_inactive_without_real_events(monkeypatch):
+    async def backend(*args, **kwargs):
+        return httpx.Response(200, json={"interactions": []})
+    monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().get("/api/specialists")
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["specialists"]) == 12
-    assert payload["live_events_available"] is False
+    assert payload["live_events_available"] is True
     assert all(item["active"] is False for item in payload["specialists"])
 
 
-def test_specialist_history_does_not_fabricate_transcripts():
+def test_specialist_history_does_not_fabricate_transcripts(monkeypatch):
+    async def backend(*args, **kwargs):
+        return httpx.Response(200, json={"interactions": []})
+    monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().get("/api/specialists/nora/interactions")
     assert response.status_code == 200
     assert response.json()["interactions"] == []
-    assert response.json()["live_events_available"] is False
+    assert response.json()["live_events_available"] is True
 
 
 def test_upload_rejects_unsupported_type():
@@ -54,11 +61,15 @@ def test_upload_rejects_oversized_body_before_parsing():
     assert response.status_code == 413
 
 
-def test_valid_upload_is_discarded_until_analysis_boundary_exists():
+def test_valid_upload_is_temporary_by_default(monkeypatch):
+    async def backend(*args, **kwargs):
+        assert kwargs["json_body"]["save"] is False
+        return httpx.Response(200, json={"retained": False, "analysis_text": "hello"})
+    monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().post(
         "/api/uploads", files={"file": ("notes.txt", b"hello", "text/plain")}
     )
-    assert response.status_code == 501
+    assert response.status_code == 200
     assert response.json()["retained"] is False
 
 
@@ -82,6 +93,8 @@ def test_client_includes_activity_sorting_theme_fallback_and_real_artifact_guard
     assert "Number(b.active) - Number(a.active)" in javascript
     assert "prefers-color-scheme: light" in javascript
     assert "attachment.url ? 'a' : 'span'" in javascript
+    assert "Save privately" in javascript
+    assert "artifact-retention" in javascript
     assert "coords.latitude" in javascript
     assert "localStorage.setItem('li-theme', choice)" in javascript
 

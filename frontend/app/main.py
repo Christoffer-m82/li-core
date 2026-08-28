@@ -1,8 +1,9 @@
+import base64
 from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from google.auth.transport import requests as google_requests
@@ -188,9 +189,9 @@ async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response
 
 @app.post("/api/uploads")
 async def upload_for_chat(
-    file: UploadFile = File(...), _: str = Depends(require_user)
+    file: UploadFile = File(...), save: bool = Form(False), _: str = Depends(require_user)
 ) -> Response:
-    """Validate and discard an upload until Li has a governed ingestion boundary."""
+    """Validate an upload and send it to Li's temporary analysis boundary."""
     filename = Path(file.filename or "").name
     if not filename or filename != (file.filename or ""):
         await file.close()
@@ -202,46 +203,82 @@ async def upload_for_chat(
     await file.close()
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Files must be 10 MB or smaller.")
-    return JSONResponse(
-        status_code=501,
-        content={
-            "detail": "File analysis is not enabled yet. The file was validated and discarded.",
-            "filename": filename,
-            "content_type": file.content_type,
-            "retained": False,
-        },
-    )
+    return await proxy("POST", "/artifacts/uploads", json_body={
+        "filename": filename, "content_type": file.content_type,
+        "data_base64": base64.b64encode(contents).decode("ascii"), "save": save,
+    })
 
 
 @app.get("/api/artifacts/{artifact_id}")
 async def download_artifact(artifact_id: str, _: str = Depends(require_user)) -> Response:
-    if not artifact_id.isalnum() or len(artifact_id) > 80:
+    try:
+        from uuid import UUID
+        UUID(artifact_id)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid artifact identifier.")
-    raise HTTPException(status_code=404, detail="No such Li artifact exists.")
+    try:
+        upstream = await request_backend(settings, "GET", f"/artifacts/{artifact_id}")
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Artifact is temporarily unreachable.") from exc
+    return Response(upstream.content, status_code=upstream.status_code,
+        media_type=upstream.headers.get("content-type", "application/octet-stream"),
+        headers={"Content-Disposition": upstream.headers.get("content-disposition", "attachment")})
+
+
+@app.post("/api/artifacts/{artifact_id}/retention")
+async def artifact_retention(artifact_id: str, request: Request,
+                             _: str = Depends(require_user)) -> Response:
+    try:
+        action = (await request.json()).get("action")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid request.") from exc
+    return await proxy("POST", f"/artifacts/{artifact_id}/retention", json_body={"action": action})
 
 
 @app.get("/api/specialists")
-def specialists(_: str = Depends(require_user)) -> dict[str, object]:
-    return {
-        "specialists": [dict(item, active=False, status="Available") for item in SPECIALISTS],
-        "live_events_available": False,
-    }
+async def specialists(_: str = Depends(require_user)) -> dict[str, object]:
+    upstream = await request_backend(settings, "GET", "/specialists/interactions")
+    events = upstream.json().get("interactions", []) if upstream.status_code == 200 else []
+    active = {event["specialist_key"] for event in events if event["status"] == "active"}
+    return {"specialists": [dict(item, active=item["id"] in active,
+        status="Working" if item["id"] in active else "Available") for item in SPECIALISTS],
+        "live_events_available": True}
 
 
 @app.get("/api/specialists/{specialist_id}/interactions")
-def specialist_interactions(
+async def specialist_interactions(
     specialist_id: str, _: str = Depends(require_user)
 ) -> dict[str, object]:
     specialist = next((item for item in SPECIALISTS if item["id"] == specialist_id), None)
     if specialist is None:
         raise HTTPException(status_code=404, detail="Specialist not found.")
-    return {
-        "specialist": specialist,
-        "active": False,
-        "interactions": [],
-        "live_events_available": False,
-        "message": "Live and historical specialist events are not exposed by orchestration yet.",
-    }
+    upstream = await request_backend(
+        settings, "GET", f"/specialists/interactions?specialist={specialist_id}"
+    )
+    interactions = upstream.json().get("interactions", []) if upstream.status_code == 200 else []
+    return {"specialist": specialist, "active": any(x["status"] == "active" for x in interactions),
+        "interactions": interactions, "live_events_available": True,
+        "message": "No real Li-specialist interactions have been recorded yet."}
+
+
+@app.get("/api/conversations")
+async def conversations(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/conversations")
+
+
+@app.get("/api/conversations/{conversation_id}")
+async def conversation(conversation_id: str, _: str = Depends(require_user)) -> Response:
+    return await proxy("GET", f"/conversations/{conversation_id}")
+
+
+@app.get("/api/privacy/settings")
+async def privacy_settings(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/privacy/settings")
+
+
+@app.post("/api/privacy/settings")
+async def update_privacy_settings(request: Request, _: str = Depends(require_user)) -> Response:
+    return await proxy("POST", "/privacy/settings", json_body=await request.json())
 
 
 async def proxy(method: str, path: str, json_body: dict | None = None) -> Response:

@@ -1,5 +1,8 @@
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
+from uuid import uuid4
 
 from app.claude import generate_claude_text
 from app.database import MemoryReadError, recall_memory
@@ -18,6 +21,18 @@ from app.specialist_runtime import (
     route_specialists,
     specialist_needs_canonical_memory,
 )
+from app.runtime_data import RuntimeDataError, finish_interaction, start_interaction
+
+_conversation_id: ContextVar[str | None] = ContextVar("li_conversation_id", default=None)
+
+
+@contextmanager
+def specialist_recording_context(conversation_id: str):
+    token = _conversation_id.set(conversation_id)
+    try:
+        yield
+    finally:
+        _conversation_id.reset(token)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NORA_RESEARCH_EVALUATION_MAX_TOKENS = 4096
@@ -361,14 +376,35 @@ def talk_to_li(
         bounded_conversation = (
             conversation_context[-6000:] if conversation_context else None
         )
-        consultation = consult_specialists(
-            routing.specialists,
-            SpecialistRequest(
+        specialist_request = SpecialistRequest(
                 current_user_message=user_message,
                 conversation_context=bounded_conversation,
                 canonical_memory=specialist_memories,
-            ),
-        )
+            )
+        interaction_ids: dict[str, str] = {}
+        conversation_id = _conversation_id.get()
+        request_id = str(uuid4())
+        if conversation_id:
+            for specialist in routing.specialists:
+                try:
+                    interaction_ids[specialist] = start_interaction(
+                        conversation_id, request_id, specialist, user_message,
+                    )
+                except RuntimeDataError:
+                    pass
+        consultation = consult_specialists(routing.specialists, specialist_request)
+        for specialist in routing.specialists:
+            interaction_id = interaction_ids.get(specialist)
+            if not interaction_id:
+                continue
+            result = consultation.results.get(specialist)
+            try:
+                finish_interaction(
+                    interaction_id, "completed" if result else "failed",
+                    result.model_dump(mode="json") if result else {"unavailable": True},
+                )
+            except RuntimeDataError:
+                pass
 
         nora_result = consultation.results.get("nora")
         if nora_result and nora_result.research_request is not None:

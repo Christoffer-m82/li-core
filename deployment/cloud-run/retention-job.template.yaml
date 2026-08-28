@@ -1,0 +1,32 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: li-os-artifact-retention
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          serviceAccountName: LI_RUNTIME_SERVICE_ACCOUNT
+          maxRetries: 3
+          timeoutSeconds: "600"
+          containers:
+            - image: LI_CONTAINER_IMAGE
+              command: ["python", "-m", "app.retention_job"]
+              env:
+                - name: LI_OS_ENVIRONMENT
+                  value: production
+                - name: LI_OS_ARTIFACT_BUCKET
+                  value: PRIVATE_ARTIFACT_BUCKET
+                - name: LI_OS_DB_PORT
+                  value: "5432"
+                - name: LI_OS_DB_NAME
+                  value: postgres
+                - name: LI_OS_DB_SSLMODE
+                  value: require
+                - name: LI_OS_DB_HOST
+                  valueFrom: { secretKeyRef: { name: LI_OS_DB_HOST, key: "1" } }
+                - name: LI_OS_DB_USER
+                  valueFrom: { secretKeyRef: { name: LI_OS_DB_USER, key: "1" } }
+                - name: LI_OS_DB_PASSWORD
+                  valueFrom: { secretKeyRef: { name: LI_OS_DB_PASSWORD, key: "1" } }

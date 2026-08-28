@@ -104,6 +104,34 @@ The longer-term authentication upgrade is per-device OIDC/WebAuthn with short-li
 tokens, refresh-token revocation, device inventory, and endpoint scopes. That replaces the
 shared Li token while retaining separate Theo and owner authority boundaries.
 
+### Phase 2 private data retention
+
+Li stores governed file bytes in a private Google Cloud Storage bucket and keeps only
+ownership, lifecycle, content-type, safe-filename, size, source, and storage-reference
+metadata in PostgreSQL. Uniform bucket-level access and public-access prevention must stay
+enabled. The backend runtime identity receives object create/read/delete access; the web
+service and browser receive none. Downloads pass through the authenticated BFF and backend,
+so an artifact UUID alone never grants access.
+
+Uploads are processed in memory and discarded by default. An explicit Save action writes
+the upload to private storage and marks it kept. Li-generated artifacts expire after 30 days
+by default; the owner may choose a bounded 7, 14, 30, 60, or 90-day default, keep an artifact
+permanently, or delete it early. Specialist history records only real orchestration requests,
+validated outcomes, statuses, timestamps, request IDs, and conversation links.
+
+“Deleted” means the active Cloud Storage object is removed first and its metadata is then
+marked deleted with a timestamp and reason. Expiry cleanup is idempotent and can safely retry.
+Application metadata remains as a minimal audit tombstone without file content. Database
+point-in-time recovery and provider backups may retain encrypted historical blocks until the
+staging project's configured backup/PITR window expires; they are not accessible through Li
+and are not selectively restorable as active user data. Review that infrastructure window
+whenever the database backup policy changes.
+
+Run `memory/migrations/017_governed_artifacts_and_specialist_history.sql` through the existing
+immutable migration process before deploying the application revision. Run the included
+Cloud Run retention job daily through Cloud Scheduler's authenticated Jobs API. Scheduler
+needs permission to execute only that job and stores no Li API token.
+
 ## Google Calendar provider setup
 
 The backend keeps Calendar unavailable unless all three OAuth secrets are configured. To enable it:
