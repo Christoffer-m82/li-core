@@ -8,8 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN groupadd --system li && useradd --system --gid li --home-dir /app li
 WORKDIR /app
 
-COPY pyproject.toml ./
-COPY app ./app
+COPY backend/pyproject.toml ./
+COPY backend/app ./app
+COPY agents /agents
 RUN pip install --upgrade pip && pip install .
 
 USER li
