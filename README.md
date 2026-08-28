@@ -141,6 +141,13 @@ owner-reviewed recommendation queue. Approval records never mutate the permanent
 approved permanent changes remain `approved_pending_execution` for the controlled governance
 executor.
 
+Migration 018 requires migration 017 to be applied to the same database first. Migration 017
+creates the private `li_runtime_data` schema and its `specialist_interactions` table; these are
+the canonical location for runtime analytics input. Verify that `li_memory.schema_versions`
+contains `0.17`, then run the complete 018 file through the owner-controlled migration process.
+Do not run 018 against a different Supabase project or move runtime analytics into the public,
+canonical-memory, conversation, or task schemas.
+
 For a selected period, request count is the number of specialist interaction rows and usage
 share is an agent's rows divided by all specialist rows. Workload is measured elapsed time
 from `started_at` to `completed_at`; response time uses that same reliable interval. Active

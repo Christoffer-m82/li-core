@@ -1,5 +1,25 @@
 BEGIN;
 
+-- Migration 018 extends the private runtime-data boundary introduced by 017.
+-- Fail before making changes when the prerequisite migration was not applied to
+-- this database (for example, when the SQL editor is connected to another
+-- project). Do not duplicate or relocate 017's tables here.
+DO $$
+BEGIN
+  IF to_regclass('li_runtime_data.specialist_interactions') IS NULL
+     OR NOT EXISTS (
+       SELECT 1
+       FROM li_memory.schema_versions
+       WHERE version = '0.17'
+     ) THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '55000',
+      MESSAGE = 'Migration 018 requires applied migration 017 in this database',
+      HINT = 'Apply memory/migrations/017_governed_artifacts_and_specialist_history.sql first, then rerun the complete migration 018 file.';
+  END IF;
+END;
+$$;
+
 ALTER TABLE li_runtime_data.specialist_interactions
   ADD COLUMN explicit_request BOOLEAN NOT NULL DEFAULT FALSE,
   ADD COLUMN used_in_final BOOLEAN,
