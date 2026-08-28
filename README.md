@@ -148,6 +148,10 @@ contains `0.17`, then run the complete 018 file through the owner-controlled mig
 Do not run 018 against a different Supabase project or move runtime analytics into the public,
 canonical-memory, conversation, or task schemas.
 
+After 018, apply `019_fix_agent_recommendation_status_ambiguity.sql`. It repairs the
+recommendation create/review functions for PostgreSQL's output-column name resolution while
+preserving the same grants, approval states, and no-automatic-registry-mutation boundary.
+
 For a selected period, request count is the number of specialist interaction rows and usage
 share is an agent's rows divided by all specialist rows. Workload is measured elapsed time
 from `started_at` to `completed_at`; response time uses that same reliable interval. Active
