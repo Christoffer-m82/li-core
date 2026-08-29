@@ -117,7 +117,7 @@ def test_migration_026_expands_registry_and_adds_lifecycle_fields():
     )
 
 
-def test_migration_026_safely_recreates_changed_table_return_type():
+def test_migration_026_safely_recreates_all_changed_table_return_types():
     sql = (
         Path(__file__).parents[2]
         / "memory"
@@ -140,6 +140,20 @@ def test_migration_026_safely_recreates_changed_table_return_type():
     assert "dependent objects exist" in sql
     assert "migration 026 never uses CASCADE" in sql
 
+    old_analytics_shape = (
+        "explicit_request BOOLEAN,used_in_final BOOLEAN,\n action_taken BOOLEAN,"
+        "topic_keys TEXT[]"
+    )
+    new_analytics_shape = (
+        f"{old_analytics_shape},selection_mode TEXT,group_mode TEXT,"
+        "route_category TEXT"
+    )
+    assert new_analytics_shape in sql
+    assert "CREATE OR REPLACE FUNCTION li_api.list_agent_analytics_events" not in sql
+    assert "DROP FUNCTION li_api.list_agent_analytics_events()" in sql
+    assert "DROP FUNCTION li_api.list_agent_analytics_events() CASCADE" not in sql
+    assert "Cannot safely replace list_agent_analytics_events" in sql
+
     dependency_check = sql.index("pg_catalog.pg_depend")
     owner_grant = sql.index("GRANT li_memory_function_owner TO postgres")
     set_role = sql.index("SET LOCAL ROLE li_memory_function_owner")
@@ -154,6 +168,21 @@ def test_migration_026_safely_recreates_changed_table_return_type():
     assert (
         dependency_check < owner_grant < set_role < function_drop < function_create
         < function_revoke < function_grant
+    )
+    analytics_dependency_check = sql.index(
+        "Cannot safely replace list_agent_analytics_events"
+    )
+    analytics_drop = sql.index("DROP FUNCTION li_api.list_agent_analytics_events()")
+    analytics_create = sql.index("CREATE FUNCTION li_api.list_agent_analytics_events()")
+    analytics_revoke = sql.index(
+        "REVOKE ALL ON FUNCTION li_api.start_specialist_interaction"
+    )
+    analytics_grant = sql.index(
+        "GRANT EXECUTE ON FUNCTION li_api.start_specialist_interaction"
+    )
+    assert (
+        analytics_dependency_check < owner_grant < set_role < analytics_drop
+        < analytics_create < analytics_revoke < analytics_grant
     )
 
 
@@ -171,6 +200,9 @@ def test_migration_026_preserves_owner_acl_and_temporary_authority_boundaries():
     assert "li_backend_runtime" in sql
     assert "li_retention_runtime" in sql
     assert "list_specialist_interactions owner changed unexpectedly" in sql
+    assert "list_agent_analytics_events owner changed unexpectedly" in sql
+    assert "Backend runtime lost analytics event execution" in sql
+    assert "Retention runtime gained analytics event execution" in sql
     assert "Temporary li_api CREATE authority was not removed" in sql
     assert "Temporary function-owner authority was not removed" in sql
 

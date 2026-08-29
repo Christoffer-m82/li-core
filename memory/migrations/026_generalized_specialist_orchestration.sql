@@ -60,6 +60,34 @@ BEGIN
       ),
       HINT = 'Review and handle each dependency explicitly; migration 026 never uses CASCADE.';
   END IF;
+
+  SELECT owner_role.rolname INTO function_owner
+  FROM pg_catalog.pg_proc AS p
+  JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid = p.proowner
+  WHERE p.oid = 'li_api.list_agent_analytics_events()'::REGPROCEDURE;
+
+  IF function_owner IS DISTINCT FROM 'li_memory_function_owner' THEN
+    RAISE EXCEPTION 'list_agent_analytics_events has unexpected owner %', function_owner;
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_depend AS d
+    WHERE d.refclassid = 'pg_catalog.pg_proc'::REGCLASS
+      AND d.refobjid = 'li_api.list_agent_analytics_events()'::REGPROCEDURE
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE = '2BP01',
+      MESSAGE = 'Cannot safely replace list_agent_analytics_events: dependent objects exist',
+      DETAIL = (
+        SELECT string_agg(
+          pg_catalog.pg_describe_object(d.classid, d.objid, d.objsubid), ', '
+          ORDER BY pg_catalog.pg_describe_object(d.classid, d.objid, d.objsubid)
+        )
+        FROM pg_catalog.pg_depend AS d
+        WHERE d.refclassid = 'pg_catalog.pg_proc'::REGCLASS
+          AND d.refobjid = 'li_api.list_agent_analytics_events()'::REGPROCEDURE
+      ),
+      HINT = 'Review and handle each dependency explicitly; migration 026 never uses CASCADE.';
+  END IF;
 END;
 $$;
 
@@ -153,7 +181,11 @@ REVOKE ALL ON FUNCTION li_api.list_specialist_interactions(TEXT,INTEGER)
 GRANT EXECUTE ON FUNCTION li_api.list_specialist_interactions(TEXT,INTEGER)
  TO li_memory_api;
 
-CREATE OR REPLACE FUNCTION li_api.list_agent_analytics_events()
+-- This function also gains OUT columns in 026, so it requires the same
+-- dependency-safe exact-signature replacement as specialist history.
+DROP FUNCTION li_api.list_agent_analytics_events();
+
+CREATE FUNCTION li_api.list_agent_analytics_events()
 RETURNS TABLE(interaction_id UUID,request_id UUID,specialist_key TEXT,status TEXT,request_text TEXT,outcome JSONB,
  started_at TIMESTAMPTZ,completed_at TIMESTAMPTZ,explicit_request BOOLEAN,used_in_final BOOLEAN,
  action_taken BOOLEAN,topic_keys TEXT[],selection_mode TEXT,group_mode TEXT,route_category TEXT)
@@ -195,6 +227,14 @@ BEGIN
   ) <> 'li_memory_function_owner' THEN
     RAISE EXCEPTION 'list_specialist_interactions owner changed unexpectedly';
   END IF;
+  IF (
+    SELECT owner_role.rolname
+    FROM pg_catalog.pg_proc AS p
+    JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid = p.proowner
+    WHERE p.oid = 'li_api.list_agent_analytics_events()'::REGPROCEDURE
+  ) <> 'li_memory_function_owner' THEN
+    RAISE EXCEPTION 'list_agent_analytics_events owner changed unexpectedly';
+  END IF;
   IF NOT pg_catalog.has_function_privilege(
     'li_backend_runtime',
     'li_api.list_specialist_interactions(text,integer)', 'EXECUTE'
@@ -206,6 +246,18 @@ BEGIN
     'li_api.list_specialist_interactions(text,integer)', 'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'Retention runtime gained specialist history execution';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege(
+    'li_backend_runtime',
+    'li_api.list_agent_analytics_events()', 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Backend runtime lost analytics event execution';
+  END IF;
+  IF pg_catalog.has_function_privilege(
+    'li_retention_runtime',
+    'li_api.list_agent_analytics_events()', 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Retention runtime gained analytics event execution';
   END IF;
   IF (SELECT added_schema_create FROM migration_026_authority_state)
      AND pg_catalog.has_schema_privilege(
