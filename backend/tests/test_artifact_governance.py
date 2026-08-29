@@ -1,5 +1,6 @@
 import base64
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -303,3 +304,18 @@ def test_conversation_delete_requires_exact_confirmation_and_owner_operation(mon
     )
     assert deleted.status_code == 200
     assert deleted.json()["specialist_interactions_deleted"] == 2
+
+
+def test_private_conversation_deletion_restore_migration_is_owner_only_and_cleans_up():
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "025_restore_private_conversation_deletion.sql").read_text(encoding="utf-8")
+    assert "Migration 025 requires schema version 0.24" in sql
+    assert "CREATE OR REPLACE FUNCTION li_api.delete_private_conversation" in sql
+    assert "GRANT EXECUTE ON FUNCTION li_api.delete_private_conversation(UUID)" in sql
+    assert "TO li_memory_owner_confirmation" in sql
+    assert "li_backend_runtime" in sql
+    assert "li_retention_runtime" in sql
+    assert "REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner" in sql
+    assert "'postgres', 'li_memory_function_owner', 'SET'" in sql
+    assert "'postgres', 'li_memory_function_owner', 'USAGE'" in sql
+    assert "VALUES ('0.25', 'Restore owner-confirmed private conversation deletion')" in sql
