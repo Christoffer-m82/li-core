@@ -179,6 +179,11 @@ async def ready(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/ready")
 
 
+@app.get("/api/capabilities")
+async def capabilities(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/capabilities")
+
+
 @app.post("/api/chat")
 async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response:
     body = {"message": payload.message}

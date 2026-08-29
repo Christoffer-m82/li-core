@@ -156,3 +156,30 @@ def test_agent_execution_uses_owner_boundary(monkeypatch):
         "confirmation": "confirm_permanent_agent_change", "idempotency_key": key})
     assert response.status_code == 200
     assert observed == {"path": f"/owner/agents/recommendations/{rec_id}/execute", "authority": "owner"}
+
+
+def test_backend_overview_is_read_only_and_proxies_capability_inventory(monkeypatch):
+    observed = {}
+
+    async def backend(*args, **kwargs):
+        observed.update(method=args[1], path=args[2])
+        return httpx.Response(200, json={"read_only": True, "capabilities": []})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().get("/api/capabilities")
+    assert response.status_code == 200
+    assert response.json()["read_only"] is True
+    assert observed == {"method": "GET", "path": "/capabilities"}
+
+
+def test_backend_overview_page_has_filters_live_metadata_and_no_mutating_controls():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    assert 'data-view-panel="backend"' in html
+    assert 'id="capability-search"' in html
+    assert 'id="capability-status"' in html
+    assert "Last refreshed" in javascript
+    assert "fetch('/api/capabilities')" in javascript
+    backend_section = html.split('data-view-panel="backend"', 1)[1].split('</section>', 1)[0]
+    assert "type=\"submit\"" not in backend_section

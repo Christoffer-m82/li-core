@@ -17,6 +17,7 @@ from app.calendar_runtime import (
     configured_calendar_provider,
     execute_calendar_action,
 )
+from app.capabilities import build_capability_inventory
 from app.claude import ClaudeError
 from app.config import get_settings
 from app.artifacts import ArtifactStorageError, PrivateArtifactStore, safe_filename
@@ -437,6 +438,25 @@ def readiness() -> dict[str, object]:
             "gmail": app.state.email_provider.__class__.__name__ != "UnavailableEmailProvider",
         },
     }
+
+
+@app.get("/capabilities", tags=["system"], dependencies=[Depends(require_api_token)])
+def capability_inventory() -> dict[str, object]:
+    """Return a secret-free, read-only inventory grounded in current runtime state."""
+    try:
+        database_health()
+        database_available = True
+    except DatabaseHealthError:
+        database_available = False
+    inventory = build_capability_inventory(
+        system_version=APP_VERSION,
+        database_available=database_available,
+        research_available=is_research_provider_available(configured_research_provider(settings)),
+        calendar_available=app.state.calendar_provider.__class__.__name__ != "UnavailableCalendarProvider",
+        gmail_available=app.state.email_provider.__class__.__name__ != "UnavailableEmailProvider",
+        artifact_storage_configured=bool(settings.artifact_bucket.strip()),
+    )
+    return inventory.model_dump(mode="json")
 
 
 @app.get(

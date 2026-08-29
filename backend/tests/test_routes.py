@@ -5,6 +5,7 @@ EXPECTED_ROUTES = {
     ("GET", "/health"),
     ("GET", "/health/database"),
     ("GET", "/ready"),
+    ("GET", "/capabilities"),
     ("GET", "/memory/primary-user"),
     ("POST", "/memory/explicit"),
     ("GET", "/memory/recall"),
