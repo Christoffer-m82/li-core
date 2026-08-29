@@ -248,8 +248,32 @@ def test_specialist_history_ambiguity_migration_qualifies_user_status():
     assert "ORDER BY (i.status = 'active')" in sql
     assert "TO li_memory_api" in sql
     assert "li_retention_runtime" in sql
+    assert "pg_catalog.pg_get_function_identity_arguments(p.oid)" in sql
+    assert "CURRENT_USER, 'li_memory_function_owner', 'SET'" in sql
     assert "REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner" in sql
+    assert "pg_catalog.pg_auth_members" in sql
     assert "VALUES ('0.24', 'Fix specialist history status ambiguity')" in sql
+
+    owner_check = sql.index("function_owner IS DISTINCT FROM 'li_memory_function_owner'")
+    owner_grant = sql.index("GRANT li_memory_function_owner TO postgres")
+    schema_grant = sql.index("GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner")
+    set_role = sql.index("SET LOCAL ROLE li_memory_function_owner")
+    function_replace = sql.index(
+        "CREATE OR REPLACE FUNCTION li_api.list_specialist_interactions"
+    )
+    function_revoke = sql.index(
+        "REVOKE ALL ON FUNCTION li_api.list_specialist_interactions"
+    )
+    function_grant = sql.index(
+        "GRANT EXECUTE ON FUNCTION li_api.list_specialist_interactions"
+    )
+    reset_role = sql.index("RESET ROLE")
+    schema_revoke = sql.index("REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner")
+    owner_revoke = sql.index("REVOKE li_memory_function_owner FROM postgres")
+    cleanup_check = sql.index("Temporary function-owner membership was not removed")
+    assert (owner_check < owner_grant < schema_grant < set_role < function_replace <
+            function_revoke < function_grant < reset_role < schema_revoke <
+            owner_revoke < cleanup_check)
 
 
 def test_safe_filename_prevents_traversal():

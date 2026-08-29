@@ -71,15 +71,18 @@ BEGIN
 END;
 $$;
 
-RESET ROLE;
-REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner;
-REVOKE li_memory_function_owner FROM postgres;
-
+-- Function ACL changes must run as the function owner. PostgreSQL does not let
+-- the migration-session role manage an existing function's privileges merely
+-- because it can temporarily SET ROLE to that owner.
 REVOKE ALL ON FUNCTION li_api.list_specialist_interactions(TEXT, INTEGER)
 FROM PUBLIC, anon, authenticated, service_role, li_memory_theo,
   li_memory_owner_confirmation, li_artifact_retention, li_retention_runtime;
 GRANT EXECUTE ON FUNCTION li_api.list_specialist_interactions(TEXT, INTEGER)
 TO li_memory_api;
+
+RESET ROLE;
+REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner;
+REVOKE li_memory_function_owner FROM postgres;
 
 DO $$
 BEGIN
@@ -102,6 +105,23 @@ BEGIN
     'li_api.list_specialist_interactions(text,integer)', 'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'Retention runtime gained specialist history execution';
+  END IF;
+  IF pg_catalog.has_schema_privilege(
+    'li_memory_function_owner', 'li_api', 'CREATE'
+  ) THEN
+    RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_auth_members AS membership
+    JOIN pg_catalog.pg_roles AS member_role
+      ON member_role.oid = membership.member
+    JOIN pg_catalog.pg_roles AS granted_role
+      ON granted_role.oid = membership.roleid
+    WHERE member_role.rolname = 'postgres'
+      AND granted_role.rolname = 'li_memory_function_owner'
+  ) THEN
+    RAISE EXCEPTION 'Temporary function-owner membership was not removed';
   END IF;
 END $$;
 
