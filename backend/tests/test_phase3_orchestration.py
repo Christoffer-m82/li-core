@@ -220,3 +220,19 @@ def test_migration_026_is_single_transaction_and_failed_attempt_is_rerunnable():
     assert statements[0] == "BEGIN;"
     assert statements[-1] == "COMMIT;"
     assert sql.index("INSERT INTO li_memory.schema_versions") < sql.rindex("COMMIT;")
+
+
+def test_migration_027_qualifies_status_and_preserves_function_boundary():
+    sql = (
+        Path(__file__).parents[2]
+        / "memory"
+        / "migrations"
+        / "027_fix_generalized_specialist_history_status_ambiguity.sql"
+    ).read_text(encoding="utf-8")
+    assert "WHERE u.user_key='christoffer' AND u.status='active'" in sql
+    assert "CREATE OR REPLACE FUNCTION li_api.list_specialist_interactions" in sql
+    assert "li_memory_function_owner" in sql
+    assert "TO li_memory_api" in sql
+    assert "li_retention_runtime" in sql
+    assert sql.splitlines()[0] == "BEGIN;"
+    assert sql.splitlines()[-1] == "COMMIT;"
