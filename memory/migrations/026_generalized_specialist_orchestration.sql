@@ -24,8 +24,79 @@ ALTER TABLE li_runtime_data.specialist_interactions
   ADD COLUMN route_category TEXT NOT NULL DEFAULT 'legacy',
   ADD COLUMN route_reason TEXT NOT NULL DEFAULT 'Recorded before generalized orchestration.';
 
-GRANT li_memory_function_owner TO postgres;
-GRANT USAGE,CREATE ON SCHEMA li_api TO li_memory_function_owner;
+DO $$
+DECLARE
+  function_owner TEXT;
+BEGIN
+  SELECT owner_role.rolname INTO function_owner
+  FROM pg_catalog.pg_proc AS p
+  JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid = p.proowner
+  WHERE p.oid = 'li_api.list_specialist_interactions(text,integer)'::REGPROCEDURE;
+
+  IF function_owner IS DISTINCT FROM 'li_memory_function_owner' THEN
+    RAISE EXCEPTION 'list_specialist_interactions has unexpected owner %', function_owner;
+  END IF;
+  IF NOT pg_catalog.has_schema_privilege(
+    'li_memory_function_owner', 'li_api', 'USAGE'
+  ) THEN
+    RAISE EXCEPTION 'li_memory_function_owner lacks expected USAGE on li_api';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_depend AS d
+    WHERE d.refclassid = 'pg_catalog.pg_proc'::REGCLASS
+      AND d.refobjid = 'li_api.list_specialist_interactions(text,integer)'::REGPROCEDURE
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE = '2BP01',
+      MESSAGE = 'Cannot safely replace list_specialist_interactions: dependent objects exist',
+      DETAIL = (
+        SELECT string_agg(
+          pg_catalog.pg_describe_object(d.classid, d.objid, d.objsubid), ', '
+          ORDER BY pg_catalog.pg_describe_object(d.classid, d.objid, d.objsubid)
+        )
+        FROM pg_catalog.pg_depend AS d
+        WHERE d.refclassid = 'pg_catalog.pg_proc'::REGCLASS
+          AND d.refobjid = 'li_api.list_specialist_interactions(text,integer)'::REGPROCEDURE
+      ),
+      HINT = 'Review and handle each dependency explicitly; migration 026 never uses CASCADE.';
+  END IF;
+END;
+$$;
+
+CREATE TEMP TABLE migration_026_authority_state (
+  added_owner_membership BOOLEAN NOT NULL,
+  added_schema_create BOOLEAN NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO migration_026_authority_state
+SELECT
+  NOT pg_catalog.pg_has_role(CURRENT_USER, 'li_memory_function_owner', 'SET'),
+  NOT pg_catalog.has_schema_privilege('li_memory_function_owner', 'li_api', 'CREATE');
+
+DO $$
+BEGIN
+  IF (SELECT added_owner_membership FROM migration_026_authority_state) THEN
+    EXECUTE 'GRANT li_memory_function_owner TO postgres';
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT pg_catalog.pg_has_role(CURRENT_USER, 'li_memory_function_owner', 'SET') THEN
+    RAISE EXCEPTION 'Migration role cannot assume li_memory_function_owner';
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF (SELECT added_schema_create FROM migration_026_authority_state) THEN
+    EXECUTE 'GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner';
+  END IF;
+END;
+$$;
+
 SET LOCAL ROLE li_memory_function_owner;
 
 DROP FUNCTION li_api.start_specialist_interaction(UUID,UUID,TEXT,TEXT);
@@ -50,7 +121,12 @@ BEGIN
   RETURN v_id;
 END; $$;
 
-CREATE OR REPLACE FUNCTION li_api.list_specialist_interactions(
+-- PostgreSQL cannot change a RETURNS TABLE/OUT-parameter row type with
+-- CREATE OR REPLACE. The dependency guard above makes this exact-signature
+-- drop fail closed instead of silently removing dependent objects.
+DROP FUNCTION li_api.list_specialist_interactions(TEXT,INTEGER);
+
+CREATE FUNCTION li_api.list_specialist_interactions(
   p_specialist TEXT DEFAULT NULL,p_limit INTEGER DEFAULT 50)
 RETURNS TABLE(interaction_id UUID,conversation_id UUID,request_id UUID,specialist_key TEXT,status TEXT,
  request_text TEXT,outcome JSONB,started_at TIMESTAMPTZ,completed_at TIMESTAMPTZ,updated_at TIMESTAMPTZ,
@@ -71,6 +147,12 @@ BEGIN
   LIMIT LEAST(GREATEST(COALESCE(p_limit,50),1),100);
 END; $$;
 
+REVOKE ALL ON FUNCTION li_api.list_specialist_interactions(TEXT,INTEGER)
+ FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_theo,
+ li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
+GRANT EXECUTE ON FUNCTION li_api.list_specialist_interactions(TEXT,INTEGER)
+ TO li_memory_api;
+
 CREATE OR REPLACE FUNCTION li_api.list_agent_analytics_events()
 RETURNS TABLE(interaction_id UUID,request_id UUID,specialist_key TEXT,status TEXT,request_text TEXT,outcome JSONB,
  started_at TIMESTAMPTZ,completed_at TIMESTAMPTZ,explicit_request BOOLEAN,used_in_final BOOLEAN,
@@ -83,14 +165,63 @@ SET search_path=li_runtime_data,li_memory,pg_catalog,pg_temp AS $$
  WHERE u.user_key='christoffer' AND u.status='active' ORDER BY i.started_at DESC;
 $$;
 
-RESET ROLE;
 REVOKE ALL ON FUNCTION li_api.start_specialist_interaction(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT),
- li_api.list_specialist_interactions(TEXT,INTEGER),li_api.list_agent_analytics_events()
- FROM PUBLIC,anon,authenticated,service_role,li_memory_theo,li_memory_owner_confirmation;
+ li_api.list_agent_analytics_events()
+ FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_theo,
+ li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
 GRANT EXECUTE ON FUNCTION li_api.start_specialist_interaction(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT),
- li_api.list_specialist_interactions(TEXT,INTEGER),li_api.list_agent_analytics_events() TO li_memory_api;
-REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner;
-REVOKE li_memory_function_owner FROM postgres;
+ li_api.list_agent_analytics_events() TO li_memory_api;
+
+RESET ROLE;
+
+DO $$
+BEGIN
+  IF (SELECT added_schema_create FROM migration_026_authority_state) THEN
+    EXECUTE 'REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner';
+  END IF;
+  IF (SELECT added_owner_membership FROM migration_026_authority_state) THEN
+    EXECUTE 'REVOKE li_memory_function_owner FROM postgres';
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF (
+    SELECT owner_role.rolname
+    FROM pg_catalog.pg_proc AS p
+    JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid = p.proowner
+    WHERE p.oid = 'li_api.list_specialist_interactions(text,integer)'::REGPROCEDURE
+  ) <> 'li_memory_function_owner' THEN
+    RAISE EXCEPTION 'list_specialist_interactions owner changed unexpectedly';
+  END IF;
+  IF NOT pg_catalog.has_function_privilege(
+    'li_backend_runtime',
+    'li_api.list_specialist_interactions(text,integer)', 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Backend runtime lost specialist history execution';
+  END IF;
+  IF pg_catalog.has_function_privilege(
+    'li_retention_runtime',
+    'li_api.list_specialist_interactions(text,integer)', 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Retention runtime gained specialist history execution';
+  END IF;
+  IF (SELECT added_schema_create FROM migration_026_authority_state)
+     AND pg_catalog.has_schema_privilege(
+       'li_memory_function_owner', 'li_api', 'CREATE'
+     ) THEN
+    RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed';
+  END IF;
+  IF (SELECT added_owner_membership FROM migration_026_authority_state)
+     AND (
+       pg_catalog.pg_has_role('postgres', 'li_memory_function_owner', 'SET')
+       OR pg_catalog.pg_has_role('postgres', 'li_memory_function_owner', 'USAGE')
+     ) THEN
+    RAISE EXCEPTION 'Temporary function-owner authority was not removed';
+  END IF;
+END;
+$$;
 
 INSERT INTO li_memory.schema_versions(version,description)
 VALUES('0.26','Generalized permanent specialist orchestration lifecycle metadata')

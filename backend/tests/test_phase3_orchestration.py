@@ -115,3 +115,76 @@ def test_migration_026_expands_registry_and_adds_lifecycle_fields():
     assert (
         "VALUES('0.26','Generalized permanent specialist orchestration lifecycle metadata')" in sql
     )
+
+
+def test_migration_026_safely_recreates_changed_table_return_type():
+    sql = (
+        Path(__file__).parents[2]
+        / "memory"
+        / "migrations"
+        / "026_generalized_specialist_orchestration.sql"
+    ).read_text(encoding="utf-8")
+    old_shape = (
+        "request_text TEXT,outcome JSONB,started_at TIMESTAMPTZ,completed_at TIMESTAMPTZ,"
+        "updated_at TIMESTAMPTZ"
+    )
+    new_shape = (
+        f"{old_shape},\n explicit_request BOOLEAN,selection_mode TEXT,group_mode TEXT,"
+        "route_category TEXT,route_reason TEXT,\n elapsed_ms BIGINT"
+    )
+    assert new_shape in sql
+    assert "CREATE OR REPLACE FUNCTION li_api.list_specialist_interactions" not in sql
+    assert "DROP FUNCTION li_api.list_specialist_interactions(TEXT,INTEGER)" in sql
+    assert "DROP FUNCTION li_api.list_specialist_interactions(TEXT,INTEGER) CASCADE" not in sql
+    assert "pg_catalog.pg_depend" in sql
+    assert "dependent objects exist" in sql
+    assert "migration 026 never uses CASCADE" in sql
+
+    dependency_check = sql.index("pg_catalog.pg_depend")
+    owner_grant = sql.index("GRANT li_memory_function_owner TO postgres")
+    set_role = sql.index("SET LOCAL ROLE li_memory_function_owner")
+    function_drop = sql.index("DROP FUNCTION li_api.list_specialist_interactions")
+    function_create = sql.index("CREATE FUNCTION li_api.list_specialist_interactions")
+    function_revoke = sql.index(
+        "REVOKE ALL ON FUNCTION li_api.list_specialist_interactions"
+    )
+    function_grant = sql.index(
+        "GRANT EXECUTE ON FUNCTION li_api.list_specialist_interactions"
+    )
+    assert (
+        dependency_check < owner_grant < set_role < function_drop < function_create
+        < function_revoke < function_grant
+    )
+
+
+def test_migration_026_preserves_owner_acl_and_temporary_authority_boundaries():
+    sql = (
+        Path(__file__).parents[2]
+        / "memory"
+        / "migrations"
+        / "026_generalized_specialist_orchestration.sql"
+    ).read_text(encoding="utf-8")
+    assert "function_owner IS DISTINCT FROM 'li_memory_function_owner'" in sql
+    assert "added_owner_membership BOOLEAN NOT NULL" in sql
+    assert "added_schema_create BOOLEAN NOT NULL" in sql
+    assert "TO li_memory_api" in sql
+    assert "li_backend_runtime" in sql
+    assert "li_retention_runtime" in sql
+    assert "list_specialist_interactions owner changed unexpectedly" in sql
+    assert "Temporary li_api CREATE authority was not removed" in sql
+    assert "Temporary function-owner authority was not removed" in sql
+
+
+def test_migration_026_is_single_transaction_and_failed_attempt_is_rerunnable():
+    sql = (
+        Path(__file__).parents[2]
+        / "memory"
+        / "migrations"
+        / "026_generalized_specialist_orchestration.sql"
+    ).read_text(encoding="utf-8")
+    statements = [line.strip() for line in sql.splitlines()]
+    assert statements.count("BEGIN;") == 1
+    assert statements.count("COMMIT;") == 1
+    assert statements[0] == "BEGIN;"
+    assert statements[-1] == "COMMIT;"
+    assert sql.index("INSERT INTO li_memory.schema_versions") < sql.rindex("COMMIT;")
