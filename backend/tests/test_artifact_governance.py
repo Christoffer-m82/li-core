@@ -201,10 +201,29 @@ def test_artifact_reservation_ambiguity_fix_is_qualified_and_owner_scoped():
     assert "version = '0.22'" in sql
     assert "c.owner_user_id = v_user" in sql
     assert "ps.owner_user_id = v_user" in sql
+    assert "pg_catalog.pg_proc" in sql
+    assert "n.nspname = 'li_api'" in sql
+    assert "function_owner IS DISTINCT FROM 'li_memory_function_owner'" in sql
+    assert "pg_catalog.pg_get_function_identity_arguments(p.oid)" in sql
     assert "GRANT li_memory_function_owner TO postgres" in sql
+    assert "CURRENT_USER, 'li_memory_function_owner', 'SET'" in sql
+    assert "GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner" in sql
     assert "SET LOCAL ROLE li_memory_function_owner" in sql
+    assert "RESET ROLE" in sql
+    assert "REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner" in sql
     assert "REVOKE li_memory_function_owner FROM postgres" in sql
     assert "VALUES ('0.23'" in sql
+
+    owner_check = sql.index("function_owner IS DISTINCT FROM 'li_memory_function_owner'")
+    owner_grant = sql.index("GRANT li_memory_function_owner TO postgres")
+    schema_grant = sql.index("GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner")
+    set_role = sql.index("SET LOCAL ROLE li_memory_function_owner")
+    function_replace = sql.index("CREATE OR REPLACE FUNCTION li_api.reserve_artifact")
+    reset_role = sql.index("RESET ROLE")
+    schema_revoke = sql.index("REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner")
+    owner_revoke = sql.index("REVOKE li_memory_function_owner FROM postgres")
+    assert (owner_check < owner_grant < schema_grant < set_role < function_replace <
+            reset_role < schema_revoke < owner_revoke)
 
 
 def test_expiry_selection_preserves_keep_and_delete_early_semantics():

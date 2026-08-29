@@ -9,7 +9,48 @@ BEGIN
 END;
 $$;
 
+-- Migration 017 created reserve_artifact as this NOLOGIN owner and then removed
+-- its CREATE privilege on li_api. Verify the expected owner through the catalogs
+-- before temporarily restoring only the authority needed to replace the function.
+DO $$
+DECLARE
+  function_owner TEXT;
+BEGIN
+  SELECT owner_role.rolname
+  INTO function_owner
+  FROM pg_catalog.pg_proc AS p
+  JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+  JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid = p.proowner
+  WHERE n.nspname = 'li_api'
+    AND p.proname = 'reserve_artifact'
+    AND pg_catalog.pg_get_function_identity_arguments(p.oid) =
+      'p_filename text, p_content_type text, p_size bigint, p_source text, p_conversation uuid';
+
+  IF function_owner IS DISTINCT FROM 'li_memory_function_owner' THEN
+    RAISE EXCEPTION 'reserve_artifact has unexpected owner %', function_owner;
+  END IF;
+
+  IF NOT pg_catalog.has_schema_privilege(
+    'li_memory_function_owner', 'li_api', 'USAGE'
+  ) THEN
+    RAISE EXCEPTION 'li_memory_function_owner lacks expected USAGE on li_api';
+  END IF;
+END;
+$$;
+
 GRANT li_memory_function_owner TO postgres;
+
+DO $$
+BEGIN
+  IF NOT pg_catalog.pg_has_role(
+    CURRENT_USER, 'li_memory_function_owner', 'SET'
+  ) THEN
+    RAISE EXCEPTION 'Migration role cannot assume li_memory_function_owner';
+  END IF;
+END;
+$$;
+
+GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner;
 SET LOCAL ROLE li_memory_function_owner;
 
 CREATE OR REPLACE FUNCTION li_api.reserve_artifact(
@@ -65,6 +106,7 @@ END;
 $$;
 
 RESET ROLE;
+REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner;
 REVOKE li_memory_function_owner FROM postgres;
 
 DO $$
