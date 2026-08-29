@@ -247,3 +247,27 @@ def test_unsafe_or_unsupported_specialist_output_is_rejected(monkeypatch, recomm
     )
     with pytest.raises(SpecialistRuntimeError):
         delegate_to_specialist("sofia", SpecialistRequest(current_user_message="Assess this."))
+
+
+def test_specialist_prompt_preserves_strict_result_field_types(monkeypatch) -> None:
+    observed = {}
+
+    def fake_generate(**kwargs):
+        observed.update(kwargs)
+        return json.dumps({
+            "recommendation": "Safe advice",
+            "findings": [],
+            "confidence": 0.7,
+            "key_assumptions": [],
+            "sources_needed": False,
+            "follow_up_questions": [],
+            "research_request": None,
+        })
+
+    monkeypatch.setattr("app.specialist_runtime.generate_claude_text", fake_generate)
+    delegate_to_specialist(
+        "iris", SpecialistRequest(current_user_message="Arrange a reading corner.")
+    )
+    prompt = observed["system"]
+    assert "confidence: number from 0 to 1 (never a label or string)" in prompt
+    assert "sources_needed: boolean (never an array)" in prompt
