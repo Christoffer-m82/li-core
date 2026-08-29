@@ -1,0 +1,6 @@
+title: Li Artifact Retention Object Operator
+description: Read and delete objects for the isolated artifact retention job.
+stage: GA
+includedPermissions:
+  - storage.objects.get
+  - storage.objects.delete

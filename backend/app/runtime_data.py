@@ -80,15 +80,6 @@ def change_artifact(artifact_id: str, action: str) -> dict[str, object] | None:
     return rows[0] if rows else None
 
 
-def expired_artifacts(limit: int = 100) -> list[dict[str, object]]:
-    return _call("list_expired_artifacts", (limit,))
-
-
-def mark_expired(artifact_id: str) -> bool:
-    rows = _call("mark_artifact_expired", (UUID(artifact_id),))
-    return bool(next(iter(rows[0].values())))
-
-
 def start_interaction(conversation_id: str, request_id: str, specialist: str, request: str) -> str:
     rows = _call("start_specialist_interaction", (
         UUID(conversation_id), UUID(request_id), specialist, request,

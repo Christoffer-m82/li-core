@@ -82,9 +82,9 @@ from app.schemas import (
     AgentExecutionConfirmation,
 )
 from app.runtime_data import (
-    RuntimeDataError, change_artifact, conversation_messages, expired_artifacts,
+    RuntimeDataError, change_artifact, conversation_messages,
     finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
-    list_interactions, mark_expired, reserve_artifact, set_retention, analytics_events,
+    list_interactions, reserve_artifact, set_retention, analytics_events,
     delete_conversation,
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
     review_agent_recommendation, execute_agent_recommendation, agent_states,
@@ -273,20 +273,6 @@ def artifact_retention(artifact_id: UUID, payload: RetentionUpdate) -> dict[str,
     except (RuntimeDataError, ArtifactStorageError) as exc:
         raise HTTPException(status_code=503, detail="Artifact retention update failed.") from exc
     return {"artifact_id": artifact_id, "state": changed["retention_state"]}
-
-
-@app.post("/internal/retention/cleanup", dependencies=[Depends(require_api_token)])
-def cleanup_artifacts() -> dict[str, int]:
-    deleted = 0
-    try:
-        for record in expired_artifacts():
-            if record.get("storage_object"):
-                _artifact_store().delete(str(record["storage_object"]))
-            if mark_expired(str(record["artifact_id"])):
-                deleted += 1
-    except (RuntimeDataError, ArtifactStorageError) as exc:
-        raise HTTPException(status_code=503, detail="Retention cleanup failed.") from exc
-    return {"deleted": deleted}
 
 
 @app.get("/privacy/settings", dependencies=[Depends(require_api_token)])

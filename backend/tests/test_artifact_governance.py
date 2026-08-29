@@ -105,16 +105,85 @@ def test_generated_artifact_uses_default_expiry_and_can_be_deleted(monkeypatch):
     assert store.deleted
 
 
-def test_cleanup_is_idempotent(monkeypatch):
+def test_cleanup_job_is_idempotent(monkeypatch):
+    from app import retention_job
+
     artifact_id = uuid4()
     store = FakeStore()
-    monkeypatch.setattr("app.main._artifact_store", lambda: store)
-    monkeypatch.setattr("app.main.expired_artifacts", lambda: [
-        {"artifact_id": artifact_id, "storage_object": "owners/o/artifacts/a/notes.txt"}])
-    calls = []
-    monkeypatch.setattr("app.main.mark_expired", lambda value: not calls and not calls.append(value))
-    first = client().post("/internal/retention/cleanup").json()
-    assert first == {"deleted": 1}
+
+    class Cursor:
+        def __init__(self):
+            self.statement = ""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, statement, _parameters):
+            self.statement = statement
+
+        def fetchall(self):
+            return [{"artifact_id": artifact_id,
+                     "storage_object": "owners/o/artifacts/a/notes.txt"}]
+
+        def fetchone(self):
+            return {"marked": True}
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def cursor(self):
+            return Cursor()
+
+    class Settings:
+        artifact_bucket = "private"
+
+        def connect_kwargs(self):
+            return {}
+
+    monkeypatch.setattr(retention_job, "RetentionSettings", Settings)
+    monkeypatch.setattr(retention_job, "PrivateArtifactStore", lambda _bucket: store)
+    monkeypatch.setattr(retention_job.psycopg, "connect", lambda **_kwargs: Connection())
+
+    assert retention_job.run() == 1
+    assert store.deleted == ["owners/o/artifacts/a/notes.txt"]
+
+
+def test_retention_worker_migration_is_least_privilege():
+    from pathlib import Path
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "022_retention_worker_role.sql").read_text(encoding="utf-8")
+    assert "CREATE ROLE li_artifact_retention" in sql
+    assert "CREATE ROLE li_retention_runtime" in sql
+    assert "NOLOGIN INHERIT" in sql
+    assert "LOGIN INHERIT" in sql
+    assert "GRANT li_artifact_retention TO li_retention_runtime" in sql
+    assert "li_api.list_expired_artifacts(INTEGER)" in sql
+    assert "li_api.mark_artifact_expired(UUID)" in sql
+    assert "FROM PUBLIC, anon, authenticated, service_role, li_memory_api" in sql
+    assert "ALL TABLES IN SCHEMA li_memory, li_runtime_data" in sql
+    assert "has_function_privilege" in sql
+    assert "has_table_privilege" in sql
+    assert "VALUES ('0.22'" in sql
+
+
+def test_expiry_selection_preserves_keep_and_delete_early_semantics():
+    from pathlib import Path
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "017_governed_artifacts_and_specialist_history.sql").read_text(encoding="utf-8")
+    selection = sql.split("CREATE FUNCTION li_api.list_expired_artifacts", 1)[1].split(
+        "CREATE FUNCTION li_api.mark_artifact_expired", 1
+    )[0]
+    assert "retention_state='expiring'" in selection
+    assert "expires_at<=NOW()" in selection
+    assert "retention_state='kept'" not in selection
+    assert "retention_state='deleted'" not in selection
 
 
 def test_safe_filename_prevents_traversal():
