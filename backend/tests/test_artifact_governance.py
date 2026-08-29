@@ -166,6 +166,13 @@ def test_retention_worker_migration_is_least_privilege():
     assert "GRANT li_artifact_retention TO li_retention_runtime" in sql
     assert "li_api.list_expired_artifacts(INTEGER)" in sql
     assert "li_api.mark_artifact_expired(UUID)" in sql
+    assert "owner_role.rolname <> 'li_memory_function_owner'" in sql
+    assert "GRANT li_memory_function_owner TO postgres" in sql
+    assert "pg_has_role(" in sql
+    assert "CURRENT_USER, 'li_memory_function_owner', 'SET'" in sql
+    assert "SET LOCAL ROLE li_memory_function_owner" in sql
+    assert "RESET ROLE" in sql
+    assert "REVOKE li_memory_function_owner FROM postgres" in sql
     assert "FROM PUBLIC, anon, authenticated, service_role, li_memory_api" in sql
     assert "EXECUTE ON ALL FUNCTIONS IN SCHEMA li_api" not in sql
     assert "ALL TABLES IN SCHEMA li_memory, li_runtime_data" not in sql
@@ -177,6 +184,14 @@ def test_retention_worker_migration_is_least_privilege():
     assert "has_sequence_privilege" in sql
     assert "has_function_privilege" in sql
     assert "VALUES ('0.22'" in sql
+
+    owner_grant = sql.index("GRANT li_memory_function_owner TO postgres")
+    set_role = sql.index("SET LOCAL ROLE li_memory_function_owner")
+    function_revoke = sql.index("REVOKE EXECUTE ON FUNCTION")
+    function_grant = sql.index("GRANT EXECUTE ON FUNCTION")
+    reset_role = sql.index("RESET ROLE")
+    owner_revoke = sql.index("REVOKE li_memory_function_owner FROM postgres")
+    assert owner_grant < set_role < function_revoke < function_grant < reset_role < owner_revoke
 
 
 def test_expiry_selection_preserves_keep_and_delete_early_semantics():

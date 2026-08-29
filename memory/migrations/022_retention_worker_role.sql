@@ -30,6 +30,48 @@ $$;
 REVOKE ALL ON SCHEMA li_memory, li_runtime_data FROM li_artifact_retention, li_retention_runtime;
 REVOKE ALL ON SCHEMA li_api FROM li_artifact_retention, li_retention_runtime;
 
+GRANT USAGE ON SCHEMA li_api TO li_artifact_retention;
+
+-- Migration 017 created these SECURITY DEFINER functions while SET ROLE was
+-- li_memory_function_owner, so their ACLs must be changed in that owner context.
+-- Match the established migration pattern: postgres receives membership only for
+-- this transaction, assumes the NOLOGIN owner role, then relinquishes it below.
+DO $$
+DECLARE
+  unexpected_owner TEXT;
+BEGIN
+  SELECT owner_role.rolname
+  INTO unexpected_owner
+  FROM pg_catalog.pg_proc AS p
+  JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+  JOIN pg_catalog.pg_roles AS owner_role ON owner_role.oid = p.proowner
+  WHERE p.oid IN (
+    'li_api.list_expired_artifacts(integer)'::REGPROCEDURE,
+    'li_api.mark_artifact_expired(uuid)'::REGPROCEDURE
+  )
+    AND owner_role.rolname <> 'li_memory_function_owner'
+  LIMIT 1;
+
+  IF unexpected_owner IS NOT NULL THEN
+    RAISE EXCEPTION 'Retention function has unexpected owner %', unexpected_owner;
+  END IF;
+END;
+$$;
+
+GRANT li_memory_function_owner TO postgres;
+
+DO $$
+BEGIN
+  IF NOT pg_catalog.pg_has_role(
+    CURRENT_USER, 'li_memory_function_owner', 'SET'
+  ) THEN
+    RAISE EXCEPTION 'Migration role cannot assume li_memory_function_owner';
+  END IF;
+END;
+$$;
+
+SET LOCAL ROLE li_memory_function_owner;
+
 REVOKE EXECUTE ON FUNCTION
   li_api.list_expired_artifacts(INTEGER),
   li_api.mark_artifact_expired(UUID)
@@ -37,11 +79,13 @@ FROM PUBLIC, anon, authenticated, service_role, li_memory_api,
   li_backend_runtime, li_memory_theo, li_memory_owner_confirmation,
   li_retention_runtime;
 
-GRANT USAGE ON SCHEMA li_api TO li_artifact_retention;
 GRANT EXECUTE ON FUNCTION
   li_api.list_expired_artifacts(INTEGER),
   li_api.mark_artifact_expired(UUID)
 TO li_artifact_retention;
+
+RESET ROLE;
+REVOKE li_memory_function_owner FROM postgres;
 
 REVOKE li_memory_api, li_memory_theo, li_memory_owner_confirmation,
   li_memory_function_owner, li_artifact_retention
