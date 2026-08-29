@@ -88,6 +88,38 @@ def test_real_lifecycle_metadata_is_recorded_without_fabricated_analytics(monkey
     assert "transcript" not in outcome
 
 
+def test_temporary_upload_content_is_not_persisted_in_interaction_outcome(monkeypatch):
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    finished = []
+    monkeypatch.setattr("app.li_runtime.start_interaction", lambda *args: "event-1")
+    monkeypatch.setattr(
+        "app.li_runtime.finish_interaction", lambda *args: finished.append(args) or True
+    )
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda names, request: SpecialistConsultation(results={
+            "iris": SpecialistResult(
+                recommendation="The marker TEMP-SECRET was present.",
+                confidence=0.8,
+                sources_needed=False,
+            )
+        }),
+    )
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: "Li answer")
+    with specialist_recording_context("00000000-0000-0000-0000-000000000001"):
+        talk_to_li(
+            "Ask Iris to summarize the temporary room note.",
+            temporary_upload_context="TEMP-SECRET",
+        )
+    outcome = finished[0][2]
+    assert "TEMP-SECRET" not in str(outcome)
+    assert outcome["temporary_context"] == {
+        "provided": True,
+        "content_retained": False,
+    }
+    assert outcome["validation"]["validated"] is True
+
+
 def test_migration_026_expands_registry_and_adds_lifecycle_fields():
     sql = (
         Path(__file__).parents[2]

@@ -451,16 +451,32 @@ def talk_to_li(
                 continue
             result = consultation.results.get(specialist)
             try:
+                validation = {
+                    "contract": "specialist_result_v1",
+                    "validated": result is not None,
+                    "used_in_final": None,
+                    "action_converted": None,
+                }
+                if result is not None:
+                    validation["contributed_to_synthesis_input"] = True
+                if result is None:
+                    persisted_outcome = {"validation": validation, "unavailable": True}
+                elif temporary_upload_context:
+                    persisted_outcome = {
+                        "validation": validation,
+                        "temporary_context": {
+                            "provided": True,
+                            "content_retained": False,
+                        },
+                    }
+                else:
+                    persisted_outcome = {
+                        **result.model_dump(mode="json"),
+                        "validation": validation,
+                    }
                 finish_interaction(
                     interaction_id, "completed" if result else "failed",
-                    ({**result.model_dump(mode="json"), "validation": {
-                        "contract": "specialist_result_v1", "validated": True,
-                        "contributed_to_synthesis_input": True,
-                        "used_in_final": None, "action_converted": None,
-                    }} if result else {"validation": {
-                        "contract": "specialist_result_v1", "validated": False,
-                        "used_in_final": None, "action_converted": None,
-                    }, "unavailable": True}),
+                    persisted_outcome,
                 )
             except RuntimeDataError:
                 pass
