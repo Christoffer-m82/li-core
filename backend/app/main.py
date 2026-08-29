@@ -57,6 +57,7 @@ from app.memory_capture import (
 )
 from app.production import SecurityMiddleware, configure_logging
 from app.research_runtime import configured_research_provider, is_research_provider_available
+from app.specialist_runtime import SPECIALIST_CONTRACTS
 from app.schemas import (
     ExplicitMemoryCreate,
     ExplicitMemoryCreated,
@@ -139,20 +140,8 @@ ALLOWED_ARTIFACT_TYPES = {
     "application/json", "image/png", "image/jpeg", "image/webp",
 }
 MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
-AGENT_ROSTER = (
-    {"id": "sofia", "name": "Sofia", "role": "Health & medical"},
-    {"id": "marco", "name": "Marco", "role": "Fitness & performance"},
-    {"id": "elena", "name": "Elena", "role": "Nutrition, food & drink"},
-    {"id": "amelia", "name": "Amelia", "role": "Relationships & social"},
-    {"id": "freja", "name": "Freja", "role": "Parenting & family"},
-    {"id": "oliver", "name": "Oliver", "role": "Legal & regulatory"},
-    {"id": "james", "name": "James", "role": "Finance & wealth"},
-    {"id": "nora", "name": "Nora", "role": "Research & evidence"},
-    {"id": "victor", "name": "Victor", "role": "Strategy & decisions"},
-    {"id": "milo", "name": "Milo", "role": "Travel & experiences"},
-    {"id": "iris", "name": "Iris", "role": "Home, design & garden"},
-    {"id": "clara", "name": "Clara", "role": "Wellbeing & habits"},
-)
+AGENT_ROSTER = tuple({"id": key, "name": contract.name, "role": contract.role}
+                     for key, contract in SPECIALIST_CONTRACTS.items())
 
 
 def _artifact_store() -> PrivateArtifactStore:
@@ -297,7 +286,7 @@ def update_privacy_settings(payload: PrivacySettingsUpdate) -> dict[str, int]:
 
 @app.get("/specialists/interactions", dependencies=[Depends(require_api_token)])
 def specialist_history(specialist: str | None = None) -> dict[str, object]:
-    if specialist is not None and specialist not in {"nora", "victor", "milo"}:
+    if specialist is not None and specialist not in SPECIALIST_CONTRACTS:
         raise HTTPException(status_code=404, detail="Specialist not found.")
     try:
         return {"interactions": list_interactions(specialist)}
