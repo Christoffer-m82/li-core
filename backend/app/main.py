@@ -74,6 +74,7 @@ from app.schemas import (
     ArtifactUpload,
     GeneratedArtifactCreate,
     PrivacySettingsUpdate,
+    ConversationDeleteConfirmation,
     RetentionUpdate,
     AgentSettingsUpdate,
     AgentActionReview,
@@ -83,6 +84,7 @@ from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages, expired_artifacts,
     finalize_artifact, get_artifact, get_privacy_settings, list_conversations,
     list_interactions, mark_expired, reserve_artifact, set_retention, analytics_events,
+    delete_conversation,
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
     review_agent_recommendation, execute_agent_recommendation, agent_states,
 )
@@ -383,6 +385,20 @@ def conversation(conversation_id: UUID) -> dict[str, object]:
                 "messages": conversation_messages(str(conversation_id))}
     except RuntimeDataError as exc:
         raise HTTPException(status_code=404, detail="Conversation not found.") from exc
+
+
+@app.post("/owner/conversations/{conversation_id}/delete",
+          dependencies=[Depends(require_owner_api_token)], tags=["owner"])
+def delete_private_conversation(conversation_id: UUID,
+                                payload: ConversationDeleteConfirmation) -> dict[str, object]:
+    del payload
+    try:
+        result = delete_conversation(str(conversation_id))
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Conversation deletion failed safely.") from exc
+    if not result or not result.get("deleted"):
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    return result
 
 
 @app.get("/", tags=["system"])

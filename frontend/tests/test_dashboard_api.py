@@ -38,6 +38,24 @@ def test_specialist_history_does_not_fabricate_transcripts(monkeypatch):
     assert response.json()["live_events_available"] is True
 
 
+def test_conversation_delete_uses_owner_authority(monkeypatch):
+    conversation_id = "00000000-0000-0000-0000-000000000001"
+    observed = {}
+
+    async def backend(settings, method, path, json_body=None, authority="li"):
+        observed.update(method=method, path=path, body=json_body, authority=authority)
+        return httpx.Response(200, json={"deleted": True, "specialist_interactions_deleted": 1})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().post(
+        f"/api/conversations/{conversation_id}/delete",
+        json={"confirmation": "delete_private_conversation"},
+    )
+    assert response.status_code == 200
+    assert observed["authority"] == "owner"
+    assert observed["path"] == f"/owner/conversations/{conversation_id}/delete"
+
+
 def test_upload_rejects_unsupported_type():
     response = signed_in_client().post(
         "/api/uploads", files={"file": ("unsafe.exe", b"MZ", "application/octet-stream")}

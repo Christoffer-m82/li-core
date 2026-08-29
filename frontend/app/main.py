@@ -311,6 +311,18 @@ async def conversation(conversation_id: str, _: str = Depends(require_user)) -> 
     return await proxy("GET", f"/conversations/{conversation_id}")
 
 
+@app.post("/api/conversations/{conversation_id}/delete")
+async def delete_conversation(conversation_id: str, request: Request,
+                              _: str = Depends(require_user)) -> Response:
+    try:
+        from uuid import UUID
+        UUID(conversation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid conversation identifier.")
+    return await proxy("POST", f"/owner/conversations/{conversation_id}/delete",
+                       json_body=await request.json(), authority="owner")
+
+
 @app.get("/api/privacy/settings")
 async def privacy_settings(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/privacy/settings")

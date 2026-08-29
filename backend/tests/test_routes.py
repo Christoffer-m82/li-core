@@ -24,6 +24,7 @@ EXPECTED_ROUTES = {
     ("GET", "/specialists/interactions"),
     ("GET", "/conversations"),
     ("GET", "/conversations/{conversation_id}"),
+    ("POST", "/owner/conversations/{conversation_id}/delete"),
 }
 
 

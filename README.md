@@ -127,6 +127,11 @@ staging project's configured backup/PITR window expires; they are not accessible
 and are not selectively restorable as active user data. Review that infrastructure window
 whenever the database backup policy changes.
 
+Conversation deletion is an explicit owner-confirmed action. It removes the conversation,
+its messages, and linked specialist interaction records from active database storage. The
+same backup/PITR limitation above applies: encrypted historical blocks age out with the
+provider window and cannot be selectively erased from an already-created physical backup.
+
 Run `memory/migrations/017_governed_artifacts_and_specialist_history.sql` through the existing
 immutable migration process before deploying the application revision. Run the included
 Cloud Run retention job daily through Cloud Scheduler's authenticated Jobs API. Scheduler
