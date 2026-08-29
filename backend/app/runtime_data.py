@@ -80,9 +80,13 @@ def change_artifact(artifact_id: str, action: str) -> dict[str, object] | None:
     return rows[0] if rows else None
 
 
-def start_interaction(conversation_id: str, request_id: str, specialist: str, request: str) -> str:
+def start_interaction(
+    conversation_id: str, request_id: str, specialist: str, request: str,
+    selection_mode: str, group_mode: str, route_category: str, route_reason: str,
+) -> str:
     rows = _call("start_specialist_interaction", (
         UUID(conversation_id), UUID(request_id), specialist, request,
+        selection_mode, group_mode, route_category, route_reason,
     ))
     return str(next(iter(rows[0].values())))
 

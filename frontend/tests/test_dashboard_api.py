@@ -19,6 +19,7 @@ def teardown_function() -> None:
 def test_specialist_roster_is_single_and_inactive_without_real_events(monkeypatch):
     async def backend(*args, **kwargs):
         return httpx.Response(200, json={"interactions": []})
+
     monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().get("/api/specialists")
     assert response.status_code == 200
@@ -31,6 +32,7 @@ def test_specialist_roster_is_single_and_inactive_without_real_events(monkeypatc
 def test_specialist_history_does_not_fabricate_transcripts(monkeypatch):
     async def backend(*args, **kwargs):
         return httpx.Response(200, json={"interactions": []})
+
     monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().get("/api/specialists/nora/interactions")
     assert response.status_code == 200
@@ -74,7 +76,10 @@ def test_upload_rejects_oversized_body_before_parsing():
     response = signed_in_client().post(
         "/api/uploads",
         content=b"x",
-        headers={"content-type": "multipart/form-data", "content-length": str(MAX_UPLOAD_BYTES * 2)},
+        headers={
+            "content-type": "multipart/form-data",
+            "content-length": str(MAX_UPLOAD_BYTES * 2),
+        },
     )
     assert response.status_code == 413
 
@@ -83,6 +88,7 @@ def test_valid_upload_is_temporary_by_default(monkeypatch):
     async def backend(*args, **kwargs):
         assert kwargs["json_body"]["save"] is False
         return httpx.Response(200, json={"retained": False, "analysis_text": "hello"})
+
     monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().post(
         "/api/uploads", files={"file": ("notes.txt", b"hello", "text/plain")}
@@ -93,13 +99,18 @@ def test_valid_upload_is_temporary_by_default(monkeypatch):
 
 def test_chat_forwards_bounded_temporary_upload_context(monkeypatch):
     observed = {}
+
     async def backend(*args, **kwargs):
         observed.update(kwargs["json_body"])
-        return httpx.Response(200, json={"response": "ok", "conversation_id":
-            "00000000-0000-0000-0000-000000000001"})
+        return httpx.Response(
+            200, json={"response": "ok", "conversation_id": "00000000-0000-0000-0000-000000000001"}
+        )
+
     monkeypatch.setattr("app.main.request_backend", backend)
-    response = signed_in_client().post("/api/chat", json={
-        "message": "Analyse it", "temporary_upload_context": "File: notes.txt\nhello"})
+    response = signed_in_client().post(
+        "/api/chat",
+        json={"message": "Analyse it", "temporary_upload_context": "File: notes.txt\nhello"},
+    )
     assert response.status_code == 200
     assert observed["temporary_upload_context"] == "File: notes.txt\nhello"
 
@@ -108,6 +119,7 @@ def test_artifact_library_is_proxied_from_governed_storage(monkeypatch):
     async def backend(*args, **kwargs):
         assert args[2] == "/artifacts"
         return httpx.Response(200, json={"artifacts": []})
+
     monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().get("/api/artifacts")
     assert response.status_code == 200
@@ -140,12 +152,22 @@ def test_client_includes_activity_sorting_theme_fallback_and_real_artifact_guard
     assert "loadArtifacts" in javascript
     assert "coords.latitude" in javascript
     assert "localStorage.setItem('li-theme', choice)" in javascript
+    assert "setInterval(loadSpecialists, 1200)" in javascript
+    assert "item.active ? ' active' : ''" in javascript
+
+
+def test_active_only_specialist_pulse_returns_to_idle_from_real_events():
+    css = (Path(__file__).parents[1] / "static" / "assets" / "app.css").read_text(encoding="utf-8")
+    javascript = (Path(__file__).parents[1] / "static" / "assets" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    assert ".specialist-card.active" in css and "animation:active-card" in css
+    assert "clearInterval(specialistPoll); await loadSpecialists()" in javascript
+    assert "entry.outcome.recommendation || 'Interaction completed.'" in javascript
 
 
 def test_responsive_breakpoints_are_present():
-    css = (Path(__file__).parents[1] / "static" / "assets" / "app.css").read_text(
-        encoding="utf-8"
-    )
+    css = (Path(__file__).parents[1] / "static" / "assets" / "app.css").read_text(encoding="utf-8")
     assert "@media(max-width:1050px)" in css
     assert "@media(max-width:680px)" in css
 
@@ -164,6 +186,7 @@ def test_agent_analytics_bff_proxy(monkeypatch):
     async def backend(*args, **kwargs):
         assert args[2] == "/agents/analytics?period=90d"
         return httpx.Response(200, json={"period": "90d", "agents": []})
+
     monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().get("/api/agents/analytics?period=90d")
     assert response.status_code == 200
@@ -172,15 +195,22 @@ def test_agent_analytics_bff_proxy(monkeypatch):
 
 def test_agent_execution_uses_owner_boundary(monkeypatch):
     observed = {}
+
     async def backend(*args, **kwargs):
         observed.update(path=args[2], authority=kwargs.get("authority"))
         return httpx.Response(200, json={"outcome": "no_op"})
+
     monkeypatch.setattr("app.main.request_backend", backend)
     rec_id, key = "d7d0fbbb-d650-4ec3-a053-f5e6022267da", "6e12f41d-c909-4353-9435-e0d4779cfa43"
-    response = signed_in_client().post(f"/api/agents/recommendations/{rec_id}/execute", json={
-        "confirmation": "confirm_permanent_agent_change", "idempotency_key": key})
+    response = signed_in_client().post(
+        f"/api/agents/recommendations/{rec_id}/execute",
+        json={"confirmation": "confirm_permanent_agent_change", "idempotency_key": key},
+    )
     assert response.status_code == 200
-    assert observed == {"path": f"/owner/agents/recommendations/{rec_id}/execute", "authority": "owner"}
+    assert observed == {
+        "path": f"/owner/agents/recommendations/{rec_id}/execute",
+        "authority": "owner",
+    }
 
 
 def test_backend_overview_is_read_only_and_proxies_capability_inventory(monkeypatch):
@@ -206,5 +236,5 @@ def test_backend_overview_page_has_filters_live_metadata_and_no_mutating_control
     assert 'id="capability-status"' in html
     assert "Last refreshed" in javascript
     assert "fetch('/api/capabilities')" in javascript
-    backend_section = html.split('data-view-panel="backend"', 1)[1].split('</section>', 1)[0]
-    assert "type=\"submit\"" not in backend_section
+    backend_section = html.split('data-view-panel="backend"', 1)[1].split("</section>", 1)[0]
+    assert 'type="submit"' not in backend_section
