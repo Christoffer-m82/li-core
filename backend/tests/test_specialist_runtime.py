@@ -271,3 +271,5 @@ def test_specialist_prompt_preserves_strict_result_field_types(monkeypatch) -> N
     prompt = observed["system"]
     assert "confidence: number from 0 to 1 (never a label or string)" in prompt
     assert "sources_needed: boolean (never an array)" in prompt
+    assert "When research_evidence is supplied" in prompt
+    assert "never request another research pass" in prompt

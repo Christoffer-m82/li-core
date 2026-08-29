@@ -314,7 +314,7 @@ Return only one JSON object with exactly these fields and types:
 - sources_needed: boolean (never an array)
 - follow_up_questions: array of strings
 - research_request: {'an object or null' if contract.allows_research_request else 'always null'}
-A non-null research_request has exactly query (string), freshness_requirement (string), source_types (array of strings), and rationale (string), and only asks Li to consider research."""
+A non-null research_request has exactly query (string), freshness_requirement (string), source_types (array of strings), and rationale (string), and only asks Li to consider research. When research_evidence is supplied, analyze that evidence and set research_request to null; never request another research pass."""
     try:
         raw = generate_claude_text(
             user_message=request.model_dump_json(), system=system, max_tokens=max_tokens
