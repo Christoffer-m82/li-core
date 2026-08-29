@@ -239,6 +239,19 @@ def test_expiry_selection_preserves_keep_and_delete_early_semantics():
     assert "retention_state='deleted'" not in selection
 
 
+def test_specialist_history_ambiguity_migration_qualifies_user_status():
+    from pathlib import Path
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "024_fix_specialist_history_status_ambiguity.sql").read_text(encoding="utf-8")
+    assert "version = '0.23'" in sql
+    assert "u.status = 'active'" in sql
+    assert "ORDER BY (i.status = 'active')" in sql
+    assert "TO li_memory_api" in sql
+    assert "li_retention_runtime" in sql
+    assert "REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner" in sql
+    assert "VALUES ('0.24', 'Fix specialist history status ambiguity')" in sql
+
+
 def test_safe_filename_prevents_traversal():
     assert safe_filename("../../secret.txt") == "secret.txt"
     assert safe_filename("folder\\notes.txt") == "notes.txt"
