@@ -167,9 +167,15 @@ def test_retention_worker_migration_is_least_privilege():
     assert "li_api.list_expired_artifacts(INTEGER)" in sql
     assert "li_api.mark_artifact_expired(UUID)" in sql
     assert "FROM PUBLIC, anon, authenticated, service_role, li_memory_api" in sql
-    assert "ALL TABLES IN SCHEMA li_memory, li_runtime_data" in sql
-    assert "has_function_privilege" in sql
+    assert "EXECUTE ON ALL FUNCTIONS IN SCHEMA li_api" not in sql
+    assert "ALL TABLES IN SCHEMA li_memory, li_runtime_data" not in sql
+    assert "li_api.health_check" in sql
+    assert "pg_catalog.pg_proc" in sql
+    assert "p.oid NOT IN" in sql
+    assert "pg_catalog.pg_class" in sql
     assert "has_table_privilege" in sql
+    assert "has_sequence_privilege" in sql
+    assert "has_function_privilege" in sql
     assert "VALUES ('0.22'" in sql
 
 
