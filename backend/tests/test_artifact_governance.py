@@ -194,6 +194,19 @@ def test_retention_worker_migration_is_least_privilege():
     assert owner_grant < set_role < function_revoke < function_grant < reset_role < owner_revoke
 
 
+def test_artifact_reservation_ambiguity_fix_is_qualified_and_owner_scoped():
+    from pathlib import Path
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "023_fix_artifact_reservation_ambiguity.sql").read_text(encoding="utf-8")
+    assert "version = '0.22'" in sql
+    assert "c.owner_user_id = v_user" in sql
+    assert "ps.owner_user_id = v_user" in sql
+    assert "GRANT li_memory_function_owner TO postgres" in sql
+    assert "SET LOCAL ROLE li_memory_function_owner" in sql
+    assert "REVOKE li_memory_function_owner FROM postgres" in sql
+    assert "VALUES ('0.23'" in sql
+
+
 def test_expiry_selection_preserves_keep_and_delete_early_semantics():
     from pathlib import Path
     sql = (Path(__file__).parents[2] / "memory" / "migrations" /
