@@ -31,6 +31,7 @@ app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets"
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
     conversation_id: str | None = None
+    temporary_upload_context: str | None = Field(default=None, max_length=6000)
 
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -189,6 +190,8 @@ async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response
     body = {"message": payload.message}
     if payload.conversation_id:
         body["conversation_id"] = payload.conversation_id
+    if payload.temporary_upload_context:
+        body["temporary_upload_context"] = payload.temporary_upload_context
     return await proxy("POST", "/li/chat", json_body=body)
 
 
@@ -228,6 +231,11 @@ async def download_artifact(artifact_id: str, _: str = Depends(require_user)) ->
     return Response(upstream.content, status_code=upstream.status_code,
         media_type=upstream.headers.get("content-type", "application/octet-stream"),
         headers={"Content-Disposition": upstream.headers.get("content-disposition", "attachment")})
+
+
+@app.get("/api/artifacts")
+async def artifact_library(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/artifacts")
 
 
 @app.post("/api/artifacts/{artifact_id}/retention")

@@ -19,6 +19,7 @@ EXPECTED_ROUTES = {
     ("POST", "/artifacts/uploads"),
     ("POST", "/artifacts/generated"),
     ("GET", "/artifacts/{artifact_id}"),
+    ("GET", "/artifacts"),
     ("POST", "/artifacts/{artifact_id}/retention"),
     ("GET", "/privacy/settings"),
     ("POST", "/privacy/settings"),

@@ -29,6 +29,33 @@ def _post(message: str):
         app.dependency_overrides.clear()
 
 
+def test_temporary_upload_context_is_used_once_but_not_saved_in_history(monkeypatch) -> None:
+    saved: list[dict] = []
+    monkeypatch.setattr("app.main.append_conversation_message",
+                        lambda **kwargs: saved.append(kwargs) or "message-id")
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs: None)
+
+    def fake_talk(user_message: str, *, temporary_upload_context=None, **kwargs) -> str:
+        assert temporary_upload_context == "File: notes.txt\nuntrusted contents"
+        return "Analysed without retaining the file."
+
+    monkeypatch.setattr("app.main.talk_to_li", fake_talk)
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        with TestClient(app) as client:
+            response = client.post("/li/chat", json={
+                "message": "Analyse this file",
+                "temporary_upload_context": "File: notes.txt\nuntrusted contents",
+            })
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert [item["content"] for item in saved] == [
+        "Analyse this file", "Analysed without retaining the file."]
+    assert all("untrusted contents" not in item["content"] for item in saved)
+
+
 def test_li_chat_defers_ordinary_capture_until_after_answer(monkeypatch) -> None:
     events: list[str] = []
     candidate = MemoryCandidate(

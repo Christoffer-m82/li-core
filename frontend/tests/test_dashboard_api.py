@@ -91,6 +91,29 @@ def test_valid_upload_is_temporary_by_default(monkeypatch):
     assert response.json()["retained"] is False
 
 
+def test_chat_forwards_bounded_temporary_upload_context(monkeypatch):
+    observed = {}
+    async def backend(*args, **kwargs):
+        observed.update(kwargs["json_body"])
+        return httpx.Response(200, json={"response": "ok", "conversation_id":
+            "00000000-0000-0000-0000-000000000001"})
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().post("/api/chat", json={
+        "message": "Analyse it", "temporary_upload_context": "File: notes.txt\nhello"})
+    assert response.status_code == 200
+    assert observed["temporary_upload_context"] == "File: notes.txt\nhello"
+
+
+def test_artifact_library_is_proxied_from_governed_storage(monkeypatch):
+    async def backend(*args, **kwargs):
+        assert args[2] == "/artifacts"
+        return httpx.Response(200, json={"artifacts": []})
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().get("/api/artifacts")
+    assert response.status_code == 200
+    assert response.json() == {"artifacts": []}
+
+
 def test_artifact_ids_cannot_traverse_paths():
     response = signed_in_client().get("/api/artifacts/..%2Fsecret")
     assert response.status_code in {400, 404}
@@ -113,6 +136,8 @@ def test_client_includes_activity_sorting_theme_fallback_and_real_artifact_guard
     assert "attachment.url ? 'a' : 'span'" in javascript
     assert "Save privately" in javascript
     assert "artifact-retention" in javascript
+    assert "temporaryUploadContext" in javascript
+    assert "loadArtifacts" in javascript
     assert "coords.latitude" in javascript
     assert "localStorage.setItem('li-theme', choice)" in javascript
 

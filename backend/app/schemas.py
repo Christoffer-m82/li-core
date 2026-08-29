@@ -153,6 +153,7 @@ class LiChatRequest(BaseModel):
     retention_policy: str = Field(default="standard", min_length=1, max_length=100)
     retain_until: datetime | None = None
     privacy_metadata: dict[str, Any] = Field(default_factory=dict)
+    temporary_upload_context: str | None = Field(default=None, max_length=6000)
 
 
 class LiChatResponse(BaseModel):

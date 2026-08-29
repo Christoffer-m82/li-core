@@ -71,6 +71,10 @@ def get_artifact(artifact_id: str) -> dict[str, object] | None:
     return rows[0] if rows else None
 
 
+def list_artifacts(limit: int = 50) -> list[dict[str, object]]:
+    return _call("list_artifacts", (limit,))
+
+
 def change_artifact(artifact_id: str, action: str) -> dict[str, object] | None:
     rows = _call("change_artifact_retention", (UUID(artifact_id), action))
     return rows[0] if rows else None

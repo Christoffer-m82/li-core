@@ -137,6 +137,12 @@ immutable migration process before deploying the application revision. Run the i
 Cloud Run retention job daily through Cloud Scheduler's authenticated Jobs API. Scheduler
 needs permission to execute only that job and stores no Li API token.
 
+Migration `021_artifact_library.sql` adds only the owner-scoped active-artifact listing
+function required by the cross-session private file library. It requires schema `0.20`,
+returns no storage object names or deleted tombstones, and does not broaden table access.
+Apply it through the same immutable owner-controlled migration process before deploying a
+revision that exposes the file library.
+
 ## Agent Status and Agent Analytics
 
 Migration `018_agent_analytics_and_relevance.sql` adds operational analytics state without

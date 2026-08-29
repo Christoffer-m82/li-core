@@ -83,7 +83,7 @@ from app.schemas import (
 )
 from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages, expired_artifacts,
-    finalize_artifact, get_artifact, get_privacy_settings, list_conversations,
+    finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
     list_interactions, mark_expired, reserve_artifact, set_retention, analytics_events,
     delete_conversation,
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
@@ -249,6 +249,14 @@ def artifact_download(artifact_id: UUID) -> Response:
     return Response(contents, media_type=str(record["content_type"]), headers={
         "Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store",
     })
+
+
+@app.get("/artifacts", dependencies=[Depends(require_api_token)])
+def artifact_library() -> dict[str, object]:
+    try:
+        return {"artifacts": list_artifacts()}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Artifact library unavailable.") from exc
 
 
 @app.post("/artifacts/{artifact_id}/retention", dependencies=[Depends(require_api_token)])
@@ -862,6 +870,8 @@ def li_chat_endpoint(
             "trusted_runtime_context": runtime_context,
             "conversation_context": conversation_context,
         }
+        if payload.temporary_upload_context:
+            runtime_kwargs["temporary_upload_context"] = payload.temporary_upload_context
         if is_research_provider_available(provider):
             runtime_kwargs["research_provider"] = provider
         with specialist_recording_context(conversation_id):

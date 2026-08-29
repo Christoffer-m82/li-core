@@ -47,6 +47,28 @@ def test_temporary_upload_is_analyzed_without_metadata_or_storage(monkeypatch):
     assert response.json()["analysis_text"] == "synthetic notes"
 
 
+def test_artifact_library_returns_only_governed_database_results(monkeypatch):
+    artifact_id = uuid4()
+    monkeypatch.setattr("app.main.list_artifacts", lambda: [{
+        "artifact_id": artifact_id, "safe_filename": "notes.txt",
+        "retention_state": "expiring", "storage_object": None,
+    }])
+    response = client().get("/artifacts")
+    assert response.status_code == 200
+    assert response.json()["artifacts"][0]["artifact_id"] == str(artifact_id)
+
+
+def test_artifact_library_migration_is_owner_scoped_and_excludes_deleted():
+    from pathlib import Path
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "021_artifact_library.sql").read_text(encoding="utf-8")
+    assert "version='0.20'" in sql
+    assert "a.owner_user_id=v_user" in sql
+    assert "a.retention_state IN ('expiring','kept')" in sql
+    assert "GRANT EXECUTE ON FUNCTION li_api.list_artifacts(INTEGER) TO li_memory_api" in sql
+    assert "li_memory_theo" in sql
+
+
 def test_explicit_save_persists_upload_as_kept(monkeypatch):
     artifact_id = uuid4()
     store = FakeStore()
