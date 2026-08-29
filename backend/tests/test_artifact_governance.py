@@ -251,7 +251,9 @@ def test_specialist_history_ambiguity_migration_qualifies_user_status():
     assert "pg_catalog.pg_get_function_identity_arguments(p.oid)" in sql
     assert "CURRENT_USER, 'li_memory_function_owner', 'SET'" in sql
     assert "REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner" in sql
-    assert "pg_catalog.pg_auth_members" in sql
+    assert "'postgres', 'li_memory_function_owner', 'SET'" in sql
+    assert "'postgres', 'li_memory_function_owner', 'USAGE'" in sql
+    assert "pg_catalog.pg_auth_members" not in sql
     assert "VALUES ('0.24', 'Fix specialist history status ambiguity')" in sql
 
     owner_check = sql.index("function_owner IS DISTINCT FROM 'li_memory_function_owner'")
@@ -270,7 +272,7 @@ def test_specialist_history_ambiguity_migration_qualifies_user_status():
     reset_role = sql.index("RESET ROLE")
     schema_revoke = sql.index("REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner")
     owner_revoke = sql.index("REVOKE li_memory_function_owner FROM postgres")
-    cleanup_check = sql.index("Temporary function-owner membership was not removed")
+    cleanup_check = sql.index("Temporary function-owner authority was not removed")
     assert (owner_check < owner_grant < schema_grant < set_role < function_replace <
             function_revoke < function_grant < reset_role < schema_revoke <
             owner_revoke < cleanup_check)

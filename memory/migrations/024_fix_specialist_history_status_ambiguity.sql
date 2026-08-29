@@ -111,17 +111,17 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed';
   END IF;
-  IF EXISTS (
-    SELECT 1
-    FROM pg_catalog.pg_auth_members AS membership
-    JOIN pg_catalog.pg_roles AS member_role
-      ON member_role.oid = membership.member
-    JOIN pg_catalog.pg_roles AS granted_role
-      ON granted_role.oid = membership.roleid
-    WHERE member_role.rolname = 'postgres'
-      AND granted_role.rolname = 'li_memory_function_owner'
+  -- PostgreSQL 16+ can retain multiple grantor- and option-specific rows in
+  -- pg_auth_members. A row by itself does not prove that postgres can inherit
+  -- this role's privileges or SET ROLE to it. Verify the effective authority
+  -- that the temporary grant provided instead; the REVOKE above remains the
+  -- operation that removes this migration's grant.
+  IF pg_catalog.pg_has_role(
+    'postgres', 'li_memory_function_owner', 'SET'
+  ) OR pg_catalog.pg_has_role(
+    'postgres', 'li_memory_function_owner', 'USAGE'
   ) THEN
-    RAISE EXCEPTION 'Temporary function-owner membership was not removed';
+    RAISE EXCEPTION 'Temporary function-owner authority was not removed';
   END IF;
 END $$;
 
