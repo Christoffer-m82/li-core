@@ -6,7 +6,11 @@ from uuid import uuid4
 import pytest
 
 from app.action_instrumentation import ActionAttribution
-from app.li_runtime import specialist_recording_context, talk_to_li_with_outcome
+from app.li_runtime import (
+    _parse_specialist_synthesis,
+    specialist_recording_context,
+    talk_to_li_with_outcome,
+)
 from app.main import _measure_action
 from app.specialist_runtime import RoutingDecision, SpecialistConsultation, SpecialistResult
 
@@ -82,6 +86,20 @@ def test_li_only_response_has_no_attribution(monkeypatch):
     monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **k: "Li only")
     outcome = talk_to_li_with_outcome("simple request")
     assert outcome.request_id is None and outcome.used_interaction_ids == []
+
+
+def test_synthesis_accepts_one_json_markdown_fence():
+    synthesis = _parse_specialist_synthesis(
+        '```json\n{"final_response":"Used advice","used_specialist_keys":["marco"]}\n```'
+    )
+    assert synthesis.used_specialist_keys == ["marco"]
+
+
+def test_synthesis_rejects_prose_around_json_markdown_fence():
+    with pytest.raises(ValueError):
+        _parse_specialist_synthesis(
+            'Here you go:\n```json\n{"final_response":"Used advice","used_specialist_keys":[]}\n```'
+        )
 
 
 @pytest.mark.parametrize(

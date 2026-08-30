@@ -116,6 +116,17 @@ class LiTurnOutcome(BaseModel):
     used_interaction_ids: list[str] = Field(default_factory=list)
 
 
+def _parse_specialist_synthesis(value: str) -> SpecialistSynthesis:
+    """Accept the typed object directly or in one JSON markdown fence."""
+
+    candidate = value.strip()
+    if candidate.startswith("```json") and candidate.endswith("```"):
+        candidate = candidate[7:-3].strip()
+    elif candidate.startswith("```") and candidate.endswith("```"):
+        candidate = candidate[3:-3].strip()
+    return SpecialistSynthesis.model_validate_json(candidate)
+
+
 def _read_required_file(path: Path) -> str:
     if not path.exists():
         raise LiRuntimeError(
@@ -555,7 +566,7 @@ def talk_to_li_with_outcome(
         return LiTurnOutcome(response=generated)
 
     try:
-        synthesis = SpecialistSynthesis.model_validate_json(generated)
+        synthesis = _parse_specialist_synthesis(generated)
         available = set(consultation.results)
         used_keys = list(dict.fromkeys(synthesis.used_specialist_keys))
         if any(key not in available for key in used_keys):
