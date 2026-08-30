@@ -98,6 +98,28 @@ def finish_interaction(interaction_id: str, status: str, outcome: dict[str, obje
     return bool(next(iter(rows[0].values())))
 
 
+def record_synthesis_attribution(
+    request_id: str, used_interaction_ids: list[str], measured_interaction_ids: list[str]
+) -> bool:
+    rows = _call("record_specialist_synthesis_attribution", (
+        UUID(request_id),
+        [UUID(value) for value in used_interaction_ids],
+        [UUID(value) for value in measured_interaction_ids],
+    ))
+    return bool(rows and next(iter(rows[0].values())))
+
+
+def record_action_attribution(
+    *, action_id: str, request_id: str, interaction_ids: list[str],
+    action_type: str, status: str,
+) -> bool:
+    rows = _call("record_specialist_action_attribution", (
+        UUID(action_id), UUID(request_id), [UUID(value) for value in interaction_ids],
+        action_type, status,
+    ))
+    return bool(rows and next(iter(rows[0].values())))
+
+
 def list_interactions(specialist: str | None = None, limit: int = 50) -> list[dict[str, object]]:
     return _call("list_specialist_interactions", (specialist, limit))
 

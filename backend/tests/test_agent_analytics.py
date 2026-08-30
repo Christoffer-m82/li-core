@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from app.agent_analytics import calculate_analytics, generate_recommendations, period_bounds
 
 NOW = datetime(2026, 8, 28, tzinfo=UTC)
@@ -51,6 +53,17 @@ def test_unmeasured_contribution_and_action_signals_remain_null():
     assert nora["recommendation_contribution_rate"] is None
     assert nora["action_conversion_rate"] is None
     assert nora["derived_metrics"]["impact_score"]["value"] is None
+
+
+def test_action_conversion_uses_only_measured_used_contributions():
+    rows = [
+        event(request="unknown-action", used_in_final=True, action_taken=None),
+        event(request="measured-false", used_in_final=True, action_taken=False),
+        event(request="unused", used_in_final=False, action_taken=False),
+    ]
+    nora = calculate_analytics(ROSTER, rows, "30d", NOW)["agents"][0]
+    assert nora["recommendation_contribution_rate"] == pytest.approx(2 / 3, abs=0.001)
+    assert nora["action_conversion_rate"] == 0
 
 
 def test_recommendations_are_approval_gated():

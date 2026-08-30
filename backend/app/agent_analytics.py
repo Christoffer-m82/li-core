@@ -58,7 +58,8 @@ def calculate_analytics(
         contribution = sum(measured_contributions)
         measured_actions = [
             bool(row["action_taken"])
-            for row in rows if row.get("action_taken") is not None
+            for row in rows
+            if row.get("used_in_final") is True and row.get("action_taken") is not None
         ]
         actions = sum(measured_actions)
         topics = Counter(topic for row in rows for topic in row.get("topic_keys", []))
@@ -81,8 +82,8 @@ def calculate_analytics(
                 if measured_contributions else None
             ),
             "action_conversion_rate": (
-                round(actions / contribution, 3)
-                if measured_actions and contribution else None
+                round(actions / len(measured_actions), 3)
+                if measured_actions else None
             ),
             "recurring_topic_count": sum(count >= 2 for count in topics.values()),
             "recurring_topics": [{"topic": topic, "count": count} for topic, count in topics.most_common(5) if count >= 2],

@@ -46,7 +46,12 @@ from app.email_runtime import (
     configured_email_provider,
     execute_email_action,
 )
-from app.li_runtime import LiRuntimeError, specialist_recording_context, talk_to_li
+from app.li_runtime import (
+    LiRuntimeError,
+    LiTurnOutcome,
+    specialist_recording_context,
+    talk_to_li_with_outcome as talk_to_li,
+)
 from app.agent_analytics import calculate_analytics, generate_recommendations
 from app.memory_capture import (
     MemoryCaptureAnalysis,
@@ -81,6 +86,7 @@ from app.schemas import (
     AgentSettingsUpdate,
     AgentActionReview,
     AgentExecutionConfirmation,
+    SpecialistAttribution,
 )
 from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages,
@@ -89,6 +95,7 @@ from app.runtime_data import (
     delete_conversation,
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
     review_agent_recommendation, execute_agent_recommendation, agent_states,
+    record_action_attribution,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -302,7 +309,7 @@ def agent_analytics(period: str = "30d") -> dict[str, object]:
         roster = [dict(profile, state=states.get(profile["id"], "idle")) for profile in AGENT_ROSTER]
         analytics = calculate_analytics(roster, analytics_events(), period)
         return {**analytics, "settings": settings_value,
-                "measurement_notes": {"measured": ["request_count", "usage_share_pct", "workload_share_pct", "active_days", "solo_usage", "multi_agent_usage", "average_response_seconds"],
+                "measurement_notes": {"measured": ["request_count", "usage_share_pct", "workload_share_pct", "active_days", "solo_usage", "multi_agent_usage", "average_response_seconds", "recommendation_contribution_rate when synthesis attribution exists", "action_conversion_rate when correlated action evidence exists"],
                     "inferred": ["impact_score", "uniqueness_score", "dependency_score"],
                     "unavailable": ["depth_score", "user_value_score"]}}
     except ValueError as exc:
@@ -695,7 +702,9 @@ def li_calendar_action_endpoint(
 ) -> CalendarActionOutcome:
     """Execute a typed calendar action at Li's approval-enforcing boundary."""
 
-    return execute_calendar_action(payload, app.state.calendar_provider)
+    outcome = execute_calendar_action(payload, app.state.calendar_provider)
+    _measure_action(payload, outcome.status, outcome.action, mutation=outcome.action == "calendar.create")
+    return outcome
 
 
 @app.post(
@@ -706,7 +715,9 @@ def li_calendar_action_endpoint(
 )
 def li_task_action_endpoint(payload: TaskActionEnvelope) -> TaskActionOutcome:
     """Execute typed commitment actions at Li's approval-enforcing boundary."""
-    return execute_task_action(payload, app.state.task_provider)
+    outcome = execute_task_action(payload, app.state.task_provider)
+    _measure_action(payload, outcome.status, outcome.action, mutation=outcome.action != "task.list")
+    return outcome
 
 
 @app.post(
@@ -717,7 +728,31 @@ def li_task_action_endpoint(payload: TaskActionEnvelope) -> TaskActionOutcome:
 )
 def li_email_action_endpoint(payload: EmailActionEnvelope) -> EmailActionOutcome:
     """Execute Li-decided email actions; draft creation is never sending."""
-    return execute_email_action(payload, app.state.email_provider)
+    outcome = execute_email_action(payload, app.state.email_provider)
+    _measure_action(payload, outcome.status, outcome.action, mutation=outcome.action == "email.create_draft")
+    return outcome
+
+
+def _measure_action(payload: object, status_value: str, action_type: str, *, mutation: bool) -> None:
+    attribution = getattr(payload, "attribution", None)
+    if attribution is None or not mutation:
+        return
+    measured_status = (
+        "succeeded" if status_value == "completed"
+        else "blocked" if status_value == "approval_required"
+        else "failed"
+    )
+    try:
+        record_action_attribution(
+            action_id=str(attribution.action_id),
+            request_id=str(attribution.request_id),
+            interaction_ids=[str(value) for value in attribution.specialist_interaction_ids],
+            action_type=action_type,
+            status=measured_status,
+        )
+    except RuntimeDataError:
+        # Provider outcome remains authoritative; missing analytics is unknown, not success.
+        pass
 
 
 @app.post(
@@ -850,7 +885,12 @@ def li_chat_endpoint(
         if is_research_provider_available(provider):
             runtime_kwargs["research_provider"] = provider
         with specialist_recording_context(conversation_id):
-            response = talk_to_li(payload.message, **runtime_kwargs)
+            generated = talk_to_li(payload.message, **runtime_kwargs)
+            li_outcome = (
+                generated if isinstance(generated, LiTurnOutcome)
+                else LiTurnOutcome(response=generated)
+            )
+            response = li_outcome.response
 
     except (ClaudeError, LiRuntimeError) as exc:
         raise HTTPException(
@@ -914,4 +954,11 @@ def li_chat_endpoint(
         conversation_history_error=conversation_history_error,
         email_action=email_outcome,
         artifacts=artifacts,
+        specialist_attribution=(
+            SpecialistAttribution(
+                request_id=UUID(li_outcome.request_id),
+                used_interaction_ids=[UUID(value) for value in li_outcome.used_interaction_ids],
+            )
+            if li_outcome.request_id and li_outcome.used_interaction_ids else None
+        ),
     )

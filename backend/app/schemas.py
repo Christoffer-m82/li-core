@@ -156,6 +156,11 @@ class LiChatRequest(BaseModel):
     temporary_upload_context: str | None = Field(default=None, max_length=6000)
 
 
+class SpecialistAttribution(BaseModel):
+    request_id: UUID
+    used_interaction_ids: list[UUID] = Field(min_length=1, max_length=12)
+
+
 class LiChatResponse(BaseModel):
     response: str
     conversation_id: UUID
@@ -165,6 +170,7 @@ class LiChatResponse(BaseModel):
     conversation_history_error: str | None = None
     email_action: EmailActionOutcome | None = None
     artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    specialist_attribution: SpecialistAttribution | None = None
 
 
 class ArtifactUpload(BaseModel):
