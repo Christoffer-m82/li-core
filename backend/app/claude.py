@@ -20,6 +20,7 @@ def generate_claude_text(
     user_message: str,
     system: str | None = None,
     max_tokens: int | None = None,
+    output_json_schema: dict[str, object] | None = None,
 ) -> str:
     """
     Send a basic text request to Claude.
@@ -51,6 +52,10 @@ def generate_claude_text(
 
         if system is not None:
             request["system"] = system
+        if output_json_schema is not None:
+            request["output_config"] = {
+                "format": {"type": "json_schema", "schema": output_json_schema}
+            }
 
         response = client.messages.create(**request)
 

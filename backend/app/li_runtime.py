@@ -560,6 +560,21 @@ def talk_to_li_with_outcome(
         user_message=user_message,
         system=system_with_memory,
         max_tokens=max_tokens,
+        output_json_schema=(
+            {
+                "type": "object",
+                "properties": {
+                    "final_response": {"type": "string"},
+                    "used_specialist_keys": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["final_response", "used_specialist_keys"],
+                "additionalProperties": False,
+            }
+            if routing.specialists and consultation.results else None
+        ),
     )
 
     if not routing.specialists or not consultation.results:

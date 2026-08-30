@@ -22,7 +22,9 @@ def _result(name: str) -> SpecialistResult:
     return SpecialistResult(recommendation=f"{name} finding", confidence=0.8, sources_needed=False)
 
 
-def _run_synthesis(monkeypatch, specialists, results, used, *, unavailable=None):
+def _run_synthesis(
+    monkeypatch, specialists, results, used, *, unavailable=None, generation_calls=None
+):
     ids = {key: str(uuid4()) for key in specialists}
     recorded = []
     monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
@@ -36,9 +38,14 @@ def _run_synthesis(monkeypatch, specialists, results, used, *, unavailable=None)
     monkeypatch.setattr("app.li_runtime.consult_specialists", lambda *a: SpecialistConsultation(
         results=results, unavailable=unavailable or [],
     ))
-    monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **k: json.dumps({
-        "final_response": "Li synthesis", "used_specialist_keys": used,
-    }))
+    def generate(**kwargs):
+        if generation_calls is not None:
+            generation_calls.append(kwargs)
+        return json.dumps({
+            "final_response": "Li synthesis", "used_specialist_keys": used,
+        })
+
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", generate)
     monkeypatch.setattr(
         "app.li_runtime.record_synthesis_attribution",
         lambda request, used_ids, measured_ids: recorded.append((used_ids, measured_ids)) or True,
@@ -100,6 +107,18 @@ def test_synthesis_rejects_prose_around_json_markdown_fence():
         _parse_specialist_synthesis(
             'Here you go:\n```json\n{"final_response":"Used advice","used_specialist_keys":[]}\n```'
         )
+
+
+def test_specialist_synthesis_requests_provider_enforced_schema(monkeypatch):
+    captured = []
+    outcome, _, _ = _run_synthesis(
+        monkeypatch, ["marco"], {"marco": _result("marco")}, ["marco"],
+        generation_calls=captured,
+    )
+    assert outcome.used_interaction_ids
+    schema = captured[0]["output_json_schema"]
+    assert schema["additionalProperties"] is False
+    assert "maxItems" not in schema["properties"]["used_specialist_keys"]
 
 
 @pytest.mark.parametrize(
