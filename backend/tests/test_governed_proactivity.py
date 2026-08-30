@@ -98,7 +98,9 @@ def test_migration_has_idempotency_privacy_suppression_and_no_retention_grant():
 def _claimed_run(monkeypatch):
     monkeypatch.setattr(main_module, "list_rhythm_states", lambda: [])
     monkeypatch.setattr(main_module, "claim_rhythm_run", lambda *_: {
-        "run_id": "0f6e8934-8920-4d85-a54d-02fa2c19f8a2", "claimed": True, "state": "claimed",
+        "run_id": "0f6e8934-8920-4d85-a54d-02fa2c19f8a2",
+        "claim_token": "d6bf4345-5dd2-42ff-bd90-b75032871268",
+        "claimed": True, "state": "claimed",
     })
     monkeypatch.setattr(main_module, "list_category_suppressions", lambda: [])
     monkeypatch.setattr(main_module, "list_open_loops", lambda: [])
@@ -115,7 +117,10 @@ def test_generation_failure_after_claim_is_durably_failed(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
     assert exc.value.status_code == 503
-    assert failures == [("0f6e8934-8920-4d85-a54d-02fa2c19f8a2", "ValueError")]
+    assert failures == [(
+        "0f6e8934-8920-4d85-a54d-02fa2c19f8a2",
+        "d6bf4345-5dd2-42ff-bd90-b75032871268", "ValueError",
+    )]
 
 
 def test_persistence_failure_after_claim_is_durably_failed(monkeypatch):
@@ -127,7 +132,7 @@ def test_persistence_failure_after_claim_is_durably_failed(monkeypatch):
     monkeypatch.setattr(main_module, "fail_rhythm_run", lambda *args: failures.append(args) or True)
     with pytest.raises(HTTPException):
         main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
-    assert failures[0][1] == "RuntimeDataError"
+    assert failures[0][2] == "RuntimeDataError"
 
 
 def test_failure_marker_outage_still_returns_retriable_failure(monkeypatch):
@@ -144,9 +149,10 @@ def test_claim_retry_and_terminal_duplicate_semantics_are_atomic():
            "031_governed_proactivity.sql").read_text(encoding="utf-8")
     assert "v_status='failed' OR (v_status='claimed' AND v_expires<=NOW())" in sql
     assert "attempt_count=rr.attempt_count+1" in sql
+    assert "claim_token=gen_random_uuid()" in sql
     assert "FOR UPDATE" in sql
     assert "WHEN v_status='claimed' THEN 'in_progress' ELSE 'duplicate'" in sql
-    assert "WHERE rr.id=p_id AND rr.status='claimed' FOR UPDATE" in sql
+    assert "rr.claim_token=p_claim_token AND rr.status='claimed' FOR UPDATE" in sql
     assert "UNIQUE(owner_user_id,rhythm_key,run_key)" in sql
 
 

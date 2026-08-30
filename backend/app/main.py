@@ -594,13 +594,14 @@ def run_rhythm_endpoint(
                 local_time=rhythm_state["local_time"], timezone=str(rhythm_state["timezone"]),
             )
         brief_id = complete_rhythm_run(
-            run_id=claim["run_id"], status="generated" if brief else "empty",
+            run_id=claim["run_id"], claim_token=claim["claim_token"],
+            status="generated" if brief else "empty",
             title=brief.title if brief else "", content=brief.model_dump(mode="json") if brief else {},
             sensitive=bool(brief and any(item.sensitive for item in brief.items)), next_run=next_run,
         )
     except Exception as exc:
         try:
-            fail_rhythm_run(str(claim["run_id"]), type(exc).__name__)
+            fail_rhythm_run(str(claim["run_id"]), str(claim["claim_token"]), type(exc).__name__)
         except RuntimeDataError:
             pass  # The claim lease still guarantees recovery after a transient DB failure.
         raise HTTPException(status_code=503, detail="Rhythm run failed safely and may be retried.") from exc

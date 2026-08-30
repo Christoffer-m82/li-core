@@ -234,15 +234,16 @@ def claim_rhythm_run(key: str, run_key: str, scheduled_for: object) -> dict[str,
 
 def complete_rhythm_run(**values: object) -> str | None:
     rows = _call("complete_rhythm_run", (
-        UUID(str(values["run_id"])), values["status"], values.get("title", ""),
+        UUID(str(values["run_id"])), UUID(str(values["claim_token"])),
+        values["status"], values.get("title", ""),
         Jsonb(values.get("content", {})), values.get("sensitive", False), values.get("next_run"),
     ))
     value = next(iter(rows[0].values())) if rows else None
     return str(value) if value else None
 
 
-def fail_rhythm_run(run_id: str, error_type: str) -> bool:
-    rows = _call("fail_rhythm_run", (UUID(run_id), error_type))
+def fail_rhythm_run(run_id: str, claim_token: str, error_type: str) -> bool:
+    rows = _call("fail_rhythm_run", (UUID(run_id), UUID(claim_token), error_type))
     return bool(rows and next(iter(rows[0].values())))
 
 
