@@ -39,6 +39,19 @@ def test_optional_provider_status_is_grounded_in_configuration():
     assert statuses["gmail"] == "unavailable"
 
 
+def test_voice_capability_reports_browser_modes_and_no_audio_retention_truthfully():
+    payload = inventory().model_dump(mode="json")
+    voice = next(item for item in payload["capabilities"] if item["id"] == "voice-interaction")
+
+    assert voice["status"] == "configured"
+    assert "STT mode: browser-native" in voice["status_detail"]
+    assert "TTS mode: browser-native" in voice["status_detail"]
+    assert "server provider: not configured" in voice["status_detail"]
+    assert "Raw audio retention: none" in voice["retention"]
+    assert "explicit tactile UI decision" in voice["approval"]
+    assert any("Voice audio is ephemeral" in item for item in payload["privacy_posture"])
+
+
 def test_every_application_route_is_represented_in_capability_manifest():
     represented = documented_routes(inventory())
     registered = {
