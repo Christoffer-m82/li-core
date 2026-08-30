@@ -1,10 +1,17 @@
 import re
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Literal, Protocol
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.specialist_runtime import ResearchRequest
+from app.freshness_policy import (
+    FreshnessDecision,
+    POLICIES,
+    SourceClass,
+    evidence_date_is_fresh,
+)
 
 
 class ResearchProviderError(RuntimeError):
@@ -32,10 +39,24 @@ class EvidenceRecord(BaseModel):
     title: str
     identifier: str
     source: str | None = None
+    publisher_authority: str | None = None
     publication_date: str | None = None
     retrieved_at: datetime
     excerpt: str
     source_type: str
+    source_class: SourceClass
+    claim_mapping: str | None = None
+    freshness_status: Literal["fresh", "stale", "unknown"]
+
+
+class EvidenceValidation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    passed: bool
+    evidence: list[EvidenceRecord] = Field(default_factory=list, max_length=20)
+    rejected_count: int = Field(default=0, ge=0)
+    freshness_status: Literal["not_required", "passed", "failed"]
+    source_class_summary: dict[str, int] = Field(default_factory=dict)
+    failure_reason: str | None = None
 
 
 class ResearchOutcome(BaseModel):
@@ -101,6 +122,33 @@ def _sanitize(value: str, *, limit: int) -> str:
     return value[:limit]
 
 
+def _contains_external_instruction(value: str) -> bool:
+    return bool(_INSTRUCTION_BLOCK.search(value) or _INJECTION_PHRASE.search(value))
+
+
+def _source_class(value: str, identifier: str, source: str | None) -> SourceClass:
+    normalized = value.casefold().strip()
+    try:
+        hostname = (urlparse(identifier).hostname or "").casefold().rstrip(".")
+    except ValueError:
+        hostname = ""
+    official_hosts = ("europa.eu", "who.int", "nhs.uk")
+    government_cc_domain = bool(re.search(r"(?:^|\.)gov\.[a-z]{2,3}$", hostname))
+    if (hostname.endswith(".gov") or government_cc_domain or
+            any(hostname == host or hostname.endswith(f".{host}") for host in official_hosts)):
+        return SourceClass.official
+    aliases = {
+        "government": SourceClass.official, "regulator": SourceClass.official,
+        "central_bank": SourceClass.official, "primary": SourceClass.primary,
+        "official": SourceClass.official, "academic": SourceClass.academic,
+        "medical": SourceClass.authoritative, "guideline": SourceClass.authoritative,
+        "provider": SourceClass.provider, "news": SourceClass.news,
+        "professional": SourceClass.professional, "secondary": SourceClass.secondary,
+        "web": SourceClass.secondary,
+    }
+    return aliases.get(normalized, SourceClass.secondary)
+
+
 def execute_research(
     request: ResearchRequest,
     provider: ResearchProvider,
@@ -118,15 +166,24 @@ def execute_research(
     for candidate in candidates[:20]:
         try:
             raw = RawEvidence.model_validate(candidate)
+            if any(_contains_external_instruction(value) for value in (
+                raw.title, raw.identifier, raw.source or "", raw.excerpt, raw.source_type
+            )):
+                failed += 1
+                continue
             evidence.append(
                 EvidenceRecord(
                     title=_sanitize(raw.title, limit=500),
                     identifier=_sanitize(raw.identifier, limit=2000),
                     source=_sanitize(raw.source, limit=300) if raw.source else None,
+                    publisher_authority=_sanitize(raw.source, limit=300) if raw.source else None,
                     publication_date=raw.publication_date,
                     retrieved_at=retrieved_at,
                     excerpt=_sanitize(raw.excerpt, limit=1200),
                     source_type=_sanitize(raw.source_type, limit=100),
+                    source_class=_source_class(raw.source_type, raw.identifier, raw.source),
+                    claim_mapping=_sanitize(request.query, limit=500),
+                    freshness_status="unknown",
                 )
             )
         except (ValidationError, ValueError, TypeError):
@@ -135,4 +192,45 @@ def execute_research(
         evidence=evidence,
         failed_sources=failed,
         unavailable=not evidence,
+    )
+
+
+def validate_evidence_contract(
+    specialist_key: str,
+    decision: FreshnessDecision,
+    evidence: list[EvidenceRecord],
+    *,
+    now: datetime | None = None,
+) -> EvidenceValidation:
+    """Enforce freshness, source hierarchy, and minimum-count rules after retrieval."""
+    if not decision.evidence_required:
+        return EvidenceValidation(passed=True, freshness_status="not_required")
+    policy = POLICIES[specialist_key]
+    accepted: list[EvidenceRecord] = []
+    rejected = 0
+    for record in evidence:
+        fresh = evidence_date_is_fresh(record.publication_date, decision.maximum_age_days, now=now)
+        allowed_secondary = policy.secondary_commentary_allowed
+        if not fresh or (record.source_class == SourceClass.secondary and not allowed_secondary):
+            rejected += 1
+            continue
+        accepted.append(record.model_copy(update={"freshness_status": "fresh"}))
+    primary_classes = {SourceClass.official, SourceClass.primary, SourceClass.authoritative,
+                       SourceClass.provider}
+    primary_present = any(item.source_class in primary_classes for item in accepted)
+    passed = len(accepted) >= decision.minimum_source_count and (
+        not decision.primary_or_official_required or primary_present
+    )
+    summary: dict[str, int] = {}
+    for item in accepted:
+        summary[item.source_class.value] = summary.get(item.source_class.value, 0) + 1
+    reason = None
+    if not passed:
+        reason = ("Required official/primary evidence was unavailable or stale."
+                  if decision.primary_or_official_required and not primary_present
+                  else "Not enough current evidence passed policy validation.")
+    return EvidenceValidation(
+        passed=passed, evidence=accepted if passed else [], rejected_count=rejected,
+        freshness_status="passed" if passed else "failed", source_class_summary=summary,
+        failure_reason=reason,
     )

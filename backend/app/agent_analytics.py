@@ -44,6 +44,9 @@ def calculate_analytics(
     for event in current:
         by_agent[event["specialist_key"]].append(event)
 
+    def freshness(row: dict[str, Any]) -> dict[str, Any]:
+        return (row.get("outcome") or {}).get("validation", {}).get("freshness_evidence", {})
+
     agents = []
     for profile in roster:
         key = profile["id"]
@@ -63,6 +66,10 @@ def calculate_analytics(
         ]
         actions = sum(measured_actions)
         topics = Counter(topic for row in rows for topic in row.get("topic_keys", []))
+        freshness_rows = [freshness(row) for row in rows if freshness(row)]
+        required = [row for row in freshness_rows if row.get("evidence_required") is True]
+        passed = [row for row in required if row.get("verification_passed") is True]
+        failed = [row for row in required if row.get("verification_passed") is False]
         previous_count = previous_counts[key]
         overlap_peers = {other["specialist_key"] for row in rows for other in current
                          if other["request_id"] == row["request_id"] and other["specialist_key"] != key}
@@ -86,6 +93,11 @@ def calculate_analytics(
                 if measured_actions else None
             ),
             "recurring_topic_count": sum(count >= 2 for count in topics.values()),
+            "freshness": {"measured_requests": len(freshness_rows),
+                "current_evidence_required": len(required), "verification_passed": len(passed),
+                "verification_failed": len(failed),
+                "freshness_compliance_pct": round(100 * len(passed) / len(required), 1)
+                if required else None},
             "recurring_topics": [{"topic": topic, "count": count} for topic, count in topics.most_common(5) if count >= 2],
             "overlap_score": round(len(overlap_peers) / max(1, len(roster) - 1), 3),
             "trend_pct": None if previous_count == 0 else round(100 * (len(rows) - previous_count) / previous_count, 1),
@@ -101,8 +113,15 @@ def calculate_analytics(
                 "dependency_score": {"value": round(100 * multi / len(rows), 1) if rows else None,
                     "label": "inferred", "basis": "share of calls used in multi-agent requests"},
                 "user_value_score": {"value": None, "label": "not_available", "basis": "no explicit owner feedback signal"}}})
+    all_freshness = [freshness(row) for row in current if freshness(row)]
+    all_required = [row for row in all_freshness if row.get("evidence_required") is True]
     return {"period": period, "period_start": start, "period_end": end,
-            "total_requests": total_requests, "total_agent_calls": total_agent_calls, "agents": agents}
+            "total_requests": total_requests, "total_agent_calls": total_agent_calls,
+            "freshness": {"measured_requests": len(all_freshness),
+                "current_evidence_required": len(all_required),
+                "verification_passed": sum(row.get("verification_passed") is True for row in all_required),
+                "verification_failed": sum(row.get("verification_passed") is False for row in all_required)},
+            "agents": agents}
 
 
 def generate_recommendations(analytics: dict[str, Any]) -> list[dict[str, Any]]:

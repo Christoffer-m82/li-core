@@ -223,6 +223,12 @@ Rules:
     resolved only when the bounded history makes one target unambiguous and
     the latest message supplies every value needed for the requested action.
     Otherwise return no candidate rather than guessing.
+
+21. Current-world evidence is not personal memory. Never capture market prices,
+    rates, laws, regulations, schedules, weather, availability, safety alerts,
+    news, or other externally retrieved state merely because it appears in the
+    conversation. A user's durable preference or goal may still follow the normal
+    rules, but must remain separate from the external fact that informed it.
 """.strip()
 
 
