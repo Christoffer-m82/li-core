@@ -1,17 +1,37 @@
 import re
 from datetime import UTC, datetime
+from enum import Enum
 from typing import Literal, Protocol
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.specialist_runtime import ResearchRequest
 from app.freshness_policy import (
-    FreshnessDecision,
     POLICIES,
+    FreshnessDecision,
     SourceClass,
     evidence_date_is_fresh,
 )
+from app.provider_coverage import OFFICIAL_DOMAIN_PATTERNS
+from app.specialist_runtime import ResearchRequest
+
+
+class SourceAuthority(str, Enum):
+    statute = "statute"
+    official_gazette = "official_gazette"
+    regulator = "regulator"
+    court = "court"
+    government_portal = "government_portal"
+    official_guidance = "official_guidance"
+    secondary_commentary = "secondary_commentary"
+
+
+AUTHORITY_RANK = {
+    SourceAuthority.statute: 100, SourceAuthority.official_gazette: 95,
+    SourceAuthority.regulator: 90, SourceAuthority.court: 90,
+    SourceAuthority.government_portal: 80, SourceAuthority.official_guidance: 70,
+    SourceAuthority.secondary_commentary: 10,
+}
 
 
 class ResearchProviderError(RuntimeError):
@@ -45,6 +65,8 @@ class EvidenceRecord(BaseModel):
     excerpt: str
     source_type: str
     source_class: SourceClass
+    source_authority: SourceAuthority = SourceAuthority.secondary_commentary
+    authority_rank: int = 10
     claim_mapping: str | None = None
     freshness_status: Literal["fresh", "stale", "unknown"]
 
@@ -148,7 +170,10 @@ def _source_class(value: str, identifier: str, source: str | None) -> SourceClas
         hostname = (urlparse(identifier).hostname or "").casefold().rstrip(".")
     except ValueError:
         hostname = ""
-    official_hosts = ("europa.eu", "who.int", "nhs.uk")
+    official_hosts = ("europa.eu", "who.int", "nhs.uk", *(
+        pattern for patterns in OFFICIAL_DOMAIN_PATTERNS.values() for pattern in patterns
+        if not pattern.startswith(".")
+    ))
     government_cc_domain = bool(re.search(r"(?:^|\.)gov\.[a-z]{2,3}$", hostname))
     if (hostname.endswith(".gov") or government_cc_domain or
             any(hostname == host or hostname.endswith(f".{host}") for host in official_hosts)):
@@ -163,6 +188,27 @@ def _source_class(value: str, identifier: str, source: str | None) -> SourceClas
         "web": SourceClass.secondary,
     }
     return aliases.get(normalized, SourceClass.secondary)
+
+
+def _source_authority(value: str, identifier: str, source_class: SourceClass) -> SourceAuthority:
+    normalized = value.casefold().strip().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "statute": SourceAuthority.statute, "legislation": SourceAuthority.statute,
+        "official_gazette": SourceAuthority.official_gazette, "gazette": SourceAuthority.official_gazette,
+        "regulator": SourceAuthority.regulator, "central_bank": SourceAuthority.regulator,
+        "court": SourceAuthority.court, "judgment": SourceAuthority.court,
+        "government": SourceAuthority.government_portal,
+        "government_portal": SourceAuthority.government_portal,
+        "official_guidance": SourceAuthority.official_guidance,
+    }
+    if normalized in aliases and source_class in {SourceClass.official, SourceClass.primary}:
+        return aliases[normalized]
+    if source_class == SourceClass.official:
+        path = urlparse(identifier).path.casefold()
+        if "legislation" in path or "statute" in path or "act/" in path:
+            return SourceAuthority.statute
+        return SourceAuthority.government_portal
+    return SourceAuthority.secondary_commentary
 
 
 def execute_research(
@@ -187,6 +233,8 @@ def execute_research(
             )):
                 failed += 1
                 continue
+            source_class = _source_class(raw.source_type, raw.identifier, raw.source)
+            source_authority = _source_authority(raw.source_type, raw.identifier, source_class)
             evidence.append(
                 EvidenceRecord(
                     title=_sanitize(raw.title, limit=500),
@@ -197,7 +245,8 @@ def execute_research(
                     retrieved_at=retrieved_at,
                     excerpt=_sanitize(raw.excerpt, limit=1200),
                     source_type=_sanitize(raw.source_type, limit=100),
-                    source_class=_source_class(raw.source_type, raw.identifier, raw.source),
+                    source_class=source_class, source_authority=source_authority,
+                    authority_rank=AUTHORITY_RANK[source_authority],
                     claim_mapping=_claim_mapping(
                         request.query, raw.title, raw.source or "", raw.excerpt
                     ),
@@ -236,7 +285,11 @@ def validate_evidence_contract(
         accepted.append(record.model_copy(update={"freshness_status": "fresh"}))
     primary_classes = {SourceClass.official, SourceClass.primary, SourceClass.authoritative,
                        SourceClass.provider}
-    primary_present = any(item.source_class in primary_classes for item in accepted)
+    primary_present = any(
+        item.source_class in primary_classes
+        and item.source_class in decision.required_source_classes
+        for item in accepted
+    )
     passed = len(accepted) >= decision.minimum_source_count and (
         not decision.primary_or_official_required or primary_present
     )

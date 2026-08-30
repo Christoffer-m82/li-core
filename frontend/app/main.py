@@ -321,6 +321,11 @@ async def freshness_evidence(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/specialists/freshness-evidence")
 
 
+@app.get("/api/providers/coverage")
+async def provider_coverage(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/providers/coverage")
+
+
 @app.post("/api/agents/relevance-review")
 async def agents_relevance_review(request: Request, _: str = Depends(require_user)) -> Response:
     period = (await request.json()).get("period", "90d")

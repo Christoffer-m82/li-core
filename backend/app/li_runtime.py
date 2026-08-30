@@ -16,6 +16,7 @@ from app.research_runtime import (
     validate_evidence_contract,
 )
 from app.freshness_policy import POLICIES, decide_freshness
+from app.provider_coverage import provider_registry, requirement_for, select_providers
 from app.specialist_runtime import (
     SPECIALIST_PROFILES,
     ResearchRequest,
@@ -444,6 +445,28 @@ def talk_to_li_with_outcome(
                 "retrieved_at": None,
             }
             if decision.evidence_required and specialist != "nora":
+                selection = select_providers(
+                    requirement_for(specialist, user_message, decision),
+                    provider_registry(web_configured=research_provider is not None),
+                )
+                metadata.update({
+                    "provider_selection_reason": selection.provider_selection_reason,
+                    "selected_provider": (selection.selected_provider_ids[0]
+                                          if selection.selected_provider_ids else None),
+                    "selected_source_class": [item.value for item in selection.selected_source_classes],
+                    "provider_unavailable": not selection.compliant,
+                    "source_authority_compliant": None,
+                })
+                if not selection.compliant:
+                    metadata.update({"verification_passed": False,
+                                     "freshness_status": "could_not_verify",
+                                     "failure_reason": selection.decline_reason})
+                    freshness_metadata[specialist] = metadata
+                    specialist_requests[specialist] = SpecialistRequest(
+                        current_user_message=user_message, conversation_context=bounded_conversation,
+                        canonical_memory=specialist_memories,
+                        temporary_upload_context=temporary_upload_context, research_evidence=[])
+                    continue
                 request = ResearchRequest(
                     query=user_message[:1000],
                     freshness_requirement=f"published or updated within {decision.maximum_age_days} days",
@@ -464,6 +487,7 @@ def talk_to_li_with_outcome(
                     "source_class_summary": validated.source_class_summary,
                     "rejected_evidence_count": validated.rejected_count,
                     "failure_reason": validated.failure_reason,
+                    "source_authority_compliant": validated.passed,
                     "retrieved_at": (validated.evidence[0].retrieved_at.isoformat()
                                      if validated.evidence else None),
                 })

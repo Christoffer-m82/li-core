@@ -63,6 +63,7 @@ from app.li_runtime import (
 )
 from app.agent_analytics import calculate_analytics, generate_recommendations
 from app.freshness_policy import public_policy_registry
+from app.provider_coverage import public_provider_coverage
 from app.memory_capture import (
     MemoryCaptureAnalysis,
     MemoryCaptureError,
@@ -331,6 +332,14 @@ def agent_analytics(period: str = "30d") -> dict[str, object]:
 @app.get("/specialists/freshness-evidence", dependencies=[Depends(require_api_token)])
 def freshness_evidence_policies() -> dict[str, object]:
     return public_policy_registry()
+
+
+@app.get("/providers/coverage", dependencies=[Depends(require_api_token)])
+def provider_coverage() -> dict[str, object]:
+    return public_provider_coverage(
+        web_configured=is_research_provider_available(configured_research_provider(settings)),
+        market_quote_configured=False,
+    )
 
 
 @app.post("/agents/relevance-review", dependencies=[Depends(require_api_token)])

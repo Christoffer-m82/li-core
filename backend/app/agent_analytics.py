@@ -47,6 +47,13 @@ def calculate_analytics(
     def freshness(row: dict[str, Any]) -> dict[str, Any]:
         return (row.get("outcome") or {}).get("validation", {}).get("freshness_evidence", {})
 
+    def provider_metrics(rows: list[dict[str, Any]]) -> dict[str, int]:
+        measured = [freshness(row) for row in rows if freshness(row).get("provider_selection_reason")]
+        return {"measured_selections": len(measured),
+                "provider_unavailable_declines": sum(x.get("provider_unavailable") is True for x in measured),
+                "source_authority_compliant": sum(x.get("source_authority_compliant") is True for x in measured),
+                "source_authority_failed": sum(x.get("source_authority_compliant") is False for x in measured)}
+
     agents = []
     for profile in roster:
         key = profile["id"]
@@ -98,6 +105,7 @@ def calculate_analytics(
                 "verification_failed": len(failed),
                 "freshness_compliance_pct": round(100 * len(passed) / len(required), 1)
                 if required else None},
+            "provider_coverage": provider_metrics(rows),
             "recurring_topics": [{"topic": topic, "count": count} for topic, count in topics.most_common(5) if count >= 2],
             "overlap_score": round(len(overlap_peers) / max(1, len(roster) - 1), 3),
             "trend_pct": None if previous_count == 0 else round(100 * (len(rows) - previous_count) / previous_count, 1),
@@ -121,6 +129,7 @@ def calculate_analytics(
                 "current_evidence_required": len(all_required),
                 "verification_passed": sum(row.get("verification_passed") is True for row in all_required),
                 "verification_failed": sum(row.get("verification_passed") is False for row in all_required)},
+            "provider_coverage": provider_metrics(current),
             "agents": agents}
 
 

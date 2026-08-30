@@ -283,3 +283,22 @@ def test_phase6_backend_overview_renders_read_only_governed_status():
     assert "fetch('/api/rhythms')" in javascript
     assert "fetch('/api/open-loops')" in javascript
     assert "/api/action-policy', { method: 'POST'" not in javascript
+
+
+def test_provider_coverage_is_read_only_proxied_and_rendered(monkeypatch):
+    async def backend(*args, **kwargs):
+        assert args[1:3] == ("GET", "/providers/coverage")
+        return httpx.Response(
+            200, json={"read_only": True, "providers": [], "specialist_status": []}
+        )
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().get("/api/providers/coverage")
+    assert response.status_code == 200 and response.json()["read_only"] is True
+    javascript = (Path(__file__).parents[1] / "static" / "assets" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    assert "loadProviderCoverage" in javascript
+    assert "fetch('/api/providers/coverage')" in javascript
+    assert "secret identifiers" in javascript
+    assert "/api/providers/coverage', { method: 'POST'" not in javascript
