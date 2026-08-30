@@ -155,7 +155,7 @@ async def callback(request: Request, code: str, state: str) -> Response:
     response.delete_cookie(OAUTH_STATE_COOKIE, path="/auth/callback")
     response.set_cookie(
         SESSION_COOKIE,
-        new_session(email, settings),
+        new_session(email, settings, str(claims.get("name", "")).strip() or None),
         max_age=28800,
         httponly=True,
         secure=settings.production,
@@ -173,8 +173,14 @@ def logout() -> Response:
 
 
 @app.get("/api/session")
-def session(email: str = Depends(require_user)) -> dict[str, str]:
-    return {"email": email}
+def session(request: Request, email: str = Depends(require_user)) -> dict[str, str]:
+    payload = verify_payload(
+        request.cookies.get(SESSION_COOKIE),
+        settings.session_secret.get_secret_value(),
+        max_age=28800,
+    ) or {}
+    display_name = str(payload.get("display_name", "")).strip()
+    return {"email": email, "display_name": display_name}
 
 
 @app.get("/api/ready")

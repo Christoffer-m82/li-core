@@ -53,8 +53,11 @@ def new_state(settings: Settings) -> tuple[str, str]:
     return state, signed
 
 
-def new_session(email: str, settings: Settings) -> str:
-    return sign_payload({"email": email, "iat": int(time.time())}, _secret(settings))
+def new_session(email: str, settings: Settings, display_name: str | None = None) -> str:
+    payload = {"email": email, "iat": int(time.time())}
+    if display_name:
+        payload["display_name"] = display_name[:120]
+    return sign_payload(payload, _secret(settings))
 
 
 def require_user(request: Request) -> str:
@@ -67,4 +70,3 @@ def require_user(request: Request) -> str:
 
 def _secret(settings: Settings) -> str:
     return settings.session_secret.get_secret_value()
-

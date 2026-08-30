@@ -185,13 +185,61 @@ def test_active_only_specialist_pulse_returns_to_idle_from_real_events():
     )
     assert ".specialist-card.active" in css and "animation:active-card" in css
     assert "clearInterval(specialistPoll); await loadSpecialists()" in javascript
-    assert "entry.outcome.recommendation || 'Interaction completed.'" in javascript
+    assert "const recommendation = entry.outcome?.recommendation" in javascript
+    assert "Interaction completed." not in javascript
 
 
 def test_responsive_breakpoints_are_present():
     css = (Path(__file__).parents[1] / "static" / "assets" / "app.css").read_text(encoding="utf-8")
     assert "@media(max-width:1050px)" in css
     assert "@media(max-width:680px)" in css
+
+
+def test_productized_home_uses_only_real_backed_collections():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    for element_id in ("home-conversations", "home-open-loops", "home-briefs", "home-artifacts"):
+        assert f'id="{element_id}"' in html
+    for endpoint in ("/api/conversations", "/api/open-loops", "/api/proactive-briefs", "/api/artifacts"):
+        assert endpoint in javascript
+    assert "confidence" not in html.casefold()
+    assert "fake" not in html.casefold()
+
+
+def test_specialist_detail_is_truthful_and_has_live_history_tabs():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    assert 'data-specialist-tab="live"' in html
+    assert 'data-specialist-tab="history"' in html
+    assert 'id="handoff-to-li"' in html
+    assert "No live specialist interaction" in javascript
+    assert "freshness_evidence" in javascript
+    assert "Not measured" in javascript
+    assert "confidence" not in javascript[javascript.index("function evidencePanel"):javascript.index("function renderLiveInteraction")]
+
+
+def test_voice_state_drives_all_visible_li_orbs_and_respects_reduced_motion():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (root / "static" / "assets" / "app.css").read_text(encoding="utf-8")
+    assert html.count('class="li-orb') >= 2
+    assert "$$('.li-orb').forEach" in javascript
+    assert "@media(prefers-reduced-motion:reduce)" in css
+    assert "@media(max-width:760px)" in css
+
+
+def test_session_exposes_optional_authenticated_display_name(monkeypatch):
+    from app.main import SESSION_COOKIE, settings
+    from app.security import new_session
+
+    client = signed_in_client()
+    client.cookies.set(SESSION_COOKIE, new_session("owner@example.com", settings, "Chris Example"))
+    response = client.get("/api/session")
+    assert response.status_code == 200
+    assert response.json() == {"email": "owner@example.com", "display_name": "Chris Example"}
 
 
 def test_agent_analytics_page_and_controls_are_rendered():
