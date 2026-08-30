@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 
 from app.action_intents import (
-    ActionIntentError,
     ActionIntentProposal,
     IntentDecision,
     decide_intent,
@@ -114,20 +113,32 @@ def test_resolved_or_non_attempt_states_never_call_provider(monkeypatch, state):
     assert result.approval_state == state and provider.calls == 0
 
 
-def test_payload_tamper_is_rejected_before_provider(monkeypatch):
+def test_payload_tamper_fails_intent_before_provider(monkeypatch):
     intent_id, request_id = uuid4(), uuid4()
-    monkeypatch.setattr("app.action_intents.resolve_action_intent", lambda **values: {
-        "outcome": "execute", "intent": public(intent_id, request_id),
-        "payload": {"action": "task.create", "title": "tampered"},
-        "payload_hash": "0" * 64, "request_id": request_id,
-        "action_type": "task.create", "specialist_interaction_ids": [],
-    })
+    calls = []
+
+    def resolve(**values):
+        calls.append(values)
+        if values["decision"] == "approve":
+            return {
+                "outcome": "execute", "intent": public(intent_id, request_id),
+                "payload": {"action": "task.create", "title": "tampered"},
+                "payload_hash": "0" * 64, "request_id": request_id,
+                "action_type": "task.create", "specialist_interaction_ids": [],
+            }
+        return {"outcome": "resolved", "intent": public(
+            intent_id, request_id, "failed", values["result"]
+        )}
+
+    monkeypatch.setattr("app.action_intents.resolve_action_intent", resolve)
     provider = TaskProvider()
-    with pytest.raises(ActionIntentError, match="integrity"):
-        decide_intent(intent_id, IntentDecision(decision="approve"),
-                      calendar_provider=object(), task_provider=provider,
-                      email_provider=object())
+    result = decide_intent(intent_id, IntentDecision(decision="approve"),
+                           calendar_provider=object(), task_provider=provider,
+                           email_provider=object())
     assert provider.calls == 0
+    assert result.approval_state == "failed"
+    assert calls[-1]["execution_status"] == "failed"
+    assert "tampered" not in json.dumps(calls[-1]["result"])
 
 
 def test_provider_failure_resolves_failed_and_retry_returns_same_result(monkeypatch):
@@ -177,6 +188,12 @@ def test_migration_enforces_lifecycle_correlation_audit_and_measurement_semantic
     assert "confirm_permanent_agent_change" in sql
     assert "INTERVAL '24 hours'" in sql
     assert "email.send" not in sql
+    assert "REFERENCES li_conversation.conversations(id) ON DELETE SET NULL" in sql
+    assert "Schema version 0.29 is already claimed" in sql
+    assert "ON CONFLICT(version) DO NOTHING" not in sql
+    assert "Function % has unexpected owner" in sql
+    assert "Temporary function-owner authority was not removed" in sql
+    assert "Action-intent function privileges are broader than intended" in sql
 
 
 def test_supported_intent_contract_has_no_gmail_send():

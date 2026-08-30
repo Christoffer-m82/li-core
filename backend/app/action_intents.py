@@ -132,45 +132,54 @@ def decide_intent(
     if claim["outcome"] != "execute":
         return public
 
-    payload = claim["payload"]
-    payload_hash = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    if payload_hash != claim["payload_hash"]:
-        raise ActionIntentError("Stored action payload integrity check failed.")
+    try:
+        payload = claim["payload"]
+        payload_hash = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if payload_hash != claim["payload_hash"]:
+            raise ActionIntentError("Stored action payload integrity check failed.")
 
-    attribution = None
-    interactions = claim.get("specialist_interaction_ids") or []
-    if interactions:
-        attribution = ActionAttribution(
-            action_id=intent_id, request_id=UUID(str(claim["request_id"])),
-            specialist_interaction_ids=[UUID(str(value)) for value in interactions],
-        )
-    action_type = claim["action_type"]
-    if action_type == "calendar.create":
-        outcome = execute_calendar_action(CalendarActionEnvelope(
-            request=CreateCalendarAction.model_validate(payload), approved=True,
-            attribution=attribution,
-        ), calendar_provider)
+        attribution = None
+        interactions = claim.get("specialist_interaction_ids") or []
+        if interactions:
+            attribution = ActionAttribution(
+                action_id=intent_id, request_id=UUID(str(claim["request_id"])),
+                specialist_interaction_ids=[UUID(str(value)) for value in interactions],
+            )
+        action_type = claim["action_type"]
+        if action_type == "calendar.create":
+            outcome = execute_calendar_action(CalendarActionEnvelope(
+                request=CreateCalendarAction.model_validate(payload), approved=True,
+                attribution=attribution,
+            ), calendar_provider)
+        elif action_type.startswith("task."):
+            request = _REQUEST_MODELS[action_type].model_validate(payload)
+            outcome = execute_task_action(TaskActionEnvelope(
+                request=request, approved=True, attribution=attribution,
+            ), task_provider)
+        elif action_type == "email.create_draft":
+            outcome = execute_email_action(EmailActionEnvelope(
+                request=CreateEmailDraftAction.model_validate(payload), approved=True,
+                attribution=attribution,
+            ), email_provider)
+        else:
+            raise ActionIntentError(
+                "Governance execution requires its existing owner executor."
+            )
         result = outcome.model_dump(mode="json", exclude_none=True)
-    elif action_type.startswith("task."):
-        request = _REQUEST_MODELS[action_type].model_validate(payload)
-        outcome = execute_task_action(TaskActionEnvelope(
-            request=request, approved=True, attribution=attribution,
-        ), task_provider)
-        result = outcome.model_dump(mode="json", exclude_none=True)
-    elif action_type == "email.create_draft":
-        outcome = execute_email_action(EmailActionEnvelope(
-            request=CreateEmailDraftAction.model_validate(payload), approved=True,
-            attribution=attribution,
-        ), email_provider)
-        result = outcome.model_dump(mode="json", exclude_none=True)
-    else:
-        raise ActionIntentError("Governance execution requires its existing owner executor.")
+    except Exception:  # noqa: BLE001 - claimed intents must never remain stuck on bad data
+        outcome = None
+        result = {
+            "status": "failed", "action": claim.get("action_type", "unknown"),
+            "message": "The stored action could not be executed safely.",
+        }
 
     final = resolve_action_intent(
         intent_id=str(intent_id), decision="complete",
-        execution_status="succeeded" if outcome.status == "completed" else "failed",
+        execution_status=(
+            "succeeded" if outcome is not None and outcome.status == "completed" else "failed"
+        ),
         result=result,
     )
     return ActionIntent.model_validate(final["intent"])

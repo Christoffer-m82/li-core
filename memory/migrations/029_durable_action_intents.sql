@@ -4,14 +4,18 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM li_memory.schema_versions WHERE version='0.28') THEN
     RAISE EXCEPTION USING ERRCODE='55000', MESSAGE='Migration 029 requires applied schema 0.28';
   END IF;
+  IF EXISTS (SELECT 1 FROM li_memory.schema_versions WHERE version='0.29') THEN
+    RAISE EXCEPTION USING ERRCODE='55000', MESSAGE='Schema version 0.29 is already claimed';
+  END IF;
 END $$;
 
 CREATE TABLE li_runtime_data.action_intents (
   id UUID PRIMARY KEY,
   owner_user_id UUID NOT NULL REFERENCES li_memory.users(id),
-  conversation_id UUID REFERENCES li_runtime_data.conversations(id) ON DELETE CASCADE,
+  conversation_id UUID REFERENCES li_conversation.conversations(id) ON DELETE SET NULL,
   request_id UUID NOT NULL,
-  action_type TEXT NOT NULL CHECK(length(action_type) BETWEEN 1 AND 100),
+  action_type TEXT NOT NULL CHECK(action_type IN
+    ('calendar.create','task.create','task.complete','task.cancel','email.create_draft','governance.execute')),
   payload JSONB NOT NULL CHECK(jsonb_typeof(payload)='object'),
   payload_hash TEXT NOT NULL CHECK(payload_hash ~ '^[0-9a-f]{64}$'),
   payload_summary TEXT NOT NULL CHECK(length(payload_summary) BETWEEN 1 AND 1000),
@@ -74,7 +78,14 @@ BEGIN
  SELECT id INTO v_user FROM li_memory.users WHERE user_key='christoffer' AND status='active' LIMIT 1;
  IF p_id IS NULL OR p_request IS NULL OR p_payload IS NULL OR jsonb_typeof(p_payload)<>'object'
    OR p_payload_hash !~ '^[0-9a-f]{64}$' OR length(p_summary) NOT BETWEEN 1 AND 1000
-   OR length(p_action_type) NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'Invalid action intent'; END IF;
+   OR p_action_type NOT IN ('calendar.create','task.create','task.complete','task.cancel',
+     'email.create_draft','governance.execute')
+   OR p_owner_confirmation IS DISTINCT FROM (p_action_type='governance.execute')
+   THEN RAISE EXCEPTION 'Invalid action intent'; END IF;
+ IF p_conversation IS NOT NULL AND NOT EXISTS(
+   SELECT 1 FROM li_conversation.conversations c
+   WHERE c.id=p_conversation AND c.owner_user_id=v_user
+ ) THEN RAISE EXCEPTION 'Conversation not found'; END IF;
  SELECT count(*) INTO v_count FROM li_runtime_data.specialist_interactions i
   WHERE i.owner_user_id=v_user AND i.request_id=p_request AND i.used_in_final IS TRUE
     AND i.id=ANY(COALESCE(p_interactions,'{}'));
@@ -153,7 +164,8 @@ DECLARE v_count INTEGER;
 BEGIN
  WITH expired AS (SELECT id,owner_user_id,state FROM li_runtime_data.action_intents
    WHERE state IN ('proposed','owner_confirmation_required') AND expires_at<=NOW()
-   ORDER BY expires_at LIMIT LEAST(GREATEST(p_limit,1),500) FOR UPDATE SKIP LOCKED),
+   ORDER BY expires_at LIMIT LEAST(GREATEST(COALESCE(p_limit,100),1),500)
+   FOR UPDATE SKIP LOCKED),
  updated AS (UPDATE li_runtime_data.action_intents a SET state='expired',resolved_at=NOW()
    FROM expired e WHERE a.id=e.id RETURNING a.id,a.owner_user_id,e.state)
  INSERT INTO li_runtime_data.action_intent_events(intent_id,owner_user_id,actor,from_state,to_state,outcome)
@@ -169,11 +181,57 @@ GRANT EXECUTE ON FUNCTION li_api.create_action_intent(UUID,UUID,UUID[],UUID,TEXT
  li_api.resolve_action_intent(UUID,TEXT,TEXT,TEXT,JSONB) TO li_memory_api;
 GRANT EXECUTE ON FUNCTION li_api.expire_action_intents(INTEGER) TO li_artifact_retention;
 REVOKE ALL PRIVILEGES ON li_runtime_data.action_intents,li_runtime_data.action_intent_events
- FROM li_backend_runtime,li_memory_api,li_memory_theo,li_memory_owner_confirmation,li_retention_runtime;
+ FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_api,li_memory_theo,
+ li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
+REVOKE ALL PRIVILEGES ON SEQUENCE li_runtime_data.action_intent_events_event_id_seq
+ FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_api,li_memory_theo,
+ li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
 DO $$ BEGIN
  IF (SELECT added_create FROM migration_029_authority_state) THEN EXECUTE 'REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner'; END IF;
  IF (SELECT added_owner FROM migration_029_authority_state) THEN EXECUTE 'REVOKE li_memory_function_owner FROM postgres'; END IF;
 END $$;
+DO $$
+DECLARE function_name TEXT;
+BEGIN
+ FOREACH function_name IN ARRAY ARRAY[
+  'li_api.create_action_intent(uuid,uuid,uuid[],uuid,text,text,jsonb,text,boolean)',
+  'li_api.resolve_action_intent(uuid,text,text,text,jsonb)',
+  'li_api.expire_action_intents(integer)'
+ ] LOOP
+  IF (SELECT r.rolname FROM pg_catalog.pg_proc p
+      JOIN pg_catalog.pg_roles r ON r.oid=p.proowner
+      WHERE p.oid=function_name::REGPROCEDURE) IS DISTINCT FROM 'li_memory_function_owner' THEN
+   RAISE EXCEPTION 'Function % has unexpected owner',function_name;
+  END IF;
+ END LOOP;
+ IF (SELECT added_create FROM migration_029_authority_state)
+    AND pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE') THEN
+  RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed';
+ END IF;
+ IF (SELECT added_owner FROM migration_029_authority_state)
+    AND (pg_catalog.pg_has_role('postgres','li_memory_function_owner','SET')
+      OR pg_catalog.pg_has_role('postgres','li_memory_function_owner','USAGE')) THEN
+  RAISE EXCEPTION 'Temporary function-owner authority was not removed';
+ END IF;
+ IF NOT pg_catalog.has_function_privilege('li_memory_api',
+    'li_api.create_action_intent(uuid,uuid,uuid[],uuid,text,text,jsonb,text,boolean)','EXECUTE')
+    OR NOT pg_catalog.has_function_privilege('li_memory_api',
+    'li_api.resolve_action_intent(uuid,text,text,text,jsonb)','EXECUTE') THEN
+  RAISE EXCEPTION 'Memory API lacks required action-intent execution';
+ END IF;
+ IF NOT pg_catalog.has_function_privilege('li_artifact_retention',
+    'li_api.expire_action_intents(integer)','EXECUTE') THEN
+  RAISE EXCEPTION 'Retention worker lacks action-intent expiry execution';
+ END IF;
+ IF pg_catalog.has_function_privilege('li_retention_runtime',
+    'li_api.resolve_action_intent(uuid,text,text,text,jsonb)','EXECUTE')
+    OR pg_catalog.has_function_privilege('li_memory_owner_confirmation',
+    'li_api.resolve_action_intent(uuid,text,text,text,jsonb)','EXECUTE')
+    OR pg_catalog.has_function_privilege('li_memory_api',
+    'li_api.expire_action_intents(integer)','EXECUTE') THEN
+  RAISE EXCEPTION 'Action-intent function privileges are broader than intended';
+ END IF;
+END $$;
 INSERT INTO li_memory.schema_versions(version,description)
-VALUES('0.29','Durable Li-owned approval and action intents') ON CONFLICT(version) DO NOTHING;
+VALUES('0.29','Durable Li-owned approval and action intents');
 COMMIT;
