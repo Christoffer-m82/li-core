@@ -7,6 +7,9 @@ DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM li_memory.schema_versions WHERE version='0.31') THEN
   RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Schema version 0.31 is already claimed';
  END IF;
+ IF (SELECT count(*) FROM li_memory.users WHERE user_key='christoffer' AND status='active') <> 1 THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Migration 031 requires exactly one active owner';
+ END IF;
 END $$;
 
 ALTER TABLE li_runtime_data.rhythm_definitions
@@ -42,6 +45,7 @@ CREATE TABLE li_runtime_data.rhythm_runs(
  rhythm_key TEXT NOT NULL REFERENCES li_runtime_data.rhythm_definitions(key), run_key TEXT NOT NULL,
  scheduled_for TIMESTAMPTZ NOT NULL, status TEXT NOT NULL CHECK(status IN ('claimed','generated','empty','suppressed','failed')),
  result_metadata JSONB NOT NULL DEFAULT '{}'::jsonb CHECK(jsonb_typeof(result_metadata)='object'),
+ attempt_count INTEGER NOT NULL DEFAULT 1 CHECK(attempt_count>0), claim_expires_at TIMESTAMPTZ,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), completed_at TIMESTAMPTZ,
  UNIQUE(owner_user_id,rhythm_key,run_key)
 );
@@ -78,6 +82,14 @@ INSERT INTO migration_031_authority_state SELECT CURRENT_USER,
 DO $$ BEGIN
  IF (SELECT added_owner FROM migration_031_authority_state) THEN EXECUTE pg_catalog.format('GRANT li_memory_function_owner TO %I',(SELECT migration_role FROM migration_031_authority_state)); END IF;
  IF (SELECT added_create FROM migration_031_authority_state) THEN EXECUTE 'GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner'; END IF;
+END $$;
+DO $$ BEGIN
+ IF NOT pg_catalog.pg_has_role(CURRENT_USER,'li_memory_function_owner','SET') THEN
+  RAISE EXCEPTION 'Migration role cannot assume li_memory_function_owner';
+ END IF;
+ IF NOT pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE') THEN
+  RAISE EXCEPTION 'Function owner cannot create in li_api';
+ END IF;
 END $$;
 SET LOCAL ROLE li_memory_function_owner;
 
@@ -133,7 +145,7 @@ RETURNS SETOF li_runtime_data.rhythm_definitions LANGUAGE plpgsql SECURITY DEFIN
  RETURN QUERY SELECT * FROM li_runtime_data.rhythm_definitions WHERE key=p_key; END $$;
 CREATE FUNCTION li_api.claim_rhythm_run(p_key TEXT,p_run_key TEXT,p_scheduled TIMESTAMPTZ)
 RETURNS TABLE(run_id UUID,claimed BOOLEAN,state TEXT) LANGUAGE plpgsql SECURITY DEFINER SET search_path=li_runtime_data,li_memory,pg_catalog,pg_temp AS $$
-DECLARE v_user UUID; v_id UUID; v_state li_runtime_data.rhythm_definitions%ROWTYPE; BEGIN
+DECLARE v_user UUID; v_id UUID; v_status TEXT; v_expires TIMESTAMPTZ; v_state li_runtime_data.rhythm_definitions%ROWTYPE; BEGIN
  SELECT * INTO v_state FROM li_runtime_data.rhythm_definitions WHERE key=p_key FOR UPDATE;
  IF NOT FOUND OR NOT v_state.enabled OR v_state.mode<>'approved' THEN RETURN QUERY SELECT NULL::UUID,FALSE,'disabled'::TEXT; RETURN; END IF;
  IF v_state.stood_down_until IS NOT NULL AND v_state.stood_down_until>NOW() THEN RETURN QUERY SELECT NULL::UUID,FALSE,'suppressed'::TEXT; RETURN; END IF;
@@ -143,33 +155,102 @@ DECLARE v_user UUID; v_id UUID; v_state li_runtime_data.rhythm_definitions%ROWTY
     ELSE (p_scheduled AT TIME ZONE v_state.timezone)::TIME>=v_state.quiet_hours_start OR (p_scheduled AT TIME ZONE v_state.timezone)::TIME<v_state.quiet_hours_end END)
  THEN RETURN QUERY SELECT NULL::UUID,FALSE,'suppressed'::TEXT; RETURN; END IF;
  SELECT id INTO v_user FROM li_memory.users WHERE user_key='christoffer' AND status='active' LIMIT 1;
- INSERT INTO li_runtime_data.rhythm_runs(owner_user_id,rhythm_key,run_key,scheduled_for,status) VALUES(v_user,p_key,p_run_key,p_scheduled,'claimed')
+ INSERT INTO li_runtime_data.rhythm_runs(owner_user_id,rhythm_key,run_key,scheduled_for,status,claim_expires_at)
+ VALUES(v_user,p_key,p_run_key,p_scheduled,'claimed',NOW()+INTERVAL '5 minutes')
  ON CONFLICT(owner_user_id,rhythm_key,run_key) DO NOTHING RETURNING id INTO v_id;
- IF v_id IS NULL THEN INSERT INTO li_runtime_data.proactivity_events(owner_user_id,event_type,rhythm_key,metadata) VALUES(v_user,'duplicate_prevented',p_key,jsonb_build_object('run_key',p_run_key)); END IF;
- RETURN QUERY SELECT v_id,v_id IS NOT NULL,CASE WHEN v_id IS NULL THEN 'duplicate' ELSE 'claimed' END; END $$;
+ IF v_id IS NULL THEN
+  SELECT rr.id,rr.status,rr.claim_expires_at INTO v_id,v_status,v_expires FROM li_runtime_data.rhythm_runs rr
+   WHERE rr.owner_user_id=v_user AND rr.rhythm_key=p_key AND rr.run_key=p_run_key FOR UPDATE;
+  IF v_status='failed' OR (v_status='claimed' AND v_expires<=NOW()) THEN
+   UPDATE li_runtime_data.rhythm_runs rr SET status='claimed',attempt_count=rr.attempt_count+1,
+    claim_expires_at=NOW()+INTERVAL '5 minutes',completed_at=NULL,
+    result_metadata=rr.result_metadata || jsonb_build_object('reclaimed_at',NOW()) WHERE rr.id=v_id;
+   RETURN QUERY SELECT v_id,TRUE,'claimed'::TEXT; RETURN;
+  END IF;
+  INSERT INTO li_runtime_data.proactivity_events(owner_user_id,event_type,rhythm_key,metadata)
+   VALUES(v_user,'duplicate_prevented',p_key,jsonb_build_object('run_key',p_run_key,'existing_status',v_status));
+  RETURN QUERY SELECT v_id,FALSE,CASE WHEN v_status='claimed' THEN 'in_progress' ELSE 'duplicate' END; RETURN;
+ END IF;
+ RETURN QUERY SELECT v_id,TRUE,'claimed'::TEXT; END $$;
 CREATE FUNCTION li_api.complete_rhythm_run(p_id UUID,p_status TEXT,p_title TEXT,p_content JSONB,p_sensitive BOOLEAN,p_next TIMESTAMPTZ)
 RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path=li_runtime_data,pg_catalog,pg_temp AS $$ DECLARE r li_runtime_data.rhythm_runs%ROWTYPE; v_brief UUID; BEGIN
  SELECT * INTO r FROM li_runtime_data.rhythm_runs WHERE id=p_id AND status='claimed' FOR UPDATE;
  IF NOT FOUND OR p_status NOT IN ('generated','empty','suppressed','failed') THEN RAISE EXCEPTION 'Invalid rhythm completion'; END IF;
- UPDATE li_runtime_data.rhythm_runs SET status=p_status,completed_at=NOW() WHERE id=p_id;
+ UPDATE li_runtime_data.rhythm_runs SET status=p_status,completed_at=NOW(),claim_expires_at=NULL WHERE id=p_id;
  UPDATE li_runtime_data.rhythm_definitions SET last_run=NOW(),last_result=p_status,last_run_key=r.run_key,next_run=p_next WHERE key=r.rhythm_key;
  IF p_status='generated' THEN INSERT INTO li_runtime_data.proactive_briefs(owner_user_id,rhythm_run_id,title,neutral_preview,content,delivery_status,delivered_at)
   VALUES(r.owner_user_id,r.id,p_title,CASE WHEN p_sensitive THEN 'A new private Li brief is ready.' ELSE p_title END,p_content,'delivered',NOW()) RETURNING id INTO v_brief;
   INSERT INTO li_runtime_data.proactivity_events(owner_user_id,event_type,rhythm_key,metadata) VALUES(r.owner_user_id,'brief_delivered',r.rhythm_key,jsonb_build_object('brief_id',v_brief)); END IF;
  RETURN v_brief; END $$;
+CREATE FUNCTION li_api.fail_rhythm_run(p_id UUID,p_error_type TEXT) RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=li_runtime_data,pg_catalog,pg_temp AS $$ DECLARE r li_runtime_data.rhythm_runs%ROWTYPE; BEGIN
+ IF p_error_type IS NULL OR length(p_error_type) NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'Invalid rhythm failure'; END IF;
+ SELECT * INTO r FROM li_runtime_data.rhythm_runs rr WHERE rr.id=p_id AND rr.status='claimed' FOR UPDATE;
+ IF NOT FOUND THEN RETURN FALSE; END IF;
+ UPDATE li_runtime_data.rhythm_runs rr SET status='failed',completed_at=NOW(),claim_expires_at=NULL,
+  result_metadata=rr.result_metadata || jsonb_build_object('error_type',p_error_type,'failed_at',NOW())
+ WHERE rr.id=r.id;
+ UPDATE li_runtime_data.rhythm_definitions rd SET last_run=NOW(),last_result='failed',last_run_key=r.run_key
+ WHERE rd.key=r.rhythm_key;
+ RETURN TRUE; END $$;
 CREATE FUNCTION li_api.list_proactive_briefs(p_limit INTEGER DEFAULT 50) RETURNS TABLE(id UUID,rhythm_key TEXT,title TEXT,neutral_preview TEXT,delivery_status TEXT,created_at TIMESTAMPTZ,read_at TIMESTAMPTZ,content JSONB) LANGUAGE sql SECURITY DEFINER
 SET search_path=li_runtime_data,li_memory,pg_catalog,pg_temp AS $$ SELECT b.id,r.rhythm_key,b.title,b.neutral_preview,b.delivery_status,b.created_at,b.read_at,b.content FROM li_runtime_data.proactive_briefs b JOIN li_runtime_data.rhythm_runs r ON r.id=b.rhythm_run_id JOIN li_memory.users u ON u.id=b.owner_user_id WHERE u.user_key='christoffer' ORDER BY b.created_at DESC LIMIT LEAST(GREATEST(p_limit,1),100) $$;
 CREATE FUNCTION li_api.mark_proactive_brief_read(p_id UUID) RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path=li_runtime_data,li_memory,pg_catalog,pg_temp AS $$ DECLARE v_user UUID; BEGIN SELECT id INTO v_user FROM li_memory.users WHERE user_key='christoffer' AND status='active'; UPDATE li_runtime_data.proactive_briefs SET read_at=COALESCE(read_at,NOW()) WHERE id=p_id AND owner_user_id=v_user; RETURN FOUND; END $$;
 
 RESET ROLE;
-REVOKE ALL ON FUNCTION li_api.create_open_loop(TEXT,TEXT,UUID,UUID,TEXT,TIMESTAMPTZ,TEXT,BOOLEAN,BOOLEAN,TEXT),li_api.suppress_open_loop(UUID,TEXT,TIMESTAMPTZ),li_api.set_proactivity_suppression(TEXT,TEXT,TIMESTAMPTZ),li_api.list_proactivity_suppressions(),li_api.list_rhythm_states(),li_api.configure_rhythm(TEXT,BOOLEAN,TEXT,TIME,TIMESTAMPTZ,BOOLEAN),li_api.claim_rhythm_run(TEXT,TEXT,TIMESTAMPTZ),li_api.complete_rhythm_run(UUID,TEXT,TEXT,JSONB,BOOLEAN,TIMESTAMPTZ),li_api.list_proactive_briefs(INTEGER),li_api.mark_proactive_brief_read(UUID) FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_theo,li_artifact_retention,li_retention_runtime;
-GRANT EXECUTE ON FUNCTION li_api.create_open_loop(TEXT,TEXT,UUID,UUID,TEXT,TIMESTAMPTZ,TEXT,BOOLEAN,BOOLEAN,TEXT),li_api.suppress_open_loop(UUID,TEXT,TIMESTAMPTZ),li_api.set_proactivity_suppression(TEXT,TEXT,TIMESTAMPTZ),li_api.list_proactivity_suppressions(),li_api.list_rhythm_states(),li_api.configure_rhythm(TEXT,BOOLEAN,TEXT,TIME,TIMESTAMPTZ,BOOLEAN),li_api.claim_rhythm_run(TEXT,TEXT,TIMESTAMPTZ),li_api.complete_rhythm_run(UUID,TEXT,TEXT,JSONB,BOOLEAN,TIMESTAMPTZ),li_api.list_proactive_briefs(INTEGER),li_api.mark_proactive_brief_read(UUID) TO li_memory_api;
+REVOKE ALL ON FUNCTION li_api.create_open_loop(TEXT,TEXT,UUID,UUID,TEXT,TIMESTAMPTZ,TEXT,BOOLEAN,BOOLEAN,TEXT),li_api.suppress_open_loop(UUID,TEXT,TIMESTAMPTZ),li_api.transition_open_loop(UUID,TEXT),li_api.set_proactivity_suppression(TEXT,TEXT,TIMESTAMPTZ),li_api.list_proactivity_suppressions(),li_api.list_rhythm_states(),li_api.configure_rhythm(TEXT,BOOLEAN,TEXT,TIME,TIMESTAMPTZ,BOOLEAN),li_api.claim_rhythm_run(TEXT,TEXT,TIMESTAMPTZ),li_api.complete_rhythm_run(UUID,TEXT,TEXT,JSONB,BOOLEAN,TIMESTAMPTZ),li_api.fail_rhythm_run(UUID,TEXT),li_api.list_proactive_briefs(INTEGER),li_api.mark_proactive_brief_read(UUID) FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_theo,li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
+GRANT EXECUTE ON FUNCTION li_api.create_open_loop(TEXT,TEXT,UUID,UUID,TEXT,TIMESTAMPTZ,TEXT,BOOLEAN,BOOLEAN,TEXT),li_api.suppress_open_loop(UUID,TEXT,TIMESTAMPTZ),li_api.transition_open_loop(UUID,TEXT),li_api.set_proactivity_suppression(TEXT,TEXT,TIMESTAMPTZ),li_api.list_proactivity_suppressions(),li_api.list_rhythm_states(),li_api.configure_rhythm(TEXT,BOOLEAN,TEXT,TIME,TIMESTAMPTZ,BOOLEAN),li_api.claim_rhythm_run(TEXT,TEXT,TIMESTAMPTZ),li_api.complete_rhythm_run(UUID,TEXT,TEXT,JSONB,BOOLEAN,TIMESTAMPTZ),li_api.fail_rhythm_run(UUID,TEXT),li_api.list_proactive_briefs(INTEGER),li_api.mark_proactive_brief_read(UUID) TO li_memory_api;
 REVOKE ALL PRIVILEGES ON li_runtime_data.proactivity_suppressions,li_runtime_data.rhythm_runs,li_runtime_data.proactive_briefs,li_runtime_data.proactivity_events FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_api,li_memory_theo,li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
-DO $$ BEGIN
+REVOKE ALL PRIVILEGES ON SEQUENCE li_runtime_data.proactivity_events_id_seq FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_api,li_memory_theo,li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
+DO $$
+DECLARE function_name TEXT; role_name TEXT; table_name TEXT;
+BEGIN
  IF (SELECT added_create FROM migration_031_authority_state) THEN EXECUTE 'REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner'; END IF;
  IF (SELECT added_owner FROM migration_031_authority_state) THEN EXECUTE pg_catalog.format('REVOKE li_memory_function_owner FROM %I',(SELECT migration_role FROM migration_031_authority_state)); END IF;
+ IF (SELECT count(*) FROM li_memory.users WHERE user_key='christoffer' AND status='active') <> 1 THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Migration 031 requires exactly one active owner after function creation';
+ END IF;
  IF NOT pg_catalog.has_function_privilege('li_backend_runtime','li_api.claim_rhythm_run(text,text,timestamptz)','EXECUTE') THEN RAISE EXCEPTION 'Backend runtime lost proactivity execution'; END IF;
  IF pg_catalog.has_function_privilege('li_artifact_retention','li_api.claim_rhythm_run(text,text,timestamptz)','EXECUTE') THEN RAISE EXCEPTION 'Retention runtime gained proactivity execution'; END IF;
+ FOREACH function_name IN ARRAY ARRAY[
+  'li_api.create_open_loop(text,text,uuid,uuid,text,timestamptz,text,boolean,boolean,text)',
+  'li_api.suppress_open_loop(uuid,text,timestamptz)','li_api.transition_open_loop(uuid,text)',
+  'li_api.set_proactivity_suppression(text,text,timestamptz)','li_api.list_proactivity_suppressions()',
+  'li_api.list_rhythm_states()','li_api.configure_rhythm(text,boolean,text,time without time zone,timestamptz,boolean)',
+  'li_api.claim_rhythm_run(text,text,timestamptz)','li_api.complete_rhythm_run(uuid,text,text,jsonb,boolean,timestamptz)',
+  'li_api.fail_rhythm_run(uuid,text)','li_api.list_proactive_briefs(integer)','li_api.mark_proactive_brief_read(uuid)'
+ ] LOOP
+ IF (SELECT r.rolname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_roles r ON r.oid=p.proowner
+      WHERE p.oid=function_name::REGPROCEDURE) IS DISTINCT FROM 'li_memory_function_owner' THEN
+   RAISE EXCEPTION 'Function % has unexpected owner',function_name;
+  END IF;
+  IF NOT pg_catalog.has_function_privilege('li_memory_api',function_name,'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('li_backend_runtime',function_name,'EXECUTE') THEN
+   RAISE EXCEPTION 'Required runtime execution was lost for %',function_name;
+  END IF;
+  FOREACH role_name IN ARRAY ARRAY['public','anon','authenticated','service_role','li_memory_theo','li_memory_owner_confirmation','li_artifact_retention','li_retention_runtime'] LOOP
+   IF pg_catalog.has_function_privilege(role_name,function_name,'EXECUTE') THEN
+    RAISE EXCEPTION 'Role % gained unexpected execution on %',role_name,function_name;
+   END IF;
+  END LOOP;
+ END LOOP;
+ FOREACH role_name IN ARRAY ARRAY['public','anon','authenticated','service_role','li_backend_runtime','li_memory_api','li_memory_theo','li_memory_owner_confirmation','li_artifact_retention','li_retention_runtime'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['proactivity_suppressions','rhythm_runs','proactive_briefs','proactivity_events'] LOOP
+   IF pg_catalog.has_table_privilege(role_name,pg_catalog.format('li_runtime_data.%I',table_name),'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
+    RAISE EXCEPTION 'Role % retained direct privileges on %',role_name,table_name;
+   END IF;
+  END LOOP;
+  IF pg_catalog.has_sequence_privilege(role_name,'li_runtime_data.proactivity_events_id_seq','USAGE,SELECT,UPDATE') THEN
+   RAISE EXCEPTION 'Role % retained direct sequence privileges',role_name;
+  END IF;
+ END LOOP;
+ IF (SELECT added_create FROM migration_031_authority_state)
+    AND pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE') THEN
+  RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed'; END IF;
+ IF (SELECT added_owner FROM migration_031_authority_state)
+    AND (pg_catalog.pg_has_role((SELECT migration_role FROM migration_031_authority_state),'li_memory_function_owner','SET')
+      OR pg_catalog.pg_has_role((SELECT migration_role FROM migration_031_authority_state),'li_memory_function_owner','USAGE')) THEN
+  RAISE EXCEPTION 'Temporary function-owner authority was not removed'; END IF;
 END $$;
 INSERT INTO li_memory.schema_versions(version,description) VALUES('0.31','Governed scheduler state, idempotent rhythm runs, proactive inbox, and suppression metadata');
 COMMIT;

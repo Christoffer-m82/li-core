@@ -241,6 +241,11 @@ def complete_rhythm_run(**values: object) -> str | None:
     return str(value) if value else None
 
 
+def fail_rhythm_run(run_id: str, error_type: str) -> bool:
+    rows = _call("fail_rhythm_run", (UUID(run_id), error_type))
+    return bool(rows and next(iter(rows[0].values())))
+
+
 def list_proactive_briefs(limit: int = 50) -> list[dict[str, object]]:
     return _call("list_proactive_briefs", (limit,))
 

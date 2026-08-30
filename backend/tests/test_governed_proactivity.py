@@ -2,8 +2,10 @@ from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from pydantic import ValidationError
 
+import app.main as main_module
 from app.proactivity import (
     BriefItem, ProactiveBrief, RhythmKey, RhythmState, build_brief,
     fixture_is_eligible, next_occurrence, should_surface, third_postponement_prompt_due,
@@ -91,6 +93,74 @@ def test_migration_has_idempotency_privacy_suppression_and_no_retention_grant():
                   "duplicate_prevented", "approved_before_enabled"):
         assert value in sql
     assert "Retention runtime gained proactivity execution" in sql
+
+
+def _claimed_run(monkeypatch):
+    monkeypatch.setattr(main_module, "list_rhythm_states", lambda: [])
+    monkeypatch.setattr(main_module, "claim_rhythm_run", lambda *_: {
+        "run_id": "0f6e8934-8920-4d85-a54d-02fa2c19f8a2", "claimed": True, "state": "claimed",
+    })
+    monkeypatch.setattr(main_module, "list_category_suppressions", lambda: [])
+    monkeypatch.setattr(main_module, "list_open_loops", lambda: [])
+    return main_module.RhythmJobRequest(
+        run_key="morning:2026-08-30", scheduled_for=datetime(2026, 8, 30, 7, 30, tzinfo=UTC),
+    )
+
+
+def test_generation_failure_after_claim_is_durably_failed(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    failures = []
+    monkeypatch.setattr(main_module, "build_brief", lambda *_: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(main_module, "fail_rhythm_run", lambda *args: failures.append(args) or True)
+    with pytest.raises(HTTPException) as exc:
+        main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
+    assert exc.value.status_code == 503
+    assert failures == [("0f6e8934-8920-4d85-a54d-02fa2c19f8a2", "ValueError")]
+
+
+def test_persistence_failure_after_claim_is_durably_failed(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    failures = []
+    monkeypatch.setattr(main_module, "build_brief", lambda *_: None)
+    monkeypatch.setattr(main_module, "complete_rhythm_run",
+                        lambda **_: (_ for _ in ()).throw(main_module.RuntimeDataError("db")))
+    monkeypatch.setattr(main_module, "fail_rhythm_run", lambda *args: failures.append(args) or True)
+    with pytest.raises(HTTPException):
+        main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
+    assert failures[0][1] == "RuntimeDataError"
+
+
+def test_failure_marker_outage_still_returns_retriable_failure(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    monkeypatch.setattr(main_module, "build_brief", lambda *_: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(main_module, "fail_rhythm_run",
+                        lambda *_: (_ for _ in ()).throw(main_module.RuntimeDataError("db")))
+    with pytest.raises(HTTPException, match="may be retried"):
+        main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
+
+
+def test_claim_retry_and_terminal_duplicate_semantics_are_atomic():
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "031_governed_proactivity.sql").read_text(encoding="utf-8")
+    assert "v_status='failed' OR (v_status='claimed' AND v_expires<=NOW())" in sql
+    assert "attempt_count=rr.attempt_count+1" in sql
+    assert "FOR UPDATE" in sql
+    assert "WHEN v_status='claimed' THEN 'in_progress' ELSE 'duplicate'" in sql
+    assert "WHERE rr.id=p_id AND rr.status='claimed' FOR UPDATE" in sql
+    assert "UNIQUE(owner_user_id,rhythm_key,run_key)" in sql
+
+
+def test_migration_reasserts_security_ownership_and_owner_invariant():
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "031_governed_proactivity.sql").read_text(encoding="utf-8")
+    assert sql.count("requires exactly one active owner") == 2
+    assert "Function % has unexpected owner" in sql
+    assert "Temporary function-owner authority was not removed" in sql
+    assert "Temporary li_api CREATE authority was not removed" in sql
+    assert "REVOKE ALL PRIVILEGES ON SEQUENCE li_runtime_data.proactivity_events_id_seq" in sql
+    assert "retained direct sequence privileges" in sql
+    assert "retained direct privileges" in sql
+    assert "gained unexpected execution" in sql
 
 
 def test_no_gmail_send_or_direct_provider_mutation_added():

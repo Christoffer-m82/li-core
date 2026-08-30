@@ -112,6 +112,7 @@ from app.runtime_data import (
     review_agent_recommendation, execute_agent_recommendation, agent_states,
     record_action_attribution, list_open_loops, create_open_loop, transition_open_loop,
     list_rhythm_states, configure_rhythm, claim_rhythm_run, complete_rhythm_run,
+    fail_rhythm_run,
     list_proactive_briefs, mark_proactive_brief_read, suppress_open_loop,
     set_category_suppression, list_category_suppressions,
 )
@@ -565,37 +566,44 @@ def run_rhythm_endpoint(
     claim = claim_rhythm_run(rhythm_key.value, run_key, scheduled_for)
     if not claim.get("claimed"):
         return claim
-    now = datetime.now(UTC)
-    candidates = []
-    stood_down = {str(item["category"]) for item in list_category_suppressions()}
-    for loop in list_open_loops():
-        if loop.get("status") == "closed" or not should_surface(
-            last_raised_at=loop.get("last_raised_at"),
-            suppressed_until=loop.get("suppressed_until"),
-            category_stood_down="commitment" in stood_down, now=now,
-        ):
-            continue
-        due = loop.get("due_at")
-        why = "Explicit open commitment"
-        if due and due <= now + timedelta(days=7):
-            why = "Commitment is due within seven days"
-        candidates.append(BriefItem(
-            category="commitment", title=str(loop["commitment_summary"]),
-            detail=str(loop["next_action"]), why_now=why,
-            source=f"open_loop:{loop['open_loop_id']}", urgency=loop.get("urgency", "normal"),
-        ))
-    brief = build_brief(rhythm_key, run_key, candidates)
-    next_run = None
-    if rhythm_state:
-        next_run = next_occurrence(
-            rhythm_key, after=scheduled_for,
-            local_time=rhythm_state["local_time"], timezone=str(rhythm_state["timezone"]),
+    try:
+        now = datetime.now(UTC)
+        candidates = []
+        stood_down = {str(item["category"]) for item in list_category_suppressions()}
+        for loop in list_open_loops():
+            if loop.get("status") == "closed" or not should_surface(
+                last_raised_at=loop.get("last_raised_at"),
+                suppressed_until=loop.get("suppressed_until"),
+                category_stood_down="commitment" in stood_down, now=now,
+            ):
+                continue
+            due = loop.get("due_at")
+            why = "Explicit open commitment"
+            if due and due <= now + timedelta(days=7):
+                why = "Commitment is due within seven days"
+            candidates.append(BriefItem(
+                category="commitment", title=str(loop["commitment_summary"]),
+                detail=str(loop["next_action"]), why_now=why,
+                source=f"open_loop:{loop['open_loop_id']}", urgency=loop.get("urgency", "normal"),
+            ))
+        brief = build_brief(rhythm_key, run_key, candidates)
+        next_run = None
+        if rhythm_state:
+            next_run = next_occurrence(
+                rhythm_key, after=scheduled_for,
+                local_time=rhythm_state["local_time"], timezone=str(rhythm_state["timezone"]),
+            )
+        brief_id = complete_rhythm_run(
+            run_id=claim["run_id"], status="generated" if brief else "empty",
+            title=brief.title if brief else "", content=brief.model_dump(mode="json") if brief else {},
+            sensitive=bool(brief and any(item.sensitive for item in brief.items)), next_run=next_run,
         )
-    brief_id = complete_rhythm_run(
-        run_id=claim["run_id"], status="generated" if brief else "empty",
-        title=brief.title if brief else "", content=brief.model_dump(mode="json") if brief else {},
-        sensitive=bool(brief and any(item.sensitive for item in brief.items)), next_run=next_run,
-    )
+    except Exception as exc:
+        try:
+            fail_rhythm_run(str(claim["run_id"]), type(exc).__name__)
+        except RuntimeDataError:
+            pass  # The claim lease still guarantees recovery after a transient DB failure.
+        raise HTTPException(status_code=503, detail="Rhythm run failed safely and may be retried.") from exc
     return {**claim, "state": "generated" if brief else "empty", "brief_id": brief_id}
 
 
