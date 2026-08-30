@@ -39,6 +39,7 @@ class OpenLoopCreate(BaseModel):
     due_at: datetime | None = None
     urgency: Literal["low", "normal", "high"] = "normal"
     sensitive: bool = False
+    commitment_kind: Literal["self", "other_person"] = "self"
 
 
 class OpenLoop(BaseModel):
@@ -57,6 +58,10 @@ class OpenLoop(BaseModel):
     status: Literal["open", "postponed", "closed"] = "open"
     created_at: datetime
     closed_at: datetime | None = None
+    commitment_kind: Literal["self", "other_person"] = "self"
+    suppressed_until: datetime | None = None
+    suppression_reason: Literal["not_now", "later", "leave_it"] | None = None
+    blocker_prompted_at: datetime | None = None
 
 
 def three_postponement_hook(count: int) -> bool:

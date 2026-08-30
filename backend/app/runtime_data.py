@@ -191,6 +191,7 @@ def create_open_loop(**values: object) -> dict[str, object]:
         values["commitment_summary"], values.get("owed_to"), values.get("source_conversation_id"),
         values.get("source_request_id"), values["next_action"], values.get("due_at"),
         values["urgency"], values.get("approved", False), values.get("sensitive", False),
+        values.get("commitment_kind", "self"),
     ))
     if not rows:
         raise RuntimeDataError("Open loop was not created.")
@@ -210,6 +211,65 @@ def transition_open_loop(open_loop_id: str, transition: str) -> dict[str, object
     row.pop("owner_user_id", None)
     row["three_postponements_reached"] = int(row.get("postponement_count", 0)) >= 3
     return row
+
+
+def list_rhythm_states() -> list[dict[str, object]]:
+    return _call("list_rhythm_states")
+
+
+def configure_rhythm(**values: object) -> dict[str, object]:
+    rows = _call("configure_rhythm", (
+        values["key"], values["enabled"], values["timezone"], values["local_time"],
+        values.get("next_run"), values.get("approved", False),
+    ))
+    if not rows:
+        raise RuntimeDataError("Rhythm configuration returned no state.")
+    return rows[0]
+
+
+def claim_rhythm_run(key: str, run_key: str, scheduled_for: object) -> dict[str, object]:
+    rows = _call("claim_rhythm_run", (key, run_key, scheduled_for))
+    return rows[0] if rows else {"run_id": None, "claimed": False, "state": "failed"}
+
+
+def complete_rhythm_run(**values: object) -> str | None:
+    rows = _call("complete_rhythm_run", (
+        UUID(str(values["run_id"])), values["status"], values.get("title", ""),
+        Jsonb(values.get("content", {})), values.get("sensitive", False), values.get("next_run"),
+    ))
+    value = next(iter(rows[0].values())) if rows else None
+    return str(value) if value else None
+
+
+def list_proactive_briefs(limit: int = 50) -> list[dict[str, object]]:
+    return _call("list_proactive_briefs", (limit,))
+
+
+def mark_proactive_brief_read(brief_id: str) -> bool:
+    rows = _call("mark_proactive_brief_read", (UUID(brief_id),))
+    return bool(rows and next(iter(rows[0].values())))
+
+
+def suppress_open_loop(open_loop_id: str, action: str, until: object | None) -> dict[str, object]:
+    rows = _call("suppress_open_loop", (UUID(open_loop_id), action, until))
+    if not rows:
+        raise RuntimeDataError("Open-loop suppression returned no result.")
+    row = dict(rows[0])
+    row["open_loop_id"] = row.pop("id")
+    row.pop("owner_user_id", None)
+    row["three_postponements_reached"] = int(row.get("postponement_count", 0)) >= 3
+    return row
+
+
+def set_category_suppression(category: str, action: str, until: object | None) -> dict[str, object]:
+    rows = _call("set_proactivity_suppression", (category, action, until))
+    if not rows:
+        raise RuntimeDataError("Category suppression returned no state.")
+    return rows[0]
+
+
+def list_category_suppressions() -> list[dict[str, object]]:
+    return _call("list_proactivity_suppressions")
 
 
 def list_interactions(specialist: str | None = None, limit: int = 50) -> list[dict[str, object]]:

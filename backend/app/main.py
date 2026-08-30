@@ -1,11 +1,14 @@
 import base64
 import binascii
 import re
+from datetime import UTC, datetime, time, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfoNotFoundError
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from app.auth import (
     require_api_token,
@@ -20,6 +23,7 @@ from app.action_policy_runtime import (
     decide_policy_proposal, read_policy_overview, rollback_policy,
 )
 from app.rhythms import DEFAULT_RHYTHMS, OpenLoop, OpenLoopCreate
+from app.proactivity import BriefItem, RhythmKey, build_brief, next_occurrence, should_surface
 from app.calendar_runtime import (
     CalendarActionEnvelope,
     CalendarActionOutcome,
@@ -107,6 +111,9 @@ from app.runtime_data import (
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
     review_agent_recommendation, execute_agent_recommendation, agent_states,
     record_action_attribution, list_open_loops, create_open_loop, transition_open_loop,
+    list_rhythm_states, configure_rhythm, claim_rhythm_run, complete_rhythm_run,
+    list_proactive_briefs, mark_proactive_brief_read, suppress_open_loop,
+    set_category_suppression, list_category_suppressions,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -507,7 +514,121 @@ def rollback_action_policy_endpoint(payload: PolicyRollback) -> dict[str, object
 
 @app.get("/rhythms", tags=["system"], dependencies=[Depends(require_api_token)])
 def rhythms_endpoint() -> dict[str, object]:
-    return {"read_only": True, "definitions": [item.model_dump() for item in DEFAULT_RHYTHMS]}
+    try:
+        states = list_rhythm_states()
+    except RuntimeDataError:
+        states = [item.model_dump() for item in DEFAULT_RHYTHMS]
+    return {"read_only": True, "definitions": states}
+
+
+class RhythmConfiguration(BaseModel):
+    enabled: bool
+    timezone: str = "Europe/Berlin"
+    local_time: time
+    approved: bool = False
+
+
+@app.post("/li/rhythms/{rhythm_key}/configuration", tags=["li"],
+          dependencies=[Depends(require_api_token)])
+def configure_rhythm_endpoint(rhythm_key: RhythmKey, payload: RhythmConfiguration) -> dict[str, object]:
+    if payload.enabled and not payload.approved:
+        raise HTTPException(status_code=409, detail="Explicit rhythm activation approval required.")
+    try:
+        next_run = next_occurrence(rhythm_key, after=datetime.now(UTC),
+                                   local_time=payload.local_time, timezone=payload.timezone)
+    except (ValueError, ZoneInfoNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid rhythm schedule.") from exc
+    return configure_rhythm(key=rhythm_key.value, next_run=next_run, **payload.model_dump())
+
+
+class RhythmJobRequest(BaseModel):
+    run_key: str | None = Field(default=None, min_length=8, max_length=200)
+    scheduled_for: datetime | None = None
+
+
+@app.post("/internal/rhythms/{rhythm_key}/run", tags=["internal"], include_in_schema=False)
+def run_rhythm_endpoint(
+    rhythm_key: RhythmKey, payload: RhythmJobRequest,
+    schedule_time: str | None = Header(default=None, alias="X-CloudScheduler-ScheduleTime"),
+    job_name: str | None = Header(default=None, alias="X-CloudScheduler-JobName"),
+) -> dict[str, object]:
+    """Cloud Run IAM is the auth boundary; the durable claim prevents duplicate delivery."""
+    try:
+        scheduled_for = payload.scheduled_for or datetime.fromisoformat(
+            str(schedule_time).replace("Z", "+00:00")
+        )
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="A scheduler time is required.") from exc
+    run_key = payload.run_key or f"{job_name or rhythm_key.value}:{scheduled_for.isoformat()}"
+    rhythm_state = next((item for item in list_rhythm_states()
+                         if item.get("key") == rhythm_key.value), None)
+    claim = claim_rhythm_run(rhythm_key.value, run_key, scheduled_for)
+    if not claim.get("claimed"):
+        return claim
+    now = datetime.now(UTC)
+    candidates = []
+    stood_down = {str(item["category"]) for item in list_category_suppressions()}
+    for loop in list_open_loops():
+        if loop.get("status") == "closed" or not should_surface(
+            last_raised_at=loop.get("last_raised_at"),
+            suppressed_until=loop.get("suppressed_until"),
+            category_stood_down="commitment" in stood_down, now=now,
+        ):
+            continue
+        due = loop.get("due_at")
+        why = "Explicit open commitment"
+        if due and due <= now + timedelta(days=7):
+            why = "Commitment is due within seven days"
+        candidates.append(BriefItem(
+            category="commitment", title=str(loop["commitment_summary"]),
+            detail=str(loop["next_action"]), why_now=why,
+            source=f"open_loop:{loop['open_loop_id']}", urgency=loop.get("urgency", "normal"),
+        ))
+    brief = build_brief(rhythm_key, run_key, candidates)
+    next_run = None
+    if rhythm_state:
+        next_run = next_occurrence(
+            rhythm_key, after=scheduled_for,
+            local_time=rhythm_state["local_time"], timezone=str(rhythm_state["timezone"]),
+        )
+    brief_id = complete_rhythm_run(
+        run_id=claim["run_id"], status="generated" if brief else "empty",
+        title=brief.title if brief else "", content=brief.model_dump(mode="json") if brief else {},
+        sensitive=bool(brief and any(item.sensitive for item in brief.items)), next_run=next_run,
+    )
+    return {**claim, "state": "generated" if brief else "empty", "brief_id": brief_id}
+
+
+@app.get("/proactive-briefs", tags=["li"], dependencies=[Depends(require_api_token)])
+def proactive_briefs_endpoint() -> dict[str, object]:
+    return {"read_only": True, "briefs": list_proactive_briefs()}
+
+
+@app.post("/li/proactive-briefs/{brief_id}/read", tags=["li"],
+          dependencies=[Depends(require_api_token)])
+def proactive_brief_read_endpoint(brief_id: UUID) -> dict[str, object]:
+    return {"brief_id": brief_id, "read": mark_proactive_brief_read(str(brief_id))}
+
+
+class OpenLoopSuppression(BaseModel):
+    action: Literal["not_now", "later", "leave_it"]
+    until: datetime | None = None
+
+
+@app.post("/li/open-loops/{open_loop_id}/suppression", response_model=OpenLoop, tags=["li"],
+          dependencies=[Depends(require_api_token)])
+def suppress_open_loop_endpoint(open_loop_id: UUID, payload: OpenLoopSuppression) -> OpenLoop:
+    if payload.action == "later" and payload.until is None:
+        raise HTTPException(status_code=422, detail="Later requires a snooze-until date/time.")
+    return OpenLoop.model_validate(suppress_open_loop(str(open_loop_id), **payload.model_dump()))
+
+
+@app.post("/li/proactivity/categories/{category}/suppression", tags=["li"],
+          dependencies=[Depends(require_api_token)])
+def suppress_category_endpoint(category: str, payload: OpenLoopSuppression) -> dict[str, object]:
+    if not re.fullmatch(r"[a-z_]{2,40}", category):
+        raise HTTPException(status_code=422, detail="Invalid proactivity category.")
+    return set_category_suppression(category, **payload.model_dump())
 
 
 @app.get("/open-loops", tags=["li"], dependencies=[Depends(require_api_token)])

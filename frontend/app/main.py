@@ -202,6 +202,16 @@ async def open_loops(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/open-loops")
 
 
+@app.get("/api/proactive-briefs")
+async def proactive_briefs(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/proactive-briefs")
+
+
+@app.post("/api/proactive-briefs/{brief_id}/read")
+async def proactive_brief_read(brief_id: UUID, _: str = Depends(require_user)) -> Response:
+    return await proxy("POST", f"/li/proactive-briefs/{brief_id}/read")
+
+
 @app.post("/api/chat")
 async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response:
     body = {"message": payload.message}
@@ -215,6 +225,27 @@ async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response
 class ActionIntentDecision(BaseModel):
     decision: Literal["approve", "deny"]
     owner_confirmation: str | None = None
+
+
+class ProactivitySuppression(BaseModel):
+    action: Literal["not_now", "later", "leave_it"]
+    until: str | None = None
+
+
+@app.post("/api/open-loops/{open_loop_id}/suppression")
+async def suppress_open_loop(
+    open_loop_id: UUID, payload: ProactivitySuppression, _: str = Depends(require_user)
+) -> Response:
+    return await proxy("POST", f"/li/open-loops/{open_loop_id}/suppression",
+                       json_body=payload.model_dump(exclude_none=True))
+
+
+@app.post("/api/proactivity/categories/{category}/suppression")
+async def suppress_proactivity_category(
+    category: str, payload: ProactivitySuppression, _: str = Depends(require_user)
+) -> Response:
+    return await proxy("POST", f"/li/proactivity/categories/{category}/suppression",
+                       json_body=payload.model_dump(exclude_none=True))
 
 
 @app.post("/api/action-intents/{intent_id}/decision")

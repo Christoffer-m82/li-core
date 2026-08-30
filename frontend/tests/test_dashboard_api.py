@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 from fastapi.testclient import TestClient
@@ -282,6 +283,25 @@ def test_phase6_backend_overview_renders_read_only_governed_status():
     assert "fetch('/api/action-policy')" in javascript
     assert "fetch('/api/rhythms')" in javascript
     assert "fetch('/api/open-loops')" in javascript
+
+
+def test_proactive_inbox_is_authenticated_private_and_marks_read(monkeypatch):
+    observed = []
+
+    async def fake_request(settings, method, path, **kwargs):
+        observed.append((method, path))
+        return httpx.Response(200, json={"briefs": []})
+
+    monkeypatch.setattr("app.main.request_backend", fake_request)
+    client = signed_in_client()
+    assert client.get("/api/proactive-briefs").status_code == 200
+    brief_id = uuid4()
+    assert client.post(f"/api/proactive-briefs/{brief_id}/read").status_code == 200
+    assert observed == [("GET", "/proactive-briefs"),
+                        ("POST", f"/li/proactive-briefs/{brief_id}/read")]
+    javascript = (Path(__file__).parents[1] / "static" / "assets" / "app.js").read_text()
+    assert "A new private Li brief" not in javascript
+    assert "loadProactiveBriefs" in javascript
     assert "/api/action-policy', { method: 'POST'" not in javascript
 
 
