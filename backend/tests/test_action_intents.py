@@ -11,6 +11,7 @@ from app.action_intents import (
     decide_intent,
     persist_proposals,
 )
+from app.li_runtime import build_li_system_prompt
 
 
 NOW = datetime.now(UTC)
@@ -235,3 +236,11 @@ def test_anthropic_structured_output_schema_avoids_unsupported_array_keywords():
         encoding="utf-8"
     )
     assert '"maxItems"' not in source
+
+
+def test_direct_li_runtime_requires_governed_action_intents():
+    prompt = build_li_system_prompt()
+
+    assert "For every concrete state-changing request" in prompt
+    assert "return a matching action_intent" in prompt
+    assert "Never say or imply that an action ran" in prompt
