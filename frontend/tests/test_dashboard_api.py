@@ -259,3 +259,27 @@ def test_backend_overview_page_has_filters_live_metadata_and_no_mutating_control
     assert "fetch('/api/capabilities')" in javascript
     backend_section = html.split('data-view-panel="backend"', 1)[1].split("</section>", 1)[0]
     assert 'type="submit"' not in backend_section
+
+
+def test_phase6_read_only_policy_rhythm_and_open_loop_proxies(monkeypatch):
+    observed = []
+
+    async def backend(*args, **kwargs):
+        observed.append((args[1], args[2]))
+        return httpx.Response(200, json={"read_only": True})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    client = signed_in_client()
+    for route in ("action-policy", "rhythms", "open-loops"):
+        assert client.get(f"/api/{route}").status_code == 200
+    assert observed == [("GET", "/action-policy"), ("GET", "/rhythms"), ("GET", "/open-loops")]
+
+
+def test_phase6_backend_overview_renders_read_only_governed_status():
+    javascript = (Path(__file__).parents[1] / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    assert "loadGovernedWorkStatus" in javascript
+    assert "Identity expresses preferences; this policy grants authority. Read-only." in javascript
+    assert "fetch('/api/action-policy')" in javascript
+    assert "fetch('/api/rhythms')" in javascript
+    assert "fetch('/api/open-loops')" in javascript
+    assert "/api/action-policy', { method: 'POST'" not in javascript

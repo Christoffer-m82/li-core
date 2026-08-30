@@ -187,6 +187,21 @@ async def capabilities(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/capabilities")
 
 
+@app.get("/api/action-policy")
+async def action_policy(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/action-policy")
+
+
+@app.get("/api/rhythms")
+async def rhythms(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/rhythms")
+
+
+@app.get("/api/open-loops")
+async def open_loops(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/open-loops")
+
+
 @app.post("/api/chat")
 async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response:
     body = {"message": payload.message}

@@ -10,10 +10,11 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.action_policy import ActionPolicy, conservative_default_policy, execution_allowed
 from app.action_instrumentation import ActionAttribution
 from app.calendar_runtime import CalendarActionEnvelope, CreateCalendarAction, execute_calendar_action
 from app.email_runtime import CreateEmailDraftAction, EmailActionEnvelope, execute_email_action
-from app.runtime_data import create_action_intent, resolve_action_intent
+from app.runtime_data import create_action_intent, get_action_policy_overview, resolve_action_intent
 from app.task_runtime import (
     CancelTaskAction,
     CompleteTaskAction,
@@ -64,6 +65,14 @@ class IntentDecision(BaseModel):
 
 class ActionIntentError(RuntimeError):
     pass
+
+
+def _effective_policy() -> ActionPolicy:
+    """Fail closed to the conservative baseline until migration 030 is available."""
+    try:
+        return ActionPolicy.model_validate(get_action_policy_overview()["effective_policy"])
+    except Exception:
+        return conservative_default_policy()
 
 
 _REQUEST_MODELS = {
@@ -150,6 +159,12 @@ def decide_intent(
     public = ActionIntent.model_validate(claim["intent"])
     if claim["outcome"] != "execute":
         return public
+
+    if not execution_allowed(
+        str(claim["action_type"]), approved=decision.decision == "approve",
+        policy=_effective_policy(),
+    ):
+        raise ActionIntentError("Effective action policy rejects execution without approval.")
 
     try:
         payload = claim["payload"]

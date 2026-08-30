@@ -1,6 +1,7 @@
 import base64
 import binascii
 import re
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
@@ -14,6 +15,11 @@ from app.auth import (
 from app.action_intents import (
     ActionIntent, ActionIntentError, IntentDecision, decide_intent, persist_proposals,
 )
+from app.action_policy_runtime import (
+    PolicyChangeProposal, PolicyDecision, PolicyRollback, create_policy_proposal,
+    decide_policy_proposal, read_policy_overview, rollback_policy,
+)
+from app.rhythms import DEFAULT_RHYTHMS, OpenLoop, OpenLoopCreate
 from app.calendar_runtime import (
     CalendarActionEnvelope,
     CalendarActionOutcome,
@@ -98,7 +104,7 @@ from app.runtime_data import (
     delete_conversation,
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
     review_agent_recommendation, execute_agent_recommendation, agent_states,
-    record_action_attribution,
+    record_action_attribution, list_open_loops, create_open_loop, transition_open_loop,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -450,6 +456,63 @@ def capability_inventory() -> dict[str, object]:
         artifact_storage_configured=bool(settings.artifact_bucket.strip()),
     )
     return inventory.model_dump(mode="json")
+
+
+@app.get("/action-policy", tags=["system"], dependencies=[Depends(require_api_token)])
+def action_policy_overview_endpoint() -> dict[str, object]:
+    """Read-only effective authority, history, and identity mismatch report."""
+    return read_policy_overview()
+
+
+@app.post("/li/action-policy/proposals", tags=["li"], dependencies=[Depends(require_api_token)])
+def propose_action_policy_endpoint(payload: PolicyChangeProposal) -> dict[str, object]:
+    try:
+        return create_policy_proposal(payload)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Policy proposal was not persisted safely.") from exc
+
+
+@app.post("/owner/action-policy/proposals/{proposal_id}/decision", tags=["owner"],
+          dependencies=[Depends(require_owner_api_token)])
+def decide_action_policy_endpoint(proposal_id: UUID, payload: PolicyDecision) -> dict[str, object]:
+    try:
+        return decide_policy_proposal(proposal_id, payload)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Policy proposal could not be resolved safely.") from exc
+
+
+@app.post("/owner/action-policy/rollback", tags=["owner"],
+          dependencies=[Depends(require_owner_api_token)])
+def rollback_action_policy_endpoint(payload: PolicyRollback) -> dict[str, object]:
+    try:
+        return rollback_policy(payload)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Policy rollback could not be completed safely.") from exc
+
+
+@app.get("/rhythms", tags=["system"], dependencies=[Depends(require_api_token)])
+def rhythms_endpoint() -> dict[str, object]:
+    return {"read_only": True, "definitions": [item.model_dump() for item in DEFAULT_RHYTHMS]}
+
+
+@app.get("/open-loops", tags=["li"], dependencies=[Depends(require_api_token)])
+def open_loops_endpoint() -> dict[str, object]:
+    return {"read_only": True, "open_loops": list_open_loops()}
+
+
+@app.post("/li/open-loops", response_model=OpenLoop, tags=["li"],
+          dependencies=[Depends(require_api_token)])
+def create_open_loop_endpoint(payload: OpenLoopCreate, approved: bool = False) -> OpenLoop:
+    if payload.sensitive and not approved:
+        raise HTTPException(status_code=409, detail="Sensitive commitments require explicit approval.")
+    return OpenLoop.model_validate(create_open_loop(**payload.model_dump(), approved=approved))
+
+
+@app.post("/li/open-loops/{open_loop_id}/{transition}", response_model=OpenLoop, tags=["li"],
+          dependencies=[Depends(require_api_token)])
+def transition_open_loop_endpoint(open_loop_id: UUID,
+                                  transition: Literal["postpone", "raise", "close"]) -> OpenLoop:
+    return OpenLoop.model_validate(transition_open_loop(str(open_loop_id), transition))
 
 
 @app.get(
