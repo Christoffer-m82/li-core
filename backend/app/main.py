@@ -11,6 +11,9 @@ from app.auth import (
     require_owner_api_token,
     require_theo_api_token,
 )
+from app.action_intents import (
+    ActionIntent, ActionIntentError, IntentDecision, decide_intent, persist_proposals,
+)
 from app.calendar_runtime import (
     CalendarActionEnvelope,
     CalendarActionOutcome,
@@ -756,6 +759,28 @@ def _measure_action(payload: object, status_value: str, action_type: str, *, mut
 
 
 @app.post(
+    "/li/action-intents/{intent_id}/decision",
+    response_model=ActionIntent,
+    tags=["li"],
+    dependencies=[Depends(require_api_token)],
+)
+def action_intent_decision_endpoint(intent_id: UUID, payload: IntentDecision) -> ActionIntent:
+    """Approve or deny by safe intent ID; the server owns payload and correlation."""
+    try:
+        return decide_intent(
+            intent_id, payload, calendar_provider=app.state.calendar_provider,
+            task_provider=app.state.task_provider, email_provider=app.state.email_provider,
+        )
+    except ActionIntentError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except RuntimeDataError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The action intent could not be safely resolved.",
+        ) from exc
+
+
+@app.post(
     "/li/chat",
     response_model=LiChatResponse,
     tags=["li"],
@@ -940,6 +965,18 @@ def li_chat_endpoint(
         except HTTPException:
             pass
 
+    action_intents: list[ActionIntent] = []
+    if li_outcome.action_intents:
+        try:
+            action_intents = persist_proposals(
+                li_outcome.action_intents, request_id=li_outcome.request_id,
+                used_interaction_ids=li_outcome.used_interaction_ids,
+                conversation_id=conversation_id,
+            )
+        except (RuntimeDataError, ActionIntentError, ValueError):
+            # A proposal that cannot be durably validated must not become actionable.
+            action_intents = []
+
     return LiChatResponse(
         response=response,
         conversation_id=conversation_id,
@@ -961,4 +998,5 @@ def li_chat_endpoint(
             )
             if li_outcome.request_id and li_outcome.used_interaction_ids else None
         ),
+        action_intents=action_intents,
     )

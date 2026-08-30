@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.action_intents import ActionIntentProposal
 from app.claude import generate_claude_text
 from app.database import MemoryReadError, recall_memory
 from app.research_runtime import (
@@ -106,6 +107,7 @@ class SpecialistSynthesis(BaseModel):
 
     final_response: str = Field(min_length=1)
     used_specialist_keys: list[str] = Field(default_factory=list, max_length=12)
+    action_intents: list[ActionIntentProposal] = Field(default_factory=list, max_length=4)
 
 
 class LiTurnOutcome(BaseModel):
@@ -114,6 +116,7 @@ class LiTurnOutcome(BaseModel):
     response: str
     request_id: str | None = None
     used_interaction_ids: list[str] = Field(default_factory=list)
+    action_intents: list[ActionIntentProposal] = Field(default_factory=list)
 
 
 def _parse_specialist_synthesis(value: str) -> SpecialistSynthesis:
@@ -400,7 +403,7 @@ def talk_to_li_with_outcome(
 
     routing = route_specialists(user_message)
     interaction_ids: dict[str, str] = {}
-    request_id: str | None = None
+    request_id: str = str(uuid4())
     if routing.specialists:
         bounded_conversation = conversation_context[-6000:] if conversation_context else None
         specialist_requests: dict[str, SpecialistRequest] = {}
@@ -430,7 +433,6 @@ def talk_to_li_with_outcome(
                 temporary_upload_context=temporary_upload_context,
             )
         conversation_id = _conversation_id.get()
-        request_id = str(uuid4())
         if conversation_id:
             for specialist in routing.specialists:
                 try:
@@ -530,7 +532,9 @@ def talk_to_li_with_outcome(
                     "exact citation metadata supplied in the analysis, including source "
                     "titles, identifiers/URLs, publication dates, publishers, and source "
                     "types. Never say those fields were absent when the analysis contains them. "
-                    "Return exactly one JSON object with final_response and used_specialist_keys. "
+                    "Return exactly one JSON object with final_response, used_specialist_keys, "
+                    "and action_intents. action_intents may contain only concrete state-changing "
+                    "actions Li proposes for explicit approval; never claim they already ran. "
                     "used_specialist_keys must contain only specialists whose validated finding "
                     "or recommendation materially appears in final_response. Consultation or "
                     "presence alone is not use. Do not include reasoning or chain-of-thought."
@@ -556,6 +560,42 @@ def talk_to_li_with_outcome(
 
     system_with_memory = "\n\n".join(system_sections)
 
+    action_intent_schema = {
+        "type": "array", "maxItems": 4, "items": {
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "action_type": {"type": "string", "enum": [
+                    "calendar.create", "task.create", "task.complete", "task.cancel",
+                    "email.create_draft", "governance.execute",
+                ]},
+                "summary": {"type": "string"},
+                "payload": {
+                    "type": "object", "additionalProperties": False,
+                    "properties": {
+                        "title": {"type": ["string", "null"]},
+                        "notes": {"type": ["string", "null"]},
+                        "start": {"type": ["string", "null"]},
+                        "end": {"type": ["string", "null"]},
+                        "due_at": {"type": ["string", "null"]},
+                        "timezone": {"type": ["string", "null"]},
+                        "location": {"type": ["string", "null"]},
+                        "description": {"type": ["string", "null"]},
+                        "task_id": {"type": ["string", "null"]},
+                        "recipients": {"type": ["array", "null"], "items": {"type": "string"}},
+                        "cc": {"type": ["array", "null"], "items": {"type": "string"}},
+                        "bcc": {"type": ["array", "null"], "items": {"type": "string"}},
+                        "subject": {"type": ["string", "null"]},
+                        "body": {"type": ["string", "null"]},
+                        "thread_id": {"type": ["string", "null"]},
+                        "in_reply_to": {"type": ["string", "null"]},
+                        "references": {"type": ["string", "null"]},
+                        "recommendation_id": {"type": ["string", "null"]},
+                    },
+                },
+            },
+            "required": ["action_type", "summary", "payload"],
+        },
+    }
     generated = generate_claude_text(
         user_message=user_message,
         system=system_with_memory,
@@ -569,16 +609,33 @@ def talk_to_li_with_outcome(
                         "type": "array",
                         "items": {"type": "string"},
                     },
+                    "action_intents": action_intent_schema,
                 },
-                "required": ["final_response", "used_specialist_keys"],
+                "required": ["final_response", "used_specialist_keys", "action_intents"],
                 "additionalProperties": False,
             }
-            if routing.specialists and consultation.results else None
+            if routing.specialists and consultation.results else {
+                "type": "object", "additionalProperties": False,
+                "properties": {
+                    "final_response": {"type": "string"},
+                    "used_specialist_keys": {"type": "array", "maxItems": 0},
+                    "action_intents": action_intent_schema,
+                },
+                "required": ["final_response", "used_specialist_keys", "action_intents"],
+            }
         ),
     )
 
     if not routing.specialists or not consultation.results:
-        return LiTurnOutcome(response=generated)
+        try:
+            direct = _parse_specialist_synthesis(generated)
+        except (ValidationError, ValueError):
+            return LiTurnOutcome(response=generated)
+        return LiTurnOutcome(
+            response=direct.final_response,
+            request_id=request_id if direct.action_intents else None,
+            action_intents=direct.action_intents,
+        )
 
     try:
         synthesis = _parse_specialist_synthesis(generated)
@@ -616,6 +673,7 @@ def talk_to_li_with_outcome(
         response=final_response,
         request_id=request_id if measured_ids else None,
         used_interaction_ids=used_ids,
+        action_intents=synthesis.action_intents if 'synthesis' in locals() else [],
     )
 
 

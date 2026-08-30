@@ -1,6 +1,8 @@
 import base64
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlencode
+from uuid import UUID
 
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
@@ -193,6 +195,21 @@ async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response
     if payload.temporary_upload_context:
         body["temporary_upload_context"] = payload.temporary_upload_context
     return await proxy("POST", "/li/chat", json_body=body)
+
+
+class ActionIntentDecision(BaseModel):
+    decision: Literal["approve", "deny"]
+    owner_confirmation: str | None = None
+
+
+@app.post("/api/action-intents/{intent_id}/decision")
+async def decide_action_intent(
+    intent_id: UUID, payload: ActionIntentDecision, _: str = Depends(require_user)
+) -> Response:
+    return await proxy(
+        "POST", f"/li/action-intents/{intent_id}/decision",
+        json_body=payload.model_dump(exclude_none=True),
+    )
 
 
 @app.post("/api/uploads")

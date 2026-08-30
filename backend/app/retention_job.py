@@ -45,6 +45,8 @@ def run() -> int:
                     deleted += 1
                     logger.info("artifact_expired",
                                 extra={"artifact_id": str(record["artifact_id"])})
+            # Intent expiry is metadata-only and shares this isolated, least-privilege worker.
+            cursor.execute("SELECT li_api.expire_action_intents(%s) AS expired;", (100,))
     logger.info("retention_complete", extra={"deleted_count": deleted})
     return deleted
 

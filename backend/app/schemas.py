@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.email_runtime import EmailActionEnvelope, EmailActionOutcome
+from app.action_intents import ActionIntent
 
 ExplicitMemoryClass = Literal[
     "explicit_fact",
@@ -171,6 +172,7 @@ class LiChatResponse(BaseModel):
     email_action: EmailActionOutcome | None = None
     artifacts: list[dict[str, Any]] = Field(default_factory=list)
     specialist_attribution: SpecialistAttribution | None = None
+    action_intents: list[ActionIntent] = Field(default_factory=list)
 
 
 class ArtifactUpload(BaseModel):

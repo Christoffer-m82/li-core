@@ -120,6 +120,32 @@ def record_action_attribution(
     return bool(rows and next(iter(rows[0].values())))
 
 
+def create_action_intent(**values: object) -> dict[str, object]:
+    rows = _call("create_action_intent", (
+        UUID(str(values["intent_id"])), UUID(str(values["request_id"])),
+        [UUID(str(value)) for value in values["interaction_ids"]],
+        UUID(str(values["conversation_id"])), values["action_type"], values["summary"],
+        Jsonb(values["payload"]), values["payload_hash"],
+        values["owner_confirmation_required"],
+    ))
+    if not rows:
+        raise RuntimeDataError("Action intent was not persisted.")
+    return rows[0]
+
+
+def resolve_action_intent(
+    *, intent_id: str, decision: str, owner_confirmation: str | None = None,
+    execution_status: str | None = None, result: dict[str, object] | None = None,
+) -> dict[str, object]:
+    rows = _call("resolve_action_intent", (
+        UUID(intent_id), decision, owner_confirmation, execution_status,
+        Jsonb(result) if result is not None else None,
+    ))
+    if not rows:
+        raise RuntimeDataError("Action intent transition returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
 def list_interactions(specialist: str | None = None, limit: int = 50) -> list[dict[str, object]]:
     return _call("list_specialist_interactions", (specialist, limit))
 

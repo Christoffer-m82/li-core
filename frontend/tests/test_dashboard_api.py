@@ -154,6 +154,27 @@ def test_client_includes_activity_sorting_theme_fallback_and_real_artifact_guard
     assert "localStorage.setItem('li-theme', choice)" in javascript
     assert "setInterval(loadSpecialists, 1200)" in javascript
     assert "item.active ? ' active' : ''" in javascript
+    assert "renderActionIntent" in javascript
+    assert "data.action_intents || []" in javascript
+    assert "decision: value" in javascript
+    assert "specialist_interaction_ids" not in javascript
+
+
+def test_action_intent_decision_proxy_forwards_only_safe_decision(monkeypatch):
+    observed = {}
+
+    async def backend(*args, **kwargs):
+        observed.update(path=args[2], body=kwargs["json_body"])
+        return httpx.Response(200, json={"approval_state": "denied"})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    intent_id = "d7d0fbbb-d650-4ec3-a053-f5e6022267da"
+    response = signed_in_client().post(
+        f"/api/action-intents/{intent_id}/decision", json={"decision": "deny"}
+    )
+    assert response.status_code == 200
+    assert observed == {"path": f"/li/action-intents/{intent_id}/decision",
+                        "body": {"decision": "deny"}}
 
 
 def test_active_only_specialist_pulse_returns_to_idle_from_real_events():
