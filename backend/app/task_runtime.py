@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
+from app.action_instrumentation import ActionAttribution
+
 
 class TaskProviderError(RuntimeError):
     """Raised when durable task storage cannot complete an operation."""
@@ -89,6 +91,7 @@ class TaskActionEnvelope(BaseModel):
 
     request: TaskActionRequest
     approved: bool = False
+    attribution: ActionAttribution | None = None
 
 
 class TaskActionOutcome(BaseModel):

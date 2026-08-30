@@ -5,6 +5,8 @@ from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.action_instrumentation import ActionAttribution
+
 
 class EmailProviderError(RuntimeError):
     """Raised when an email provider cannot safely complete an operation."""
@@ -108,6 +110,7 @@ class EmailActionEnvelope(BaseModel):
 
     request: EmailActionRequest
     approved: bool = False
+    attribution: ActionAttribution | None = None
 
 
 class EmailActionOutcome(BaseModel):

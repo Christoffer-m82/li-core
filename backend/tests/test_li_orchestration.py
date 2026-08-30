@@ -51,7 +51,10 @@ def test_nora_gets_bounded_context_and_li_synthesizes(monkeypatch) -> None:
         assert "INTERNAL SPECIALIST ANALYSES" in str(kwargs["system"])
         assert "Nora: Research, Intelligence & Decision Adviser" in str(kwargs["system"])
         assert "Prefer the reversible option." in str(kwargs["system"])
-        return "I would choose the reversible option."
+        return json.dumps({
+            "final_response": "I would choose the reversible option.",
+            "used_specialist_keys": ["nora"],
+        })
 
     monkeypatch.setattr("app.specialist_runtime.generate_claude_text", fake_generate)
     monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
@@ -108,7 +111,10 @@ def test_li_synthesizes_multiple_specialists(monkeypatch) -> None:
 
     def fake_generate(**kwargs):
         observed.update(kwargs)
-        return "A synthesized answer."
+        return json.dumps({
+            "final_response": "A synthesized answer.",
+            "used_specialist_keys": ["victor", "milo"],
+        })
 
     monkeypatch.setattr("app.li_runtime.consult_specialists", fake_consult)
     monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
@@ -138,7 +144,10 @@ def test_li_uses_valid_result_when_other_specialist_is_unavailable(monkeypatch) 
 
     def fake_generate(**kwargs):
         observed.update(kwargs)
-        return "Lisbon is the strongest available choice."
+        return json.dumps({
+            "final_response": "Lisbon is the strongest available choice.",
+            "used_specialist_keys": ["milo"],
+        })
 
     monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
     response = talk_to_li("Consult Victor and Milo about this business travel decision.")
@@ -197,7 +206,10 @@ def test_nora_research_request_total_failure_falls_back_transparently(monkeypatc
 
     def fake_generate(**kwargs):
         observed.update(kwargs)
-        return "I need current sources before making a firm recommendation."
+        return json.dumps({
+            "final_response": "I need current sources before making a firm recommendation.",
+            "used_specialist_keys": ["nora"],
+        })
 
     monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
     talk_to_li("Ask Nora to research and compare these vendors.")
@@ -261,7 +273,9 @@ def test_nora_research_is_executed_then_nora_is_reinvoked(monkeypatch) -> None:
     monkeypatch.setattr("app.li_runtime.delegate_to_nora", fake_nora)
     monkeypatch.setattr(
         "app.li_runtime.generate_claude_text",
-        lambda **kwargs: observed.update(kwargs) or "Choose A.",
+        lambda **kwargs: observed.update(kwargs) or json.dumps({
+            "final_response": "Choose A.", "used_specialist_keys": ["nora"],
+        }),
     )
     response = talk_to_li(
         "Ask Nora to research and compare these vendors.", research_provider=Provider()

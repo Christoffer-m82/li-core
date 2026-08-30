@@ -3,6 +3,8 @@ from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from app.action_instrumentation import ActionAttribution
+
 
 class CalendarProviderError(RuntimeError):
     """Raised when a calendar provider cannot complete an operation."""
@@ -73,6 +75,7 @@ class CalendarActionEnvelope(BaseModel):
 
     request: CalendarActionRequest
     approved: bool = False
+    attribution: ActionAttribution | None = None
 
 
 class CalendarActionOutcome(BaseModel):
