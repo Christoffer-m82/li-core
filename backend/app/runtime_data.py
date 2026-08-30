@@ -146,6 +146,72 @@ def resolve_action_intent(
     return dict(next(iter(rows[0].values())))
 
 
+def get_action_policy_overview() -> dict[str, object]:
+    rows = _call("get_action_policy_overview")
+    if not rows:
+        raise RuntimeDataError("Action policy was not returned.")
+    return dict(next(iter(rows[0].values())))
+
+
+def propose_action_policy_change(*, proposal_id: str, base_version: int,
+                                 proposed_policy: dict[str, object], summary: str) -> dict[str, object]:
+    rows = _call("propose_action_policy_change", (
+        UUID(proposal_id), base_version, Jsonb(proposed_policy), summary,
+    ))
+    return rows[0]
+
+
+def decide_action_policy_change(proposal_id: str, decision: str) -> dict[str, object]:
+    rows = _owner_call("decide_action_policy_change", (UUID(proposal_id), decision))
+    if not rows:
+        raise RuntimeDataError("Policy decision returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
+def rollback_action_policy(target_version: int, confirmation: str) -> dict[str, object]:
+    rows = _owner_call("rollback_action_policy", (target_version, confirmation))
+    if not rows:
+        raise RuntimeDataError("Policy rollback returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
+def list_open_loops(limit: int = 100) -> list[dict[str, object]]:
+    public = []
+    for value in _call("list_open_loops", (limit,)):
+        row = dict(value)
+        row["open_loop_id"] = row.pop("id")
+        row.pop("owner_user_id", None)
+        row["three_postponements_reached"] = int(row.get("postponement_count", 0)) >= 3
+        public.append(row)
+    return public
+
+
+def create_open_loop(**values: object) -> dict[str, object]:
+    rows = _call("create_open_loop", (
+        values["commitment_summary"], values.get("owed_to"), values.get("source_conversation_id"),
+        values.get("source_request_id"), values["next_action"], values.get("due_at"),
+        values["urgency"], values.get("approved", False), values.get("sensitive", False),
+    ))
+    if not rows:
+        raise RuntimeDataError("Open loop was not created.")
+    row = dict(rows[0])
+    row["open_loop_id"] = row.pop("id")
+    row.pop("owner_user_id", None)
+    row["three_postponements_reached"] = int(row.get("postponement_count", 0)) >= 3
+    return row
+
+
+def transition_open_loop(open_loop_id: str, transition: str) -> dict[str, object]:
+    rows = _call("transition_open_loop", (UUID(open_loop_id), transition))
+    if not rows:
+        raise RuntimeDataError("Open-loop transition returned no result.")
+    row = dict(rows[0])
+    row["open_loop_id"] = row.pop("id")
+    row.pop("owner_user_id", None)
+    row["three_postponements_reached"] = int(row.get("postponement_count", 0)) >= 3
+    return row
+
+
 def list_interactions(specialist: str | None = None, limit: int = 50) -> list[dict[str, object]]:
     return _call("list_specialist_interactions", (specialist, limit))
 
