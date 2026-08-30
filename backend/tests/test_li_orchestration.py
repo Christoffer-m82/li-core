@@ -215,6 +215,7 @@ def test_nora_research_request_total_failure_falls_back_transparently(monkeypatc
     talk_to_li("Ask Nora to research and compare these vendors.")
     assert "Current vendor evidence" in observed["system"]
     assert "Live research was unavailable" in observed["system"]
+    assert "do not provide the requested changing facts from model memory" in observed["system"]
 
 
 def test_nora_research_is_executed_then_nora_is_reinvoked(monkeypatch) -> None:
