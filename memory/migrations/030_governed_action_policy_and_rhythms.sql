@@ -7,6 +7,9 @@ DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM li_memory.schema_versions WHERE version='0.30') THEN
   RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Schema version 0.30 is already claimed';
  END IF;
+ IF (SELECT count(*) FROM li_memory.users WHERE user_key='christoffer' AND status='active') <> 1 THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Migration 030 requires exactly one active owner';
+ END IF;
 END $$;
 
 CREATE TABLE li_runtime_data.action_policy_versions(
@@ -73,12 +76,26 @@ SELECT 1,u.id,'{"schema_version":"1.0","policy_version":1,"specialist_action_aut
  ],"freshness_evidence":{"enabled":false,"schema_version":"future-1","specialist_overrides":{}}}'::jsonb,'baseline'
 FROM li_memory.users u WHERE u.user_key='christoffer' AND u.status='active';
 
-CREATE TEMP TABLE migration_030_authority_state(added_owner BOOLEAN,added_create BOOLEAN) ON COMMIT DROP;
-INSERT INTO migration_030_authority_state SELECT NOT pg_catalog.pg_has_role(CURRENT_USER,'li_memory_function_owner','SET'),
+DO $$ BEGIN
+ IF (SELECT count(*) FROM li_runtime_data.action_policy_versions WHERE version=1 AND superseded_at IS NULL) <> 1 THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Migration 030 failed to create exactly one conservative baseline policy';
+ END IF;
+END $$;
+
+CREATE TEMP TABLE migration_030_authority_state(migration_role NAME,added_owner BOOLEAN,added_create BOOLEAN) ON COMMIT DROP;
+INSERT INTO migration_030_authority_state SELECT CURRENT_USER,
+ NOT pg_catalog.pg_has_role(CURRENT_USER,'li_memory_function_owner','SET'),
  NOT pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE');
 DO $$ BEGIN
- IF (SELECT added_owner FROM migration_030_authority_state) THEN EXECUTE 'GRANT li_memory_function_owner TO postgres'; END IF;
+ IF (SELECT added_owner FROM migration_030_authority_state) THEN
+  EXECUTE pg_catalog.format('GRANT li_memory_function_owner TO %I',(SELECT migration_role FROM migration_030_authority_state));
+ END IF;
  IF (SELECT added_create FROM migration_030_authority_state) THEN EXECUTE 'GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner'; END IF;
+END $$;
+DO $$ BEGIN
+ IF NOT pg_catalog.pg_has_role(CURRENT_USER,'li_memory_function_owner','SET') THEN
+  RAISE EXCEPTION 'Migration role cannot assume li_memory_function_owner';
+ END IF;
 END $$;
 SET LOCAL ROLE li_memory_function_owner;
 
@@ -151,22 +168,28 @@ RETURNS SETOF li_runtime_data.open_loops LANGUAGE plpgsql SECURITY DEFINER SET s
 DECLARE v_user UUID; v_id UUID:=gen_random_uuid(); BEGIN
  SELECT id INTO v_user FROM li_memory.users WHERE user_key='christoffer' AND status='active' LIMIT 1;
  IF p_sensitive AND NOT p_approved THEN RAISE EXCEPTION 'Sensitive commitment requires approval'; END IF;
+ IF p_conversation IS NOT NULL AND NOT EXISTS(
+  SELECT 1 FROM li_conversation.conversations c WHERE c.id=p_conversation AND c.owner_user_id=v_user
+ ) THEN RAISE EXCEPTION 'Conversation not found'; END IF;
  INSERT INTO li_runtime_data.open_loops(id,owner_user_id,commitment_summary,owed_to,source_conversation_id,source_request_id,next_action,due_at,urgency)
  VALUES(v_id,v_user,p_summary,p_owed,p_conversation,p_request,p_next,p_due,p_urgency);
  RETURN QUERY SELECT * FROM li_runtime_data.open_loops WHERE id=v_id; END $$;
 CREATE FUNCTION li_api.transition_open_loop(p_id UUID,p_transition TEXT) RETURNS SETOF li_runtime_data.open_loops LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=li_runtime_data,li_memory,pg_catalog,pg_temp AS $$ BEGIN
  IF p_transition NOT IN ('postpone','raise','close') THEN RAISE EXCEPTION 'Invalid open-loop transition'; END IF;
- UPDATE li_runtime_data.open_loops SET status=CASE WHEN p_transition='postpone' THEN 'postponed' WHEN p_transition='close' THEN 'closed' ELSE 'open' END,
+ UPDATE li_runtime_data.open_loops o SET status=CASE WHEN p_transition='postpone' THEN 'postponed' WHEN p_transition='close' THEN 'closed' ELSE 'open' END,
   postponement_count=postponement_count+CASE WHEN p_transition='postpone' THEN 1 ELSE 0 END,
-  last_raised_at=CASE WHEN p_transition='raise' THEN NOW() ELSE last_raised_at END,closed_at=CASE WHEN p_transition='close' THEN NOW() ELSE NULL END WHERE id=p_id;
- RETURN QUERY SELECT * FROM li_runtime_data.open_loops WHERE id=p_id; END $$;
+  last_raised_at=CASE WHEN p_transition='raise' THEN NOW() ELSE last_raised_at END,closed_at=CASE WHEN p_transition='close' THEN NOW() ELSE NULL END
+ WHERE o.id=p_id AND o.owner_user_id=(SELECT u.id FROM li_memory.users u WHERE u.user_key='christoffer' AND u.status='active');
+ IF NOT FOUND THEN RAISE EXCEPTION 'Open loop not found'; END IF;
+ RETURN QUERY SELECT o.* FROM li_runtime_data.open_loops o JOIN li_memory.users u ON u.id=o.owner_user_id
+  WHERE o.id=p_id AND u.user_key='christoffer' AND u.status='active'; END $$;
 
 RESET ROLE;
 REVOKE ALL ON FUNCTION li_api.get_action_policy_overview(),li_api.propose_action_policy_change(UUID,INTEGER,JSONB,TEXT),
  li_api.decide_action_policy_change(UUID,TEXT),li_api.rollback_action_policy(INTEGER,TEXT),li_api.list_open_loops(INTEGER),
  li_api.create_open_loop(TEXT,TEXT,UUID,UUID,TEXT,TIMESTAMPTZ,TEXT,BOOLEAN,BOOLEAN),li_api.transition_open_loop(UUID,TEXT)
- FROM PUBLIC,anon,authenticated,service_role,li_memory_theo,li_artifact_retention,li_retention_runtime;
+ FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_theo,li_artifact_retention,li_retention_runtime;
 GRANT EXECUTE ON FUNCTION li_api.get_action_policy_overview(),li_api.propose_action_policy_change(UUID,INTEGER,JSONB,TEXT),
  li_api.list_open_loops(INTEGER),li_api.create_open_loop(TEXT,TEXT,UUID,UUID,TEXT,TIMESTAMPTZ,TEXT,BOOLEAN,BOOLEAN),
  li_api.transition_open_loop(UUID,TEXT) TO li_memory_api;
@@ -178,10 +201,24 @@ DO $$
 DECLARE function_name TEXT;
 BEGIN
  IF (SELECT added_create FROM migration_030_authority_state) THEN EXECUTE 'REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner'; END IF;
- IF (SELECT added_owner FROM migration_030_authority_state) THEN EXECUTE 'REVOKE li_memory_function_owner FROM postgres'; END IF;
+ IF (SELECT added_owner FROM migration_030_authority_state) THEN
+  EXECUTE pg_catalog.format('REVOKE li_memory_function_owner FROM %I',(SELECT migration_role FROM migration_030_authority_state));
+ END IF;
  IF pg_catalog.has_function_privilege('li_memory_api','li_api.decide_action_policy_change(uuid,text)','EXECUTE')
  OR pg_catalog.has_function_privilege('li_memory_api','li_api.rollback_action_policy(integer,text)','EXECUTE') THEN
   RAISE EXCEPTION 'Action policy privilege escalation boundary is broader than intended'; END IF;
+ IF NOT pg_catalog.has_function_privilege('li_backend_runtime','li_api.get_action_policy_overview()','EXECUTE')
+ OR NOT pg_catalog.has_function_privilege('li_backend_runtime','li_api.propose_action_policy_change(uuid,integer,jsonb,text)','EXECUTE')
+ OR NOT pg_catalog.has_function_privilege('li_backend_runtime','li_api.list_open_loops(integer)','EXECUTE')
+ OR NOT pg_catalog.has_function_privilege('li_backend_runtime','li_api.create_open_loop(text,text,uuid,uuid,text,timestamptz,text,boolean,boolean)','EXECUTE')
+ OR NOT pg_catalog.has_function_privilege('li_backend_runtime','li_api.transition_open_loop(uuid,text)','EXECUTE') THEN
+  RAISE EXCEPTION 'Backend runtime lost required Phase 6 function execution'; END IF;
+ IF pg_catalog.has_function_privilege('li_retention_runtime','li_api.get_action_policy_overview()','EXECUTE')
+ OR pg_catalog.has_function_privilege('li_retention_runtime','li_api.propose_action_policy_change(uuid,integer,jsonb,text)','EXECUTE')
+ OR pg_catalog.has_function_privilege('li_retention_runtime','li_api.list_open_loops(integer)','EXECUTE')
+ OR pg_catalog.has_function_privilege('li_retention_runtime','li_api.create_open_loop(text,text,uuid,uuid,text,timestamptz,text,boolean,boolean)','EXECUTE')
+ OR pg_catalog.has_function_privilege('li_retention_runtime','li_api.transition_open_loop(uuid,text)','EXECUTE') THEN
+  RAISE EXCEPTION 'Retention runtime gained Phase 6 function execution'; END IF;
  FOREACH function_name IN ARRAY ARRAY[
   'li_api.get_action_policy_overview()','li_api.propose_action_policy_change(uuid,integer,jsonb,text)',
   'li_api.decide_action_policy_change(uuid,text)','li_api.rollback_action_policy(integer,text)',
@@ -197,8 +234,8 @@ BEGIN
     AND pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE') THEN
   RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed'; END IF;
  IF (SELECT added_owner FROM migration_030_authority_state)
-    AND (pg_catalog.pg_has_role('postgres','li_memory_function_owner','SET')
-      OR pg_catalog.pg_has_role('postgres','li_memory_function_owner','USAGE')) THEN
+    AND (pg_catalog.pg_has_role((SELECT migration_role FROM migration_030_authority_state),'li_memory_function_owner','SET')
+      OR pg_catalog.pg_has_role((SELECT migration_role FROM migration_030_authority_state),'li_memory_function_owner','USAGE')) THEN
   RAISE EXCEPTION 'Temporary function-owner authority was not removed'; END IF;
 END $$;
 

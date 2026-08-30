@@ -100,5 +100,14 @@ def test_migration_has_durable_lifecycle_rollback_and_narrow_authority():
     assert "confirm_action_policy_rollback" in sql
     assert "preview_only" in sql and "external_mutations_permitted" in sql
     assert "Action policy privilege escalation boundary is broader than intended" in sql
+    assert "Migration 030 requires exactly one active owner" in sql
+    assert "Migration 030 failed to create exactly one conservative baseline policy" in sql
+    assert "c.owner_user_id=v_user" in sql
+    assert "o.owner_user_id=(SELECT u.id" in sql
+    assert "Backend runtime lost required Phase 6 function execution" in sql
+    assert "Retention runtime gained Phase 6 function execution" in sql
+    assert "migration_role NAME" in sql
+    assert "GRANT li_memory_function_owner TO postgres" not in sql
+    assert "Migration role cannot assume li_memory_function_owner" in sql
     assert "Schema version 0.30 is already claimed" in sql
     assert "ON CONFLICT(version) DO NOTHING" not in sql
