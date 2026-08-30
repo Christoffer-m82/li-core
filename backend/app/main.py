@@ -62,6 +62,7 @@ from app.li_runtime import (
     talk_to_li_with_outcome as talk_to_li,
 )
 from app.agent_analytics import calculate_analytics, generate_recommendations
+from app.freshness_policy import public_policy_registry
 from app.memory_capture import (
     MemoryCaptureAnalysis,
     MemoryCaptureError,
@@ -325,6 +326,11 @@ def agent_analytics(period: str = "30d") -> dict[str, object]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeDataError as exc:
         raise HTTPException(status_code=503, detail="Agent analytics unavailable.") from exc
+
+
+@app.get("/specialists/freshness-evidence", dependencies=[Depends(require_api_token)])
+def freshness_evidence_policies() -> dict[str, object]:
+    return public_policy_registry()
 
 
 @app.post("/agents/relevance-review", dependencies=[Depends(require_api_token)])
