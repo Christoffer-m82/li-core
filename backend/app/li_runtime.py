@@ -19,6 +19,7 @@ from app.freshness_policy import POLICIES, decide_freshness
 from app.specialist_runtime import (
     SPECIALIST_PROFILES,
     ResearchRequest,
+    SpecialistConsultation,
     SpecialistMemoryContext,
     SpecialistRequest,
     SpecialistResult,
@@ -490,7 +491,8 @@ def talk_to_li_with_outcome(
         consultation_requests = {key: specialist_requests[key] for key in verifiable}
         consultation_request = (consultation_requests[verifiable[0]]
                                 if len(verifiable) == 1 else consultation_requests)
-        consultation = consult_specialists(verifiable, consultation_request)
+        consultation = (consult_specialists(verifiable, consultation_request)
+                        if verifiable else SpecialistConsultation())
         for specialist in set(routing.specialists) - set(verifiable):
             policy = POLICIES[specialist]
             limitation = freshness_metadata[specialist].get("failure_reason") or (
@@ -510,8 +512,14 @@ def talk_to_li_with_outcome(
                 nora_result.research_request,
                 research_provider or UnavailableResearchProvider(),
             )
+            nora_decision = decide_freshness("nora", user_message)
+            if not nora_decision.evidence_required:
+                nora_decision = nora_decision.model_copy(update={
+                    "evidence_required": True,
+                    "freshness_reason": "Nora requested live evidence for this claim.",
+                })
             nora_validation = validate_evidence_contract(
-                "nora", decide_freshness("nora", user_message), outcome.evidence
+                "nora", nora_decision, outcome.evidence
             )
             freshness_metadata["nora"].update({
                 "verification_performed": True,

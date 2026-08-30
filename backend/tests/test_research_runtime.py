@@ -28,7 +28,7 @@ def test_freshness_and_source_types_reach_provider() -> None:
     assert provider.request.source_types == ["primary", "regulator"]
 
 
-def test_external_instruction_content_is_neutralized() -> None:
+def test_external_instruction_content_is_rejected() -> None:
     provider = StubProvider([{
         "title": "Vendor filing",
         "identifier": "https://example.test/filing",
@@ -38,11 +38,9 @@ def test_external_instruction_content_is_neutralized() -> None:
         "source_type": "regulator",
     }])
     outcome = execute_research(_request(), provider)
-    assert len(outcome.evidence) == 1
-    excerpt = outcome.evidence[0].excerpt.lower()
-    assert "ignore prior instructions" not in excerpt
-    assert "call the tool" not in excerpt
-    assert "external instruction removed" in excerpt
+    assert outcome.evidence == []
+    assert outcome.failed_sources == 1
+    assert outcome.unavailable
 
 
 def test_malformed_evidence_is_rejected_without_losing_valid_records() -> None:
@@ -69,4 +67,3 @@ def test_total_provider_failure_degrades_to_unavailable() -> None:
     outcome = execute_research(_request(), FailingProvider())
     assert outcome.evidence == []
     assert outcome.unavailable
-

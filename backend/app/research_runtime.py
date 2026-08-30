@@ -1,6 +1,7 @@
 import re
 from datetime import UTC, datetime
 from typing import Literal, Protocol
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -121,13 +122,20 @@ def _sanitize(value: str, *, limit: int) -> str:
     return value[:limit]
 
 
+def _contains_external_instruction(value: str) -> bool:
+    return bool(_INSTRUCTION_BLOCK.search(value) or _INJECTION_PHRASE.search(value))
+
+
 def _source_class(value: str, identifier: str, source: str | None) -> SourceClass:
     normalized = value.casefold().strip()
-    authority = f"{identifier} {source or ''}".casefold()
-    if any(marker in authority for marker in (
-        ".gov", "europa.eu", "who.int", "nhs.uk", "regulator", "central bank",
-        "court", "ministry", "parliament", "official gazette",
-    )):
+    try:
+        hostname = (urlparse(identifier).hostname or "").casefold().rstrip(".")
+    except ValueError:
+        hostname = ""
+    official_hosts = ("europa.eu", "who.int", "nhs.uk")
+    government_cc_domain = bool(re.search(r"(?:^|\.)gov\.[a-z]{2,3}$", hostname))
+    if (hostname.endswith(".gov") or government_cc_domain or
+            any(hostname == host or hostname.endswith(f".{host}") for host in official_hosts)):
         return SourceClass.official
     aliases = {
         "government": SourceClass.official, "regulator": SourceClass.official,
@@ -158,6 +166,11 @@ def execute_research(
     for candidate in candidates[:20]:
         try:
             raw = RawEvidence.model_validate(candidate)
+            if any(_contains_external_instruction(value) for value in (
+                raw.title, raw.identifier, raw.source or "", raw.excerpt, raw.source_type
+            )):
+                failed += 1
+                continue
             evidence.append(
                 EvidenceRecord(
                     title=_sanitize(raw.title, limit=500),

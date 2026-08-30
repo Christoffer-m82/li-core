@@ -159,9 +159,16 @@ if len(POLICIES) != 12 or any(key != policy.specialist_key for key, policy in PO
 def decide_freshness(specialist_key: str, message: str) -> FreshnessDecision:
     policy = POLICIES[specialist_key]
     lowered = message.casefold()
-    high = next((term for term in policy.high_stakes_triggers if term in lowered), None)
+    def matches(term: str) -> bool:
+        # A few registry entries are intentional stems (for example ``pregnan``).
+        # Everything else must match whole words so ``rate`` does not match
+        # ``separate`` and ``market`` does not match ``marketing``.
+        suffix = "" if term in {"pregnan"} else r"\b"
+        return bool(re.search(rf"\b{re.escape(term)}{suffix}", lowered))
+
+    high = next((term for term in policy.high_stakes_triggers if matches(term)), None)
     explicit = next((term for term in COMMON_CURRENT if re.search(rf"\b{re.escape(term)}\b", lowered)), None)
-    trigger = next((term for term in policy.live_verification_triggers if term in lowered), None)
+    trigger = next((term for term in policy.live_verification_triggers if matches(term)), None)
     required = bool(high or explicit or trigger)
     reason = (f"High-stakes {policy.domain} request requires current verification." if high else
               f"Explicit time-sensitive term '{explicit}' requires current verification." if explicit else
