@@ -20,9 +20,13 @@ $jobs = @(
     @{ Key="annual"; Cron="0 9 2 1 *" }
 )
 foreach ($job in $jobs) {
-    gcloud scheduler jobs create http "li-os-$($job.Key)-rhythm" --project=$ProjectId `
-        --location=$Region --schedule=$job.Cron --time-zone="Europe/Berlin" --paused `
+    $jobName = "li-os-$($job.Key)-rhythm"
+    gcloud scheduler jobs create http $jobName --project=$ProjectId `
+        --location=$Region --schedule="$($job.Cron)" --time-zone="Europe/Berlin" `
         --uri="$backendUrl/internal/rhythms/$($job.Key)/run" --http-method=POST `
         --oidc-service-account-email=$account --oidc-token-audience=$backendUrl `
         --headers="Content-Type=application/json" --message-body="{}"
+    if ($LASTEXITCODE -ne 0) { throw "Could not create scheduler job $jobName" }
+    gcloud scheduler jobs pause $jobName --project=$ProjectId --location=$Region
+    if ($LASTEXITCODE -ne 0) { throw "Could not pause scheduler job $jobName" }
 }
