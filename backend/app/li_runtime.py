@@ -561,7 +561,7 @@ def talk_to_li_with_outcome(
     system_with_memory = "\n\n".join(system_sections)
 
     action_intent_schema = {
-        "type": "array", "maxItems": 4, "items": {
+        "type": "array", "items": {
             "type": "object", "additionalProperties": False,
             "properties": {
                 "action_type": {"type": "string", "enum": [
@@ -573,13 +573,13 @@ def talk_to_li_with_outcome(
                     "type": "object", "additionalProperties": False,
                     "properties": {
                         "title": {"type": ["string", "null"]},
-                        "notes": {"type": ["string", "null"]},
+                        "notes": {"type": "string"},
                         "start": {"type": ["string", "null"]},
                         "end": {"type": ["string", "null"]},
                         "due_at": {"type": ["string", "null"]},
                         "timezone": {"type": ["string", "null"]},
                         "location": {"type": ["string", "null"]},
-                        "description": {"type": ["string", "null"]},
+                        "description": {"type": "string"},
                         "task_id": {"type": ["string", "null"]},
                         "recipients": {"type": ["array", "null"], "items": {"type": "string"}},
                         "cc": {"type": ["array", "null"], "items": {"type": "string"}},
@@ -624,7 +624,9 @@ def talk_to_li_with_outcome(
                 "type": "object", "additionalProperties": False,
                 "properties": {
                     "final_response": {"type": "string"},
-                    "used_specialist_keys": {"type": "array", "maxItems": 0},
+                    "used_specialist_keys": {
+                        "type": "array", "items": {"type": "string"},
+                    },
                     "action_intents": action_intent_schema,
                 },
                 "required": ["final_response", "used_specialist_keys", "action_intents"],

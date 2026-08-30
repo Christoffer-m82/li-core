@@ -74,13 +74,26 @@ _REQUEST_MODELS = {
     "email.create_draft": CreateEmailDraftAction,
 }
 
+_PAYLOAD_FIELDS = {
+    "calendar.create": {"title", "start", "end", "timezone", "location", "description"},
+    "task.create": {"title", "notes", "due_at", "timezone"},
+    "task.complete": {"task_id"},
+    "task.cancel": {"task_id"},
+    "email.create_draft": {
+        "recipients", "cc", "bcc", "subject", "body", "thread_id",
+        "in_reply_to", "references",
+    },
+    "governance.execute": {"recommendation_id"},
+}
+
 
 def _canonical_payload(proposal: ActionIntentProposal) -> tuple[dict[str, Any], str]:
     # Structured-output schemas represent action-specific optional fields as null.
     # Remove those placeholders before validating the concrete action model so
     # fields belonging to a different action cannot become provider input.
     proposal_payload = {
-        key: value for key, value in proposal.payload.items() if value is not None
+        key: value for key, value in proposal.payload.items()
+        if key in _PAYLOAD_FIELDS[proposal.action_type] and value is not None
     }
     if proposal.action_type == "governance.execute":
         payload = proposal_payload

@@ -69,6 +69,7 @@ def test_structured_output_null_placeholders_are_removed_before_validation(monke
             "start": None,
             "recipients": None,
             "recommendation_id": None,
+            "description": "irrelevant non-null placeholder",
         }
     })
     intents = persist_proposals(
@@ -79,6 +80,7 @@ def test_structured_output_null_placeholders_are_removed_before_validation(monke
     assert "start" not in seen["payload"]
     assert "recipients" not in seen["payload"]
     assert "recommendation_id" not in seen["payload"]
+    assert "description" not in seen["payload"]
 
 
 class TaskProvider:
@@ -226,3 +228,10 @@ def test_migration_enforces_lifecycle_correlation_audit_and_measurement_semantic
 def test_supported_intent_contract_has_no_gmail_send():
     with pytest.raises(ValueError):
         ActionIntentProposal(action_type="email.send", summary="Send", payload={})
+
+
+def test_anthropic_structured_output_schema_avoids_unsupported_array_keywords():
+    source = (Path(__file__).parents[1] / "app" / "li_runtime.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"maxItems"' not in source
