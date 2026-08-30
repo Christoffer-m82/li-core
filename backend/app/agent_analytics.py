@@ -52,8 +52,16 @@ def calculate_analytics(
         completed = sum(row["status"] == "completed" for row in rows)
         multi = sum(request_sizes[row["request_id"]] > 1 for row in rows)
         explicit = sum(bool(row.get("explicit_request")) for row in rows)
-        contribution = sum(bool(row.get("used_in_final")) for row in rows)
-        actions = sum(bool(row.get("action_taken")) for row in rows)
+        measured_contributions = [
+            bool(row["used_in_final"])
+            for row in rows if row.get("used_in_final") is not None
+        ]
+        contribution = sum(measured_contributions)
+        measured_actions = [
+            bool(row["action_taken"])
+            for row in rows if row.get("action_taken") is not None
+        ]
+        actions = sum(measured_actions)
         topics = Counter(topic for row in rows for topic in row.get("topic_keys", []))
         previous_count = previous_counts[key]
         overlap_peers = {other["specialist_key"] for row in rows for other in current
@@ -69,14 +77,23 @@ def calculate_analytics(
             "average_response_seconds": round(sum(durations) / len(durations), 2) if durations else None,
             "solo_usage": len(rows) - multi, "multi_agent_usage": multi,
             "explicit_user_usage": explicit, "li_selected_usage": len(rows) - explicit,
-            "recommendation_contribution_rate": round(contribution / completed, 3) if completed else None,
-            "action_conversion_rate": round(actions / contribution, 3) if contribution else None,
+            "recommendation_contribution_rate": (
+                round(contribution / len(measured_contributions), 3)
+                if measured_contributions else None
+            ),
+            "action_conversion_rate": (
+                round(actions / contribution, 3)
+                if measured_actions and contribution else None
+            ),
             "recurring_topic_count": sum(count >= 2 for count in topics.values()),
             "recurring_topics": [{"topic": topic, "count": count} for topic, count in topics.most_common(5) if count >= 2],
             "overlap_score": round(len(overlap_peers) / max(1, len(roster) - 1), 3),
             "trend_pct": None if previous_count == 0 else round(100 * (len(rows) - previous_count) / previous_count, 1),
             "recent_activity": sorted(rows, key=lambda row: row["started_at"], reverse=True)[:3],
-            "derived_metrics": {"impact_score": {"value": round(100 * contribution / completed, 1) if completed else None,
+            "derived_metrics": {"impact_score": {"value": (
+                round(100 * contribution / len(measured_contributions), 1)
+                if measured_contributions else None
+            ),
                 "label": "inferred", "basis": "validated outputs marked as used in Li's final answer"},
                 "depth_score": {"value": None, "label": "not_available", "basis": "no reliable depth signal"},
                 "uniqueness_score": {"value": round(100 * (1 - len(overlap_peers) / max(1, len(roster) - 1)), 1),

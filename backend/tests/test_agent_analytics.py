@@ -41,6 +41,18 @@ def test_derived_metrics_are_labelled_and_missing_signals_are_honest():
     assert metrics["user_value_score"]["value"] is None
 
 
+def test_unmeasured_contribution_and_action_signals_remain_null():
+    nora = calculate_analytics(
+        ROSTER,
+        [event(used_in_final=None, action_taken=None)],
+        "30d",
+        NOW,
+    )["agents"][0]
+    assert nora["recommendation_contribution_rate"] is None
+    assert nora["action_conversion_rate"] is None
+    assert nora["derived_metrics"]["impact_score"]["value"] is None
+
+
 def test_recommendations_are_approval_gated():
     recs = generate_recommendations(calculate_analytics(ROSTER, [], "90d", NOW))
     assert all(item["requires_owner_approval"] for item in recs)
