@@ -76,14 +76,20 @@ _REQUEST_MODELS = {
 
 
 def _canonical_payload(proposal: ActionIntentProposal) -> tuple[dict[str, Any], str]:
+    # Structured-output schemas represent action-specific optional fields as null.
+    # Remove those placeholders before validating the concrete action model so
+    # fields belonging to a different action cannot become provider input.
+    proposal_payload = {
+        key: value for key, value in proposal.payload.items() if value is not None
+    }
     if proposal.action_type == "governance.execute":
-        payload = dict(proposal.payload)
+        payload = proposal_payload
         if set(payload) - {"recommendation_id"} or "recommendation_id" not in payload:
             raise ActionIntentError("Invalid governance action payload.")
         payload["recommendation_id"] = str(UUID(str(payload["recommendation_id"])))
     else:
         model = _REQUEST_MODELS[proposal.action_type]
-        candidate = {"action": proposal.action_type, **proposal.payload}
+        candidate = {"action": proposal.action_type, **proposal_payload}
         if proposal.action_type in {"task.create", "email.create_draft"}:
             candidate["idempotency_key"] = "server-generated-after-validation"
         payload = model.model_validate(candidate).model_dump(

@@ -591,6 +591,12 @@ def talk_to_li_with_outcome(
                         "references": {"type": ["string", "null"]},
                         "recommendation_id": {"type": ["string", "null"]},
                     },
+                    "required": [
+                        "title", "notes", "start", "end", "due_at", "timezone",
+                        "location", "description", "task_id", "recipients", "cc",
+                        "bcc", "subject", "body", "thread_id", "in_reply_to",
+                        "references", "recommendation_id",
+                    ],
                 },
             },
             "required": ["action_type", "summary", "payload"],

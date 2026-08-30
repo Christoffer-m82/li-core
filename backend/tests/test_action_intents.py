@@ -54,6 +54,33 @@ def test_chat_proposal_persists_server_correlation_without_execution(monkeypatch
     assert len(seen["payload_hash"]) == 64
 
 
+def test_structured_output_null_placeholders_are_removed_before_validation(monkeypatch):
+    request_id, conversation_id = uuid4(), uuid4()
+    seen = {}
+
+    def create(**values):
+        seen.update(values)
+        return public(values["intent_id"], values["request_id"])
+
+    monkeypatch.setattr("app.action_intents.create_action_intent", create)
+    candidate = proposal().model_copy(update={
+        "payload": {
+            **proposal().payload,
+            "start": None,
+            "recipients": None,
+            "recommendation_id": None,
+        }
+    })
+    intents = persist_proposals(
+        [candidate], request_id=str(request_id), used_interaction_ids=[],
+        conversation_id=str(conversation_id),
+    )
+    assert intents[0].approval_state == "proposed"
+    assert "start" not in seen["payload"]
+    assert "recipients" not in seen["payload"]
+    assert "recommendation_id" not in seen["payload"]
+
+
 class TaskProvider:
     calls = 0
 
