@@ -98,6 +98,29 @@ def test_country_government_domain_is_classified_as_official():
     assert outcome.evidence[0].source_class == SourceClass.official
 
 
+def test_irrelevant_evidence_has_no_claim_mapping_and_fails_contract():
+    class Provider:
+        def search(self, request):
+            return [{
+                "title": "Unrelated hotel guide",
+                "identifier": "https://example.test/hotels",
+                "source": "Example",
+                "publication_date": "2026-08-30",
+                "excerpt": "Popular restaurants and beaches.",
+                "source_type": "primary",
+            }]
+
+    decision = decide_freshness("milo", "Current Malta entry requirements for Germans")
+    outcome = execute_research(ResearchRequest(
+        query="Current Malta entry requirements for Germans", freshness_requirement="today",
+        source_types=["primary"], rationale="verification",
+    ), Provider())
+    assert outcome.evidence[0].claim_mapping is None
+    validated = validate_evidence_contract("milo", decision, outcome.evidence)
+    assert not validated.passed
+    assert validated.rejected_count == 1
+
+
 @pytest.mark.parametrize("specialist,message", [
     ("iris", "Which plants suit this season and current weather?"),
     ("milo", "What is the flight schedule this week?"),

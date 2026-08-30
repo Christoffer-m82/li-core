@@ -113,6 +113,13 @@ _INJECTION_PHRASE = re.compile(
     r"(?i)\b(?:ignore (?:all |any )?(?:previous|prior|system) instructions|"
     r"follow these instructions|you are now|call (?:the )?tool|execute (?:this|the following))\b"
 )
+_CLAIM_WORD = re.compile(r"[a-z0-9][a-z0-9-]{2,}")
+_CLAIM_STOPWORDS = {
+    "about", "ask", "citizen", "claim", "current", "evidence", "given", "latest",
+    "official", "only", "policy", "research", "right", "source", "specialist",
+    "this", "today", "travelling", "use", "verify", "week", "what", "when", "which",
+    "with",
+}
 
 
 def _sanitize(value: str, *, limit: int) -> str:
@@ -124,6 +131,15 @@ def _sanitize(value: str, *, limit: int) -> str:
 
 def _contains_external_instruction(value: str) -> bool:
     return bool(_INSTRUCTION_BLOCK.search(value) or _INJECTION_PHRASE.search(value))
+
+
+def _claim_mapping(query: str, *record_values: str) -> str | None:
+    query_words = {
+        word for word in _CLAIM_WORD.findall(query.casefold()) if word not in _CLAIM_STOPWORDS
+    }
+    record_words = set(_CLAIM_WORD.findall(" ".join(record_values).casefold()))
+    required_overlap = 1 if len(query_words) <= 2 else 2
+    return _sanitize(query, limit=500) if len(query_words & record_words) >= required_overlap else None
 
 
 def _source_class(value: str, identifier: str, source: str | None) -> SourceClass:
@@ -182,7 +198,9 @@ def execute_research(
                     excerpt=_sanitize(raw.excerpt, limit=1200),
                     source_type=_sanitize(raw.source_type, limit=100),
                     source_class=_source_class(raw.source_type, raw.identifier, raw.source),
-                    claim_mapping=_sanitize(request.query, limit=500),
+                    claim_mapping=_claim_mapping(
+                        request.query, raw.title, raw.source or "", raw.excerpt
+                    ),
                     freshness_status="unknown",
                 )
             )
@@ -211,7 +229,8 @@ def validate_evidence_contract(
     for record in evidence:
         fresh = evidence_date_is_fresh(record.publication_date, decision.maximum_age_days, now=now)
         allowed_secondary = policy.secondary_commentary_allowed
-        if not fresh or (record.source_class == SourceClass.secondary and not allowed_secondary):
+        if (not fresh or not record.claim_mapping or
+                (record.source_class == SourceClass.secondary and not allowed_secondary)):
             rejected += 1
             continue
         accepted.append(record.model_copy(update={"freshness_status": "fresh"}))

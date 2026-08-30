@@ -559,6 +559,26 @@ def talk_to_li_with_outcome(
                     "verify the current state; do not guess and disclose the limitation."
                 )
 
+        # A required-verification path may still lose its specialist result to strict
+        # output validation. Never let that turn into a direct world-knowledge fallback.
+        for specialist in routing.specialists:
+            metadata = freshness_metadata[specialist]
+            if metadata["evidence_required"] and specialist not in consultation.results:
+                metadata.update({
+                    "verification_passed": False,
+                    "freshness_status": "could_not_verify",
+                    "failure_reason": "Verified evidence could not be safely evaluated.",
+                })
+                consultation.results[specialist] = SpecialistResult(
+                    recommendation=("Cannot verify the current state: verified evidence "
+                                    "could not be safely evaluated. Do not guess."),
+                    findings=[], confidence=0.0,
+                    key_assumptions=["No current-world claim was inferred after validation failed."],
+                    sources_needed=True, follow_up_questions=[], research_request=None,
+                )
+                if specialist in consultation.unavailable:
+                    consultation.unavailable.remove(specialist)
+
         # Persist the outcome only after optional research refinement, so history
         # reflects the analysis Li could actually use rather than an intermediate draft.
         for specialist in routing.specialists:
