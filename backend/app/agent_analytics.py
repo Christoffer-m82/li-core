@@ -49,7 +49,6 @@ def calculate_analytics(
         key = profile["id"]
         rows = by_agent[key]
         durations = [value for value in (_duration(row) for row in rows) if value is not None]
-        completed = sum(row["status"] == "completed" for row in rows)
         multi = sum(request_sizes[row["request_id"]] > 1 for row in rows)
         explicit = sum(bool(row.get("explicit_request")) for row in rows)
         measured_contributions = [
