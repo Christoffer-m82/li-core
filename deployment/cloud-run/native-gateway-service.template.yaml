@@ -1,0 +1,34 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: li-os-native-gateway
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "2"
+    spec:
+      containerConcurrency: 20
+      timeoutSeconds: 60
+      serviceAccountName: li-os-native-gateway-runtime@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: IMAGE_URI
+          ports: [{ containerPort: 8080 }]
+          startupProbe:
+            httpGet: { path: /health }
+          env:
+            - { name: LI_NATIVE_ENVIRONMENT, value: production }
+            - { name: LI_NATIVE_BACKEND_URL, value: BACKEND_URL }
+            - { name: LI_NATIVE_BACKEND_AUDIENCE, value: BACKEND_URL }
+            - { name: LI_NATIVE_ALLOWED_EMAIL, value: OWNER_EMAIL }
+            - { name: LI_NATIVE_GOOGLE_CLIENT_IDS, value: GOOGLE_CLIENT_IDS_JSON }
+            - { name: LI_NATIVE_ACCESS_TOKEN_SECONDS, value: "600" }
+            - { name: LI_NATIVE_REFRESH_TOKEN_DAYS, value: "30" }
+            - name: LI_NATIVE_BACKEND_API_TOKEN
+              valueFrom:
+                secretKeyRef: { name: LI_OS_NATIVE_GATEWAY_API_TOKEN, key: PINNED_NATIVE_API_TOKEN_VERSION }
+            - name: LI_NATIVE_TOKEN_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: { name: LI_NATIVE_TOKEN_SIGNING_KEY, key: PINNED_SIGNING_KEY_VERSION }

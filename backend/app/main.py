@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.auth import (
     require_api_token,
     require_owner_api_token,
+    require_native_gateway_api_token,
     require_theo_api_token,
 )
 from app.action_intents import (
@@ -109,6 +110,10 @@ from app.schemas import (
     MobileInstallationRevoke,
     MobileLocationSubmission,
     MobileVisitCorrection,
+    NativeSessionBootstrap,
+    NativeSessionRefresh,
+    NativeSessionStatus,
+    NativeSessionRevoke,
 )
 from app.location_settings import CurrentPlace, minimal_location_context, validate_mobile_freshness
 from app.runtime_data import (
@@ -124,6 +129,8 @@ from app.runtime_data import (
     get_place_settings, set_current_place, set_most_visited, add_visit_event,
     register_mobile_location_installation, submit_mobile_location_update,
     correct_mobile_location_visit, revoke_mobile_location_installation,
+    bootstrap_native_session, refresh_native_session, validate_native_session,
+    revoke_native_session, revoke_all_native_sessions,
     list_proactive_briefs, mark_proactive_brief_read, suppress_open_loop,
     set_category_suppression, list_category_suppressions,
 )
@@ -395,6 +402,68 @@ def revoke_mobile_provider(payload: MobileInstallationRevoke) -> dict[str, objec
         raise HTTPException(status_code=409, detail="Mobile provider could not be revoked.") from exc
 
 
+@app.post("/internal/native/sessions/bootstrap",
+          dependencies=[Depends(require_native_gateway_api_token)])
+def native_session_bootstrap(payload: NativeSessionBootstrap) -> dict[str, object]:
+    try:
+        return bootstrap_native_session(payload)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=403, detail="Native session bootstrap rejected.") from exc
+
+
+@app.post("/internal/native/sessions/refresh",
+          dependencies=[Depends(require_native_gateway_api_token)])
+def native_session_refresh(payload: NativeSessionRefresh) -> dict[str, object]:
+    try:
+        return refresh_native_session(payload)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=401, detail="Refresh token is expired or revoked.") from exc
+
+
+@app.post("/internal/native/sessions/status",
+          dependencies=[Depends(require_native_gateway_api_token)])
+def native_session_status(payload: NativeSessionStatus) -> dict[str, object]:
+    try:
+        return validate_native_session(payload.session_id, payload.installation_id)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=401, detail="Native session is expired or revoked.") from exc
+
+
+@app.post("/internal/native/sessions/revoke",
+          dependencies=[Depends(require_native_gateway_api_token)])
+def native_session_revoke(payload: NativeSessionRevoke) -> dict[str, object]:
+    try:
+        return revoke_native_session(payload.session_id, payload.revoke_installation)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Native session could not be revoked.") from exc
+
+
+@app.post("/internal/native/sessions/revoke-all",
+          dependencies=[Depends(require_native_gateway_api_token)])
+def native_sessions_revoke_all() -> dict[str, object]:
+    try:
+        return revoke_all_native_sessions()
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Native sessions could not be revoked.") from exc
+
+
+@app.get("/internal/native/place", dependencies=[Depends(require_native_gateway_api_token)])
+def native_place_status() -> dict[str, object]:
+    return place_settings()
+
+
+@app.post("/internal/native/place/updates",
+          dependencies=[Depends(require_native_gateway_api_token)])
+def native_place_update(payload: MobileLocationSubmission) -> dict[str, object]:
+    return record_mobile_location(payload)
+
+
+@app.post("/internal/native/chat", response_model=LiChatResponse,
+          dependencies=[Depends(require_native_gateway_api_token)])
+def native_chat(payload: LiChatRequest) -> LiChatResponse:
+    return li_chat_endpoint(payload)
+
+
 @app.get("/specialists/interactions", dependencies=[Depends(require_api_token)])
 def specialist_history(specialist: str | None = None) -> dict[str, object]:
     if specialist is not None and specialist not in SPECIALIST_CONTRACTS:
@@ -562,6 +631,9 @@ def capability_inventory() -> dict[str, object]:
         calendar_available=app.state.calendar_provider.__class__.__name__ != "UnavailableCalendarProvider",
         gmail_available=app.state.email_provider.__class__.__name__ != "UnavailableEmailProvider",
         artifact_storage_configured=bool(settings.artifact_bucket.strip()),
+        native_gateway_status=settings.native_gateway_status,
+        native_gateway_auth_mode=settings.native_gateway_auth_mode,
+        native_gateway_attestation_status=settings.native_gateway_attestation_status,
     )
     return inventory.model_dump(mode="json")
 

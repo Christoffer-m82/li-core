@@ -5,6 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from app.auth import (
     require_api_token,
     require_owner_api_token,
+    require_native_gateway_api_token,
     require_theo_api_token,
 )
 from app.config import get_settings
@@ -13,6 +14,7 @@ from app.config import get_settings
 LI_TEST_TOKEN = "li-test-token"
 THEO_TEST_TOKEN = "theo-test-token"
 OWNER_TEST_TOKEN = "owner-test-token"
+NATIVE_TEST_TOKEN = "native-test-token"
 
 
 @pytest.fixture(autouse=True)
@@ -27,6 +29,7 @@ def isolated_test_settings(monkeypatch: pytest.MonkeyPatch):
         "LI_OS_API_TOKEN": LI_TEST_TOKEN,
         "LI_OS_THEO_API_TOKEN": THEO_TEST_TOKEN,
         "LI_OS_OWNER_API_TOKEN": OWNER_TEST_TOKEN,
+        "LI_OS_NATIVE_GATEWAY_API_TOKEN": NATIVE_TEST_TOKEN,
         "LI_OS_DB_HOST": "test.invalid",
         "LI_OS_DB_PORT": "5432",
         "LI_OS_DB_NAME": "postgres",
@@ -82,6 +85,7 @@ def test_li_token_authority_boundary() -> None:
         require_owner_api_token,
         LI_TEST_TOKEN,
     )
+    assert_unauthorized(require_native_gateway_api_token, LI_TEST_TOKEN)
 
 
 def test_theo_token_authority_boundary() -> None:
@@ -116,11 +120,19 @@ def test_owner_token_authority_boundary() -> None:
     )
 
 
+def test_native_gateway_token_is_scoped_from_other_authorities() -> None:
+    require_native_gateway_api_token(credentials=bearer(NATIVE_TEST_TOKEN))
+    assert_unauthorized(require_api_token, NATIVE_TEST_TOKEN)
+    assert_unauthorized(require_theo_api_token, NATIVE_TEST_TOKEN)
+    assert_unauthorized(require_owner_api_token, NATIVE_TEST_TOKEN)
+
+
 def test_missing_credentials_are_rejected() -> None:
     for auth_function in (
         require_api_token,
         require_theo_api_token,
         require_owner_api_token,
+        require_native_gateway_api_token,
     ):
         with pytest.raises(HTTPException) as exc_info:
             auth_function(

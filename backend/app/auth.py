@@ -26,6 +26,12 @@ owner_bearer_scheme = HTTPBearer(
     description="Separate bearer token for explicit owner-confirmation endpoints.",
 )
 
+native_gateway_bearer_scheme = HTTPBearer(
+    auto_error=False,
+    scheme_name="Native Gateway API Token",
+    description="Scoped server-side token for the authenticated native gateway.",
+)
+
 
 def require_api_token(
     credentials: HTTPAuthorizationCredentials | None = Security(
@@ -104,5 +110,23 @@ def require_owner_api_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid owner authentication credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def require_native_gateway_api_token(
+    credentials: HTTPAuthorizationCredentials | None = Security(native_gateway_bearer_scheme),
+) -> None:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Native gateway authentication required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    expected = get_settings().native_gateway_api_token.get_secret_value()
+    if not compare_digest(credentials.credentials, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid native gateway credentials.",
             headers={"WWW-Authenticate": "Bearer"},
         )

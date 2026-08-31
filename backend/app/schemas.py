@@ -241,6 +241,37 @@ class MobileInstallationRegister(BaseModel):
     platform: Literal["ios", "android"]
 
 
+class NativeSessionBootstrap(BaseModel):
+    model_config = {"extra": "forbid"}
+    platform: Literal["ios", "android"]
+    owner_email: str = Field(min_length=3, max_length=320)
+    refresh_token_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    refresh_expires_at: datetime
+    attestation_provider: Literal[
+        "apple_app_attest", "apple_device_check", "google_play_integrity"
+    ] | None = None
+    attestation_status: Literal["not_configured", "verified", "rejected"]
+
+
+class NativeSessionRefresh(BaseModel):
+    model_config = {"extra": "forbid"}
+    refresh_token_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    replacement_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    refresh_expires_at: datetime
+
+
+class NativeSessionStatus(BaseModel):
+    model_config = {"extra": "forbid"}
+    session_id: UUID
+    installation_id: UUID
+
+
+class NativeSessionRevoke(BaseModel):
+    model_config = {"extra": "forbid"}
+    session_id: UUID
+    revoke_installation: bool = False
+
+
 class ConversationDeleteConfirmation(BaseModel):
     confirmation: Literal["delete_private_conversation"]
 

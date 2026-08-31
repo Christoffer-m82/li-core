@@ -102,6 +102,36 @@ def revoke_mobile_location_installation(installation_id: UUID) -> dict[str, obje
     return dict(next(iter(rows[0].values())))
 
 
+def bootstrap_native_session(payload: object) -> dict[str, object]:
+    rows = _call("bootstrap_native_session", (
+        payload.platform, payload.owner_email, payload.refresh_token_hash,
+        payload.refresh_expires_at, payload.attestation_provider, payload.attestation_status,
+    ))
+    return dict(next(iter(rows[0].values())))
+
+
+def refresh_native_session(payload: object) -> dict[str, object]:
+    rows = _call("refresh_native_session", (
+        payload.refresh_token_hash, payload.replacement_hash, payload.refresh_expires_at,
+    ))
+    return dict(next(iter(rows[0].values())))
+
+
+def validate_native_session(session_id: UUID, installation_id: UUID) -> dict[str, object]:
+    rows = _call("validate_native_session", (session_id, installation_id))
+    return dict(next(iter(rows[0].values())))
+
+
+def revoke_native_session(session_id: UUID, revoke_installation: bool) -> dict[str, object]:
+    rows = _call("revoke_native_session", (session_id, revoke_installation))
+    return dict(next(iter(rows[0].values())))
+
+
+def revoke_all_native_sessions() -> dict[str, object]:
+    rows = _call("revoke_all_native_sessions")
+    return dict(next(iter(rows[0].values())))
+
+
 def reserve_artifact(**values: object) -> dict[str, object]:
     rows = _call("reserve_artifact", (
         values["filename"], values["content_type"], values["size_bytes"],

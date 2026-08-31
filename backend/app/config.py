@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     api_token: SecretStr
     theo_api_token: SecretStr
     owner_api_token: SecretStr
+    native_gateway_api_token: SecretStr = SecretStr("development-native-gateway-token")
 
     # Claude / Anthropic
     anthropic_api_key: SecretStr
@@ -72,6 +73,12 @@ class Settings(BaseSettings):
     artifact_bucket: str = ""
     artifact_default_retention_days: int = Field(default=30, ge=1, le=365)
 
+    # Read-only deployment posture surfaced in Backend Overview. The gateway
+    # remains separately deployed and has no database credentials.
+    native_gateway_status: str = "not_configured"
+    native_gateway_auth_mode: str = "google_oidc_bootstrap_bearer_refresh"
+    native_gateway_attestation_status: str = "not_configured"
+
     model_config = SettingsConfigDict(
         env_prefix="LI_OS_",
         env_file=".env",
@@ -93,9 +100,14 @@ class Settings(BaseSettings):
             return self
         if any(
             len(secret.get_secret_value()) < 32
-            for secret in (self.api_token, self.theo_api_token, self.owner_api_token)
+            for secret in (
+                self.api_token, self.theo_api_token, self.owner_api_token,
+                self.native_gateway_api_token,
+            )
         ):
             raise ValueError("Production API tokens must contain at least 32 characters.")
+        if self.native_gateway_api_token.get_secret_value().startswith("development-"):
+            raise ValueError("Production native gateway token must be supplied by Secret Manager.")
         if "*" in self.allowed_origins:
             raise ValueError("Wildcard CORS is forbidden in production.")
         if self.db_sslmode not in {"require", "verify-ca", "verify-full"}:

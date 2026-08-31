@@ -27,7 +27,8 @@ def test_place_ui_and_authenticated_bff_routes_exist():
     source = (root / "app" / "main.py").read_text(encoding="utf-8")
     assert "COUNTRY_CODES" in javascript and "Intl.DisplayNames" in javascript
     assert "Most visited" in javascript and "Confirm this overnight visit" in javascript
-    assert "Automatic iPhone and Android updates are not shipped yet" in javascript
+    assert "Native access is enabled only after an authenticated app installation exists" in javascript
+    assert "Li stores no GPS trail" in javascript
     assert "no GPS trail" in javascript and "explicit OS permission" in javascript
     assert "Connected native providers" in javascript and "revokeMobileProvider" in javascript
     assert '@app.get("/api/settings/place")' in source

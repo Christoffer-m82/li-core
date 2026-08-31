@@ -12,6 +12,7 @@ BASE = {
     "api_token": "a" * 32,
     "theo_api_token": "b" * 32,
     "owner_api_token": "c" * 32,
+    "native_gateway_api_token": "n" * 32,
     "anthropic_api_key": "synthetic",
     "db_host": "test.invalid",
     "db_user": "li_backend_runtime.test",
