@@ -7,6 +7,10 @@ DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM li_memory.schema_versions WHERE version='0.34') THEN
   RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Schema version 0.34 is already claimed';
  END IF;
+ IF (SELECT count(*) FROM li_memory.users
+     WHERE user_key='christoffer' AND status='active') <> 1 THEN
+  RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='Migration 034 requires exactly one active owner';
+ END IF;
 END $$;
 
 CREATE TABLE li_runtime_data.native_gateway_sessions(
@@ -15,6 +19,8 @@ CREATE TABLE li_runtime_data.native_gateway_sessions(
  owner_user_id UUID NOT NULL REFERENCES li_memory.users(id),
  owner_email TEXT NOT NULL CHECK(length(owner_email)<=320),
  refresh_token_hash CHAR(64) NOT NULL UNIQUE CHECK(refresh_token_hash ~ '^[a-f0-9]{64}$'),
+ previous_refresh_token_hash CHAR(64) UNIQUE
+  CHECK(previous_refresh_token_hash IS NULL OR previous_refresh_token_hash ~ '^[a-f0-9]{64}$'),
  refresh_expires_at TIMESTAMPTZ NOT NULL,
  attestation_provider TEXT CHECK(attestation_provider IN
   ('apple_app_attest','apple_device_check','google_play_integrity')),
@@ -62,6 +68,14 @@ DO $$ BEGIN
   EXECUTE 'GRANT CREATE ON SCHEMA li_api TO li_memory_function_owner';
  END IF;
 END $$;
+DO $$ BEGIN
+ IF NOT pg_catalog.pg_has_role(CURRENT_USER,'li_memory_function_owner','SET') THEN
+  RAISE EXCEPTION 'Migration role cannot assume li_memory_function_owner';
+ END IF;
+ IF NOT pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE') THEN
+  RAISE EXCEPTION 'Function owner cannot create in li_api';
+ END IF;
+END $$;
 SET LOCAL ROLE li_memory_function_owner;
 
 CREATE FUNCTION li_api.bootstrap_native_session(
@@ -71,8 +85,8 @@ CREATE FUNCTION li_api.bootstrap_native_session(
 SET search_path=li_runtime_data,li_memory,li_api,pg_catalog,pg_temp AS $$
 DECLARE v_user UUID; v_install UUID; v_session UUID;
 BEGIN
- SELECT id INTO v_user FROM li_memory.users
-  WHERE user_key='christoffer' AND status='active' LIMIT 1;
+ SELECT id INTO STRICT v_user FROM li_memory.users
+  WHERE user_key='christoffer' AND status='active';
  IF v_user IS NULL OR lower(p_owner_email)<>'christoffer.mellden@gmail.com' OR
     p_refresh_expires<=NOW() OR p_refresh_expires>NOW()+INTERVAL '90 days' OR
     p_refresh_hash !~ '^[a-f0-9]{64}$' OR
@@ -80,6 +94,7 @@ BEGIN
     (p_attestation_status='not_configured' AND p_attestation_provider IS NOT NULL) THEN
   RAISE EXCEPTION 'Invalid native session bootstrap';
  END IF;
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_user::TEXT,3401));
  IF (SELECT count(*) FROM li_runtime_data.native_gateway_sessions
       WHERE owner_user_id=v_user AND created_at>=NOW()-INTERVAL '1 hour')>=10 THEN
   RAISE EXCEPTION 'Native session bootstrap rate limit exceeded';
@@ -101,16 +116,28 @@ SET search_path=li_runtime_data,pg_catalog,pg_temp AS $$
 DECLARE v_session li_runtime_data.native_gateway_sessions%ROWTYPE;
 BEGIN
  SELECT * INTO v_session FROM li_runtime_data.native_gateway_sessions
-  WHERE refresh_token_hash=p_refresh_hash FOR UPDATE;
- IF NOT FOUND OR v_session.revoked_at IS NOT NULL OR v_session.refresh_expires_at<=NOW() OR
+  WHERE refresh_token_hash=p_refresh_hash OR previous_refresh_token_hash=p_refresh_hash
+  FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Expired or revoked native refresh token'; END IF;
+ IF v_session.previous_refresh_token_hash=p_refresh_hash THEN
+  UPDATE li_runtime_data.native_gateway_sessions SET revoked_at=COALESCE(revoked_at,NOW())
+   WHERE session_id=v_session.session_id;
+  UPDATE li_runtime_data.mobile_location_installations
+   SET revoked_at=COALESCE(revoked_at,NOW()),permission_state='denied',updated_at=NOW()
+   WHERE installation_id=v_session.installation_id AND owner_user_id=v_session.owner_user_id;
+  RETURN jsonb_build_object('status','refresh_replay_detected');
+ END IF;
+ IF v_session.revoked_at IS NOT NULL OR v_session.refresh_expires_at<=NOW() OR
     p_replacement_hash !~ '^[a-f0-9]{64}$' OR p_refresh_expires<=NOW() OR
     p_refresh_expires>NOW()+INTERVAL '90 days' OR
+    p_replacement_hash IN (v_session.refresh_token_hash,v_session.previous_refresh_token_hash) OR
     NOT EXISTS(SELECT 1 FROM li_runtime_data.mobile_location_installations
      WHERE installation_id=v_session.installation_id AND owner_user_id=v_session.owner_user_id
       AND revoked_at IS NULL) THEN
   RAISE EXCEPTION 'Expired or revoked native refresh token';
  END IF;
- UPDATE li_runtime_data.native_gateway_sessions SET refresh_token_hash=p_replacement_hash,
+ UPDATE li_runtime_data.native_gateway_sessions
+  SET previous_refresh_token_hash=refresh_token_hash,refresh_token_hash=p_replacement_hash,
   refresh_expires_at=p_refresh_expires,refreshed_at=NOW() WHERE session_id=v_session.session_id;
  RETURN jsonb_build_object('session_id',v_session.session_id,
   'installation_id',v_session.installation_id);
@@ -129,6 +156,10 @@ BEGIN
     NOT EXISTS(SELECT 1 FROM li_runtime_data.mobile_location_installations
      WHERE installation_id=p_installation AND owner_user_id=v_session.owner_user_id
       AND revoked_at IS NULL) THEN RAISE EXCEPTION 'Invalid or revoked native session'; END IF;
+ PERFORM pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended(v_session.owner_user_id::TEXT,3402));
+ PERFORM pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended(v_session.installation_id::TEXT,3403));
  DELETE FROM li_runtime_data.native_gateway_rate_windows
   WHERE session_id=p_session AND window_started_at<NOW()-INTERVAL '24 hours';
  INSERT INTO li_runtime_data.native_gateway_rate_windows(
@@ -166,7 +197,8 @@ CREATE FUNCTION li_api.revoke_all_native_sessions() RETURNS JSONB LANGUAGE plpgs
 SET search_path=li_runtime_data,li_memory,pg_catalog,pg_temp AS $$
 DECLARE v_user UUID; v_count INTEGER;
 BEGIN
- SELECT id INTO v_user FROM li_memory.users WHERE user_key='christoffer' AND status='active';
+ SELECT id INTO STRICT v_user FROM li_memory.users
+  WHERE user_key='christoffer' AND status='active';
  UPDATE li_runtime_data.native_gateway_sessions SET revoked_at=COALESCE(revoked_at,NOW())
   WHERE owner_user_id=v_user AND revoked_at IS NULL;
  GET DIAGNOSTICS v_count=ROW_COUNT;
@@ -207,6 +239,31 @@ DO $$ BEGIN
  IF pg_catalog.has_table_privilege('li_backend_runtime',
   'li_runtime_data.native_gateway_sessions','SELECT') THEN
   RAISE EXCEPTION 'Native gateway session table boundary is broader than intended';
+ END IF;
+ IF (SELECT r.rolname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_roles r
+     ON r.oid=p.proowner
+     WHERE p.oid='li_api.bootstrap_native_session(text,text,text,timestamp with time zone,text,text)'::REGPROCEDURE)
+    IS DISTINCT FROM 'li_memory_function_owner' OR
+    (SELECT r.rolname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_roles r
+     ON r.oid=p.proowner
+     WHERE p.oid='li_api.refresh_native_session(text,text,timestamp with time zone)'::REGPROCEDURE)
+    IS DISTINCT FROM 'li_memory_function_owner' OR
+    (SELECT r.rolname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_roles r
+     ON r.oid=p.proowner
+     WHERE p.oid='li_api.validate_native_session(uuid,uuid)'::REGPROCEDURE)
+    IS DISTINCT FROM 'li_memory_function_owner' THEN
+  RAISE EXCEPTION 'Native gateway function has unexpected owner';
+ END IF;
+ IF (SELECT added_create FROM migration_034_authority_state) AND
+    pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE') THEN
+  RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed';
+ END IF;
+ IF (SELECT added_owner FROM migration_034_authority_state) AND
+    (pg_catalog.pg_has_role((SELECT migration_role FROM migration_034_authority_state),
+      'li_memory_function_owner','SET') OR
+     pg_catalog.pg_has_role((SELECT migration_role FROM migration_034_authority_state),
+      'li_memory_function_owner','USAGE')) THEN
+  RAISE EXCEPTION 'Temporary function-owner authority was not removed';
  END IF;
 END $$;
 

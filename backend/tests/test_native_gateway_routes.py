@@ -71,10 +71,14 @@ def test_migration_034_has_hashed_rotation_revocation_rate_limit_and_no_coordina
     assert "migration 034 requires applied schema 0.33" in sql
     assert "refresh_token_hash char(64)" in sql and "refresh_token text" not in sql
     assert "for update" in sql and "refresh_token_hash=p_replacement_hash" in sql
+    assert "previous_refresh_token_hash" in sql and "refresh_replay_detected" in sql
+    assert "pg_advisory_xact_lock" in sql
+    assert "migration 034 requires exactly one active owner" in sql
     assert "revoke_all_native_sessions" in sql and "request_count" in sql
     assert "latitude" not in sql and "longitude" not in sql and "coordinate" not in sql
     assert "grant execute" in sql and "to li_memory_api" in sql
     assert "schema_versions" in sql and sql.index("schema_versions") < sql.rindex("commit;")
+    assert "temporary function-owner authority was not removed" in sql
 
 
 def test_deployment_keeps_backend_private_and_gateway_database_free():

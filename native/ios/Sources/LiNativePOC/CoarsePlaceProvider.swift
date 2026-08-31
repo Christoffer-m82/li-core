@@ -111,14 +111,18 @@ public final class CoarsePlaceProvider: NSObject, CLLocationManagerDelegate {
         guard let transient = locations.last, let installationId else { return }
         let observedAt = transient.timestamp
         Task {
-            // The CLLocation remains local to this scope and is released after geocoding.
-            let coarse = try await resolver.resolve(transient)
-            let payload = CoarsePlaceSubmission(
-                installationId: installationId, updateId: UUID(),
-                countryCode: coarse.countryCode, townCity: coarse.townCity,
-                observedAt: observedAt, permission: .init(checkedAt: Date())
-            )
-            try await submit?(payload)
+            do {
+                // The CLLocation remains local to this scope and is released after geocoding.
+                let coarse = try await resolver.resolve(transient)
+                let payload = CoarsePlaceSubmission(
+                    installationId: installationId, updateId: UUID(),
+                    countryCode: coarse.countryCode, townCity: coarse.townCity,
+                    observedAt: observedAt, permission: .init(checkedAt: Date())
+                )
+                try await submit?(payload)
+            } catch {
+                manualFallbackRequested?()
+            }
         }
     }
 

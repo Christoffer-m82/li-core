@@ -49,9 +49,16 @@ def verify_access_token(token: str, signing_key: str, now: int | None = None) ->
         expected = _b64(hmac.new(signing_key.encode(), signed.encode(), hashlib.sha256).digest())
         if not hmac.compare_digest(signature, expected):
             raise TokenError("Invalid access token.")
+        token_header = json.loads(_unb64(header))
         body = json.loads(_unb64(payload))
         current = int(time.time()) if now is None else now
+        if token_header != {"alg": "HS256", "typ": "JWT"}:
+            raise TokenError("Invalid access token.")
         if body.get("iss") != "li-native-gateway" or body.get("aud") != "li-native":
+            raise TokenError("Invalid access token.")
+        if not isinstance(body.get("sub"), str) or not body["sub"]:
+            raise TokenError("Invalid access token.")
+        if not isinstance(body.get("iat"), int) or body["iat"] > current + 60:
             raise TokenError("Invalid access token.")
         if not isinstance(body.get("exp"), int) or current >= body["exp"]:
             raise TokenError("Access token expired.")

@@ -114,14 +114,16 @@ def test_wrong_install_rejected_and_valid_coarse_payload_forwarded():
 
 @pytest.mark.parametrize("field", ["latitude", "longitude", "coordinates", "hardware_id"])
 def test_coordinate_and_fingerprint_fields_rejected_before_backend(field):
-    payload = update(); payload[field] = 1
+    payload = update()
+    payload[field] = 1
     response = TestClient(app).post("/v1/place/updates", headers=auth(), json=payload)
     assert response.status_code == 422
     assert not any(call[1] == "/internal/native/place/updates" for call in FakeBackend.calls)
 
 
 def test_denied_permission_makes_no_update_and_capabilities_leak_nothing():
-    payload = update(); payload["permission"]["state"] = "denied"
+    payload = update()
+    payload["permission"]["state"] = "denied"
     client = TestClient(app)
     assert client.post("/v1/place/updates", headers=auth(), json=payload).status_code == 422
     capabilities = client.get("/v1/capabilities").json()

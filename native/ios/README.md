@@ -2,7 +2,8 @@
 
 This Swift package is an architecture proof, not a shipped app. A host app must add
 `NSLocationWhenInUseUsageDescription`, provide explicit manual Place controls, authenticate with
-the Native Gateway, and store refresh material in Keychain. Fine accuracy is not requested.
+the Native Gateway, and use `KeychainNativeTokenStore` for device-only refresh-token storage.
+Access tokens should remain in memory. Fine accuracy is not requested.
 
 The default path makes a one-shot request at three-kilometre accuracy. Significant-change
 monitoring is exposed only as a separate user opt-in for country-change/overnight hints; it costs

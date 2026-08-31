@@ -39,8 +39,10 @@ gain an `allUsers` binding.
 4. The gateway returns a 10-minute signed access token and a high-entropy refresh token. The access
    token contains only issuer/audience, allowlisted owner subject, session UUID, installation UUID,
    issued time and expiry. The app stores secrets in Keychain or Keystore-backed encrypted storage.
-5. Only a keyed SHA-256 refresh-token hash persists. Refresh is single-use rotation under a row lock;
-   expired, replayed, revoked, wrong-owner, or revoked-installation refresh attempts fail closed.
+5. Only keyed SHA-256 refresh-token hashes persist. Refresh is single-use rotation under a row lock;
+   the immediately consumed hash is retained only for replay detection. Its reuse atomically revokes
+   that session and installation. Older, expired, revoked, wrong-owner, or revoked-installation
+   refresh attempts fail closed.
 6. Every protected call validates the access signature/expiry and asks the backend to validate the
    session/installation binding and revocation. Logout revokes one session; device removal revokes
    the session and installation; revoke-all invalidates all owner sessions and installations.
@@ -97,7 +99,8 @@ voice never auto-approves and always-listening/background voice is out of scope.
 
 ## Deployment prerequisites and acceptance gate
 
-Migration `034_authenticated_native_gateway.sql` is immutable and must be owner-reviewed/applied
+Migration `034_authenticated_native_gateway.sql` is unapplied and may be hardened until owner review;
+after approval it must be applied exactly once
 before backend or gateway deployment. Then create platform OAuth client IDs, a pinned Secret Manager
 signing key, build the gateway image, provision its least-privilege service account, and deploy with
 the supplied manifest/script. Verify backend IAM has no public member and gateway identity alone can

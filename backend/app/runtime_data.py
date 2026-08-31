@@ -114,7 +114,10 @@ def refresh_native_session(payload: object) -> dict[str, object]:
     rows = _call("refresh_native_session", (
         payload.refresh_token_hash, payload.replacement_hash, payload.refresh_expires_at,
     ))
-    return dict(next(iter(rows[0].values())))
+    result = dict(next(iter(rows[0].values())))
+    if result.get("status") == "refresh_replay_detected":
+        raise RuntimeDataError("Native refresh replay detected; session revoked.")
+    return result
 
 
 def validate_native_session(session_id: UUID, installation_id: UUID) -> dict[str, object]:
