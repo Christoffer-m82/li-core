@@ -51,6 +51,30 @@ def set_retention(days: int) -> int:
     return int(next(iter(rows[0].values())))
 
 
+def get_place_settings() -> dict[str, object]:
+    rows = _call("get_place_settings")
+    if not rows:
+        raise RuntimeDataError("Place settings were not returned.")
+    return dict(next(iter(rows[0].values())))
+
+
+def set_current_place(country_code: str | None, town_city: str | None, source: str,
+                      permission: str) -> dict[str, object]:
+    rows = _call("set_current_place", (country_code, town_city, source, permission))
+    return dict(next(iter(rows[0].values())))
+
+
+def set_most_visited(country_code: str, action: str) -> dict[str, object]:
+    rows = _call("set_most_visited_preference", (country_code, action))
+    return dict(next(iter(rows[0].values())))
+
+
+def add_visit_event(country_code: str, first_seen: object, last_seen: object,
+                    overnight: bool, source: str) -> dict[str, object]:
+    rows = _call("add_place_visit", (country_code, first_seen, last_seen, overnight, source))
+    return dict(next(iter(rows[0].values())))
+
+
 def reserve_artifact(**values: object) -> dict[str, object]:
     rows = _call("reserve_artifact", (
         values["filename"], values["content_type"], values["size_bytes"],

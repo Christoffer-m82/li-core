@@ -368,6 +368,7 @@ def talk_to_li_with_outcome(
     temporary_upload_context: str | None = None,
     conversation_context: str | None = None,
     research_provider: ResearchProvider | None = None,
+    location_context: str | None = None,
 ) -> LiTurnOutcome:
     """
     Send a message to Li with relevant canonical memory context.
@@ -402,6 +403,12 @@ def talk_to_li_with_outcome(
             ]
         )
 
+    if location_context:
+        system_sections.extend([
+            "===== PRIVATE CURRENT PLACE =====",
+            location_context,
+        ])
+
     if temporary_upload_context:
         system_sections.extend([
             "===== TEMPORARY UPLOAD CONTENT =====",
@@ -418,6 +425,7 @@ def talk_to_li_with_outcome(
     request_id: str = str(uuid4())
     if routing.specialists:
         bounded_conversation = conversation_context[-6000:] if conversation_context else None
+        specialist_conversation = "\n".join(filter(None, (bounded_conversation, location_context))) or None
         specialist_requests: dict[str, SpecialistRequest] = {}
         for specialist in routing.specialists:
             specialist_memories: list[SpecialistMemoryContext] = []
@@ -468,7 +476,7 @@ def talk_to_li_with_outcome(
                                      "failure_reason": selection.decline_reason})
                     freshness_metadata[specialist] = metadata
                     specialist_requests[specialist] = SpecialistRequest(
-                        current_user_message=user_message, conversation_context=bounded_conversation,
+                        current_user_message=user_message, conversation_context=specialist_conversation,
                         canonical_memory=specialist_memories,
                         temporary_upload_context=temporary_upload_context, research_evidence=[])
                     continue
@@ -499,7 +507,7 @@ def talk_to_li_with_outcome(
             freshness_metadata[specialist] = metadata
             specialist_requests[specialist] = SpecialistRequest(
                 current_user_message=user_message,
-                conversation_context=bounded_conversation,
+                conversation_context=specialist_conversation,
                 canonical_memory=specialist_memories,
                 temporary_upload_context=temporary_upload_context,
                 research_evidence=evidence,

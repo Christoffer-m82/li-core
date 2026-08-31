@@ -102,7 +102,11 @@ from app.schemas import (
     AgentActionReview,
     AgentExecutionConfirmation,
     SpecialistAttribution,
+    PlaceSettingsUpdate,
+    MostVisitedUpdate,
+    VisitEventCreate,
 )
+from app.location_settings import CurrentPlace, minimal_location_context
 from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages,
     finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
@@ -113,6 +117,7 @@ from app.runtime_data import (
     record_action_attribution, list_open_loops, create_open_loop, transition_open_loop,
     list_rhythm_states, configure_rhythm, claim_rhythm_run, complete_rhythm_run,
     fail_rhythm_run,
+    get_place_settings, set_current_place, set_most_visited, add_visit_event,
     list_proactive_briefs, mark_proactive_brief_read, suppress_open_loop,
     set_category_suppression, list_category_suppressions,
 )
@@ -308,6 +313,42 @@ def update_privacy_settings(payload: PrivacySettingsUpdate) -> dict[str, int]:
         return {"artifact_retention_days": set_retention(payload.artifact_retention_days)}
     except RuntimeDataError as exc:
         raise HTTPException(status_code=503, detail="Privacy settings update failed.") from exc
+
+
+@app.get("/settings/place", dependencies=[Depends(require_api_token)])
+def place_settings() -> dict[str, object]:
+    try:
+        return get_place_settings()
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Place settings unavailable.") from exc
+
+
+@app.post("/settings/place", dependencies=[Depends(require_api_token)])
+def update_place_settings(payload: PlaceSettingsUpdate) -> dict[str, object]:
+    try:
+        place = payload.current_place
+        return set_current_place(place.country_code, place.town_city, place.source,
+                                 place.provider_permission)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Place settings update failed.") from exc
+
+
+@app.post("/settings/place/most-visited", dependencies=[Depends(require_api_token)])
+def update_most_visited(payload: MostVisitedUpdate) -> dict[str, object]:
+    try:
+        return set_most_visited(payload.country_code.upper(), payload.action)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Most visited update failed.") from exc
+
+
+@app.post("/settings/place/visits", dependencies=[Depends(require_api_token)])
+def record_place_visit(payload: VisitEventCreate) -> dict[str, object]:
+    try:
+        visit = payload.visit
+        return add_visit_event(visit.country_code, visit.first_seen, visit.last_seen,
+                               visit.overnight_confirmed, visit.source)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Visit confirmation failed.") from exc
 
 
 @app.get("/specialists/interactions", dependencies=[Depends(require_api_token)])
@@ -1109,10 +1150,20 @@ def li_chat_endpoint(
 
     try:
         provider = configured_research_provider(get_settings())
+        location_context = None
+        try:
+            stored_place = get_place_settings().get("current_place") or {}
+            location_context = minimal_location_context(
+                payload.message, CurrentPlace.model_validate(stored_place)
+            )
+        except (RuntimeDataError, ValueError):
+            pass
         runtime_kwargs = {
             "trusted_runtime_context": runtime_context,
             "conversation_context": conversation_context,
         }
+        if location_context:
+            runtime_kwargs["location_context"] = location_context
         if payload.temporary_upload_context:
             runtime_kwargs["temporary_upload_context"] = payload.temporary_upload_context
         if is_research_provider_available(provider):

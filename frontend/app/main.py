@@ -425,6 +425,26 @@ async def update_privacy_settings(request: Request, _: str = Depends(require_use
     return await proxy("POST", "/privacy/settings", json_body=await request.json())
 
 
+@app.get("/api/settings/place")
+async def place_settings(_: str = Depends(require_user)) -> Response:
+    return await proxy("GET", "/settings/place")
+
+
+@app.post("/api/settings/place")
+async def update_place_settings(request: Request, _: str = Depends(require_user)) -> Response:
+    return await proxy("POST", "/settings/place", json_body=await request.json())
+
+
+@app.post("/api/settings/place/most-visited")
+async def update_most_visited(request: Request, _: str = Depends(require_user)) -> Response:
+    return await proxy("POST", "/settings/place/most-visited", json_body=await request.json())
+
+
+@app.post("/api/settings/place/visits")
+async def record_place_visit(request: Request, _: str = Depends(require_user)) -> Response:
+    return await proxy("POST", "/settings/place/visits", json_body=await request.json())
+
+
 async def proxy(method: str, path: str, json_body: dict | None = None,
                 authority: str = "li") -> Response:
     try:

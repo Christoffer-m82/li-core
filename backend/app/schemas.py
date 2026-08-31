@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from app.email_runtime import EmailActionEnvelope, EmailActionOutcome
 from app.action_intents import ActionIntent
+from app.email_runtime import EmailActionEnvelope, EmailActionOutcome
+from app.location_settings import ISO_COUNTRY_CODE_SET, CurrentPlace, VisitEvent
 
 ExplicitMemoryClass = Literal[
     "explicit_fact",
@@ -193,6 +194,27 @@ class RetentionUpdate(BaseModel):
 
 class PrivacySettingsUpdate(BaseModel):
     artifact_retention_days: Literal[7, 14, 30, 60, 90]
+
+
+class PlaceSettingsUpdate(BaseModel):
+    current_place: CurrentPlace
+
+
+class MostVisitedUpdate(BaseModel):
+    country_code: str = Field(min_length=2, max_length=2)
+    action: Literal["pin", "remove"]
+
+    @field_validator("country_code")
+    @classmethod
+    def valid_country(cls, value: str) -> str:
+        value = value.upper()
+        if value not in ISO_COUNTRY_CODE_SET:
+            raise ValueError("country_code must be ISO 3166-1 alpha-2")
+        return value
+
+
+class VisitEventCreate(BaseModel):
+    visit: VisitEvent
 
 
 class ConversationDeleteConfirmation(BaseModel):
