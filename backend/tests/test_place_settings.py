@@ -34,7 +34,7 @@ def test_complete_iso_country_list_and_validation():
 def test_two_distinct_overnight_visits_promote_but_continuous_trip_counts_once():
     events = [
         visit("MT", "2026-02-01", "2026-02-05"),
-        visit("MT", "2026-02-01", "2026-02-05"),
+        visit("MT", "2026-02-05", "2026-02-08"),
         visit("MT", "2026-07-01", "2026-07-02"),
     ]
     assert qualifying_visit_count(events, today=date(2026, 8, 30))["MT"] == 2
@@ -53,6 +53,15 @@ def test_transit_old_visits_and_suppression_do_not_promote():
     assert promoted_countries(events, prefs) == []
 
 
+def test_same_day_claim_is_not_an_overnight_and_stale_automatic_entry_expires():
+    with pytest.raises(ValidationError):
+        visit("ES", "2026-04-01", "2026-04-01")
+    events = [visit("ES", "2024-04-01", "2024-04-02")]
+    prefs = [MostVisitedPreference(country_code="ES", state="automatic")]
+    assert qualifying_visit_count(events, today=date(2026, 8, 30)) == {}
+    assert promoted_countries(events, prefs) == []
+
+
 def test_manual_pins_are_authoritative_and_ordered_first():
     prefs = [MostVisitedPreference(country_code="GB", state="pinned"),
              MostVisitedPreference(country_code="MT", state="pinned")]
@@ -68,6 +77,8 @@ def test_location_context_is_minimal_and_relevance_gated():
     assert location_is_relevant("What tax rules apply to me?")
     assert town_is_useful("What is the weather near me?")
     assert not town_is_useful("What national tax rules apply?")
+    national = minimal_location_context("What national tax rules apply?", place)
+    assert "ISO MT" in national and "Valletta" not in national
 
 
 def test_provider_contract_has_no_coordinate_fields():
@@ -78,6 +89,10 @@ def test_provider_contract_has_no_coordinate_fields():
     assert " latitude " not in sql and " longitude " not in sql
     assert "precise_coordinates_persisted',false" in sql
     assert "provider_permission" in sql and "device_coarse" in sql
+    with pytest.raises(ValidationError):
+        CurrentPlace(country_code="MT", source="device_coarse", provider_permission="denied")
+    assert CurrentPlace(country_code="MT", source="device_coarse",
+                        provider_permission="granted").country_code == "MT"
 
 
 def test_migration_is_immutable_private_and_suppression_aware():
@@ -85,7 +100,9 @@ def test_migration_is_immutable_private_and_suppression_aware():
            "032_private_place_settings.sql").read_text(encoding="utf-8")
     assert "Migration 032 requires applied schema 0.31" in sql
     assert "ENABLE ROW LEVEL SECURITY" in sql
-    assert "TO li_backend_runtime" in sql
+    assert "TO li_memory_api" in sql
+    assert "Backend runtime lost required Place execution" in sql
+    assert "Temporary function-owner authority was not removed" in sql
     assert "state='suppressed'" in sql
     assert "CURRENT_DATE-365" in sql
     assert sql.index("schema_versions") < sql.rindex("COMMIT;")
