@@ -134,6 +134,10 @@ def test_granted_typed_mobile_contract_accepts_only_coarse_fields():
     for fingerprint in ("imei", "serial_number", "advertising_id", "hardware_id"):
         with pytest.raises(ValidationError):
             MobileLocationUpdateV1.model_validate(mobile_payload(now, **{fingerprint: "x"}))
+    with pytest.raises(ValidationError):
+        MobileLocationUpdateV1.model_validate(mobile_payload(
+            now, permission={"state": "granted", "platform": "ios",
+                             "checked_at": now + timedelta(minutes=6)}))
 
 
 @pytest.mark.parametrize("state", ["unknown", "not_requested", "denied", "restricted"])
@@ -175,6 +179,10 @@ def test_migration_033_has_replay_revocation_correction_and_no_identifiers_or_co
     assert "migration 033 requires applied schema 0.32" in sql
     assert "update_id uuid primary key" in sql and "status','idempotent'" in sql
     assert "revoked_at is null" in sql and "revoke_mobile_location_installation" in sql
+    assert "migration 033 requires exactly one active owner" in sql
+    assert "visit event fields must be supplied together" in sql
+    assert "out-of-order coarse observation" in sql
+    assert "migration role cannot assume li_memory_function_owner" in sql
     assert "correct_mobile_location_visit" in sql and "classification in ('overnight','transit')" in sql
     assert "interval '24 hours'" in sql and "mobile location update limit exceeded" in sql
     assert "installation_id uuid primary key default gen_random_uuid()" in sql

@@ -119,6 +119,8 @@ class MobileOvernightEvent(BaseModel):
 
     @model_validator(mode="after")
     def valid_range(self) -> MobileOvernightEvent:
+        if self.first_observed_at.utcoffset() is None or self.last_observed_at.utcoffset() is None:
+            raise ValueError("visit timestamps must include a timezone")
         if self.last_observed_at < self.first_observed_at:
             raise ValueError("last_observed_at cannot precede first_observed_at")
         if (self.classification == "overnight" and
@@ -157,10 +159,14 @@ class MobileLocationUpdateV1(BaseModel):
 
     @model_validator(mode="after")
     def granted_and_consistent(self) -> MobileLocationUpdateV1:
+        if self.observed_at.utcoffset() is None or self.permission.checked_at.utcoffset() is None:
+            raise ValueError("mobile timestamps must include a timezone")
         if self.permission.state != "granted":
             raise ValueError("device_coarse update requires granted OS permission")
         if self.permission.checked_at < self.observed_at - timedelta(hours=24):
             raise ValueError("permission proof is stale")
+        if self.permission.checked_at > self.observed_at + timedelta(minutes=5):
+            raise ValueError("permission proof cannot post-date the observation")
         if self.overnight_event and self.overnight_event.last_observed_at > self.observed_at:
             raise ValueError("overnight event cannot extend beyond the observation")
         return self
