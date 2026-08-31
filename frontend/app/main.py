@@ -445,6 +445,11 @@ async def record_place_visit(request: Request, _: str = Depends(require_user)) -
     return await proxy("POST", "/settings/place/visits", json_body=await request.json())
 
 
+@app.post("/api/settings/place/mobile/revoke")
+async def revoke_mobile_place_provider(request: Request, _: str = Depends(require_user)) -> Response:
+    return await proxy("POST", "/settings/place/mobile/revoke", json_body=await request.json())
+
+
 async def proxy(method: str, path: str, json_body: dict | None = None,
                 authority: str = "li") -> Response:
     try:
