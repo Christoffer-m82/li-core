@@ -75,6 +75,33 @@ def add_visit_event(country_code: str, first_seen: object, last_seen: object,
     return dict(next(iter(rows[0].values())))
 
 
+def register_mobile_location_installation(platform: str) -> str:
+    rows = _call("register_mobile_location_installation", (platform,))
+    return str(next(iter(rows[0].values())))
+
+
+def submit_mobile_location_update(update: object) -> dict[str, object]:
+    event = update.overnight_event
+    rows = _call("submit_mobile_location_update", (
+        update.update_id, update.installation_id, update.country_code, update.town_city,
+        update.observed_at, update.permission.state, update.permission.checked_at,
+        event.event_id if event else None, event.first_observed_at if event else None,
+        event.last_observed_at if event else None, event.classification if event else None,
+    ))
+    return dict(next(iter(rows[0].values())))
+
+
+def correct_mobile_location_visit(installation_id: UUID, event_id: UUID,
+                                  classification: str) -> dict[str, object]:
+    rows = _call("correct_mobile_location_visit", (installation_id, event_id, classification))
+    return dict(next(iter(rows[0].values())))
+
+
+def revoke_mobile_location_installation(installation_id: UUID) -> dict[str, object]:
+    rows = _call("revoke_mobile_location_installation", (installation_id,))
+    return dict(next(iter(rows[0].values())))
+
+
 def reserve_artifact(**values: object) -> dict[str, object]:
     rows = _call("reserve_artifact", (
         values["filename"], values["content_type"], values["size_bytes"],

@@ -105,8 +105,12 @@ from app.schemas import (
     PlaceSettingsUpdate,
     MostVisitedUpdate,
     VisitEventCreate,
+    MobileInstallationRegister,
+    MobileInstallationRevoke,
+    MobileLocationSubmission,
+    MobileVisitCorrection,
 )
-from app.location_settings import CurrentPlace, minimal_location_context
+from app.location_settings import CurrentPlace, minimal_location_context, validate_mobile_freshness
 from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages,
     finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
@@ -118,6 +122,8 @@ from app.runtime_data import (
     list_rhythm_states, configure_rhythm, claim_rhythm_run, complete_rhythm_run,
     fail_rhythm_run,
     get_place_settings, set_current_place, set_most_visited, add_visit_event,
+    register_mobile_location_installation, submit_mobile_location_update,
+    correct_mobile_location_visit, revoke_mobile_location_installation,
     list_proactive_briefs, mark_proactive_brief_read, suppress_open_loop,
     set_category_suppression, list_category_suppressions,
 )
@@ -349,6 +355,44 @@ def record_place_visit(payload: VisitEventCreate) -> dict[str, object]:
                                visit.overnight_confirmed, visit.source)
     except RuntimeDataError as exc:
         raise HTTPException(status_code=503, detail="Visit confirmation failed.") from exc
+
+
+@app.post("/settings/place/mobile/installations", dependencies=[Depends(require_api_token)])
+def register_mobile_provider(payload: MobileInstallationRegister) -> dict[str, object]:
+    """Future mobile gateway extension point; backend remains IAM-private."""
+    try:
+        return {"installation_id": register_mobile_location_installation(payload.platform),
+                "status": "registered", "automatic_updates_shipped": False}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Mobile provider registration failed.") from exc
+
+
+@app.post("/settings/place/mobile/updates", dependencies=[Depends(require_api_token)])
+def record_mobile_location(payload: MobileLocationSubmission) -> dict[str, object]:
+    try:
+        validate_mobile_freshness(payload.update.observed_at)
+        return submit_mobile_location_update(payload.update)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Mobile location update was rejected.") from exc
+
+
+@app.post("/settings/place/mobile/visits/correction", dependencies=[Depends(require_api_token)])
+def correct_mobile_visit(payload: MobileVisitCorrection) -> dict[str, object]:
+    try:
+        return correct_mobile_location_visit(payload.installation_id, payload.event_id,
+                                             payload.classification)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Visit correction was rejected.") from exc
+
+
+@app.post("/settings/place/mobile/revoke", dependencies=[Depends(require_api_token)])
+def revoke_mobile_provider(payload: MobileInstallationRevoke) -> dict[str, object]:
+    try:
+        return revoke_mobile_location_installation(payload.installation_id)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=409, detail="Mobile provider could not be revoked.") from exc
 
 
 @app.get("/specialists/interactions", dependencies=[Depends(require_api_token)])

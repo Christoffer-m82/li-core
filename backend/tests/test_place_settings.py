@@ -1,5 +1,6 @@
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -7,6 +8,8 @@ from pydantic import ValidationError
 from app.location_settings import (
     ISO_COUNTRY_CODES,
     CurrentPlace,
+    MobileLocationUpdateV1,
+    MobileOvernightEvent,
     MostVisitedPreference,
     VisitEvent,
     location_is_relevant,
@@ -14,6 +17,8 @@ from app.location_settings import (
     promoted_countries,
     qualifying_visit_count,
     town_is_useful,
+    device_update_may_replace,
+    validate_mobile_freshness,
 )
 
 
@@ -106,3 +111,75 @@ def test_migration_is_immutable_private_and_suppression_aware():
     assert "state='suppressed'" in sql
     assert "CURRENT_DATE-365" in sql
     assert sql.index("schema_versions") < sql.rindex("COMMIT;")
+
+
+def mobile_payload(now: datetime, **overrides) -> dict:
+    value = {
+        "installation_id": uuid4(), "update_id": uuid4(), "country_code": "MT",
+        "source": "device_coarse", "observed_at": now,
+        "permission": {"state": "granted", "platform": "ios", "checked_at": now},
+    }
+    value.update(overrides)
+    return value
+
+
+def test_granted_typed_mobile_contract_accepts_only_coarse_fields():
+    now = datetime(2026, 8, 31, 10, tzinfo=UTC)
+    update = MobileLocationUpdateV1.model_validate(mobile_payload(now, town_city=" Valletta "))
+    assert update.country_code == "MT" and update.town_city == "Valletta"
+    assert update.contract_version == "1.0" and update.permission.state == "granted"
+    for precise in ("lat", "lng", "latitude", "longitude", "gps", "coordinates"):
+        with pytest.raises(ValidationError):
+            MobileLocationUpdateV1.model_validate(mobile_payload(now, **{precise: 1}))
+    for fingerprint in ("imei", "serial_number", "advertising_id", "hardware_id"):
+        with pytest.raises(ValidationError):
+            MobileLocationUpdateV1.model_validate(mobile_payload(now, **{fingerprint: "x"}))
+
+
+@pytest.mark.parametrize("state", ["unknown", "not_requested", "denied", "restricted"])
+def test_non_granted_mobile_permission_is_rejected_before_mutation(state: str):
+    now = datetime(2026, 8, 31, 10, tzinfo=UTC)
+    with pytest.raises(ValidationError):
+        MobileLocationUpdateV1.model_validate(mobile_payload(
+            now, permission={"state": state, "platform": "android", "checked_at": now}))
+
+
+def test_mobile_freshness_and_manual_precedence_rules():
+    now = datetime(2026, 8, 31, 10, tzinfo=UTC)
+    validate_mobile_freshness(now - timedelta(hours=23), now=now)
+    with pytest.raises(ValueError, match="stale"):
+        validate_mobile_freshness(now - timedelta(hours=25), now=now)
+    manual_at = now - timedelta(hours=25)
+    assert not device_update_may_replace(current_source="manual_web", current_updated_at=manual_at,
+                                         observed_at=manual_at + timedelta(hours=23))
+    assert device_update_may_replace(current_source="manual_web", current_updated_at=manual_at,
+                                     observed_at=now)
+    assert device_update_may_replace(current_source="device_coarse", current_updated_at=now,
+                                     observed_at=now)
+
+
+def test_mobile_overnight_and_transit_are_minimal_events():
+    now = datetime(2026, 8, 31, 10, tzinfo=UTC)
+    event = MobileOvernightEvent(event_id=uuid4(), first_observed_at=now-timedelta(days=1),
+                                 last_observed_at=now, classification="overnight")
+    update = MobileLocationUpdateV1.model_validate(mobile_payload(now, overnight_event=event))
+    assert update.overnight_event.classification == "overnight"
+    transit = MobileOvernightEvent(event_id=uuid4(), first_observed_at=now,
+                                   last_observed_at=now, classification="transit")
+    assert transit.classification == "transit"
+
+
+def test_migration_033_has_replay_revocation_correction_and_no_identifiers_or_coordinates():
+    sql = (Path(__file__).parents[2] / "memory" / "migrations" /
+           "033_native_mobile_location_boundary.sql").read_text(encoding="utf-8").lower()
+    assert "migration 033 requires applied schema 0.32" in sql
+    assert "update_id uuid primary key" in sql and "status','idempotent'" in sql
+    assert "revoked_at is null" in sql and "revoke_mobile_location_installation" in sql
+    assert "correct_mobile_location_visit" in sql and "classification in ('overnight','transit')" in sql
+    assert "interval '24 hours'" in sql and "mobile location update limit exceeded" in sql
+    assert "installation_id uuid primary key default gen_random_uuid()" in sql
+    forbidden = (" latitude ", " longitude ", " imei ", " serial_number ",
+                 " advertising_id ", " hardware_id ", " gps_payload ")
+    assert not any(value in sql for value in forbidden)
+    assert "li_retention_runtime" in sql and "backend runtime lost required mobile place execution" in sql
+    assert sql.index("schema_versions") < sql.rindex("commit;")

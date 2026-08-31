@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal, Protocol
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -95,6 +96,94 @@ class LocationProvider(Protocol):
     permission_state: Literal["not_requested", "denied", "granted"]
 
     def current_place(self) -> CurrentPlace | None: ...
+
+
+PermissionState = Literal["unknown", "not_requested", "denied", "granted", "restricted"]
+
+
+class MobilePermissionProof(BaseModel):
+    """Minimal client assertion; never contains an OS token or location payload."""
+
+    model_config = ConfigDict(extra="forbid")
+    state: PermissionState
+    platform: Literal["ios", "android"]
+    checked_at: datetime
+
+
+class MobileOvernightEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_id: UUID
+    first_observed_at: datetime
+    last_observed_at: datetime
+    classification: Literal["overnight", "transit"]
+
+    @model_validator(mode="after")
+    def valid_range(self) -> MobileOvernightEvent:
+        if self.last_observed_at < self.first_observed_at:
+            raise ValueError("last_observed_at cannot precede first_observed_at")
+        if (self.classification == "overnight" and
+                self.last_observed_at.date() <= self.first_observed_at.date()):
+            raise ValueError("overnight event must span at least one night")
+        return self
+
+
+class MobileLocationUpdateV1(BaseModel):
+    """Stable privacy-minimal contract for a future authenticated native gateway."""
+
+    model_config = ConfigDict(extra="forbid")
+    contract_version: Literal["1.0"] = "1.0"
+    installation_id: UUID
+    update_id: UUID
+    country_code: str
+    town_city: str | None = Field(default=None, max_length=120)
+    source: Literal["device_coarse"] = "device_coarse"
+    permission: MobilePermissionProof
+    observed_at: datetime
+    overnight_event: MobileOvernightEvent | None = None
+
+    @field_validator("country_code")
+    @classmethod
+    def valid_country(cls, value: str) -> str:
+        value = value.upper()
+        if value not in ISO_COUNTRY_CODE_SET:
+            raise ValueError("country_code must be ISO 3166-1 alpha-2")
+        return value
+
+    @field_validator("town_city")
+    @classmethod
+    def clean_town(cls, value: str | None) -> str | None:
+        value = value.strip() if value else None
+        return value or None
+
+    @model_validator(mode="after")
+    def granted_and_consistent(self) -> MobileLocationUpdateV1:
+        if self.permission.state != "granted":
+            raise ValueError("device_coarse update requires granted OS permission")
+        if self.permission.checked_at < self.observed_at - timedelta(hours=24):
+            raise ValueError("permission proof is stale")
+        if self.overnight_event and self.overnight_event.last_observed_at > self.observed_at:
+            raise ValueError("overnight event cannot extend beyond the observation")
+        return self
+
+
+def validate_mobile_freshness(observed_at: datetime, *, now: datetime | None = None,
+                              max_age: timedelta = timedelta(hours=24),
+                              future_skew: timedelta = timedelta(minutes=5)) -> None:
+    current = now or datetime.now(UTC)
+    observed = observed_at.astimezone(UTC)
+    if observed < current - max_age:
+        raise ValueError("location observation is stale")
+    if observed > current + future_skew:
+        raise ValueError("location observation is in the future")
+
+
+def device_update_may_replace(*, current_source: str | None, current_updated_at: datetime | None,
+                              observed_at: datetime,
+                              manual_hold: timedelta = timedelta(hours=24)) -> bool:
+    """A device observation must post-date a manual correction and its hold window."""
+    if current_source not in {"manual_web", "manual_mobile"} or current_updated_at is None:
+        return True
+    return observed_at >= current_updated_at + manual_hold
 
 
 _LOCATION_RELEVANT = re.compile(

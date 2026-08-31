@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.action_intents import ActionIntent
 from app.email_runtime import EmailActionEnvelope, EmailActionOutcome
-from app.location_settings import ISO_COUNTRY_CODE_SET, CurrentPlace, VisitEvent
+from app.location_settings import (
+    ISO_COUNTRY_CODE_SET, CurrentPlace, MobileLocationUpdateV1, VisitEvent,
+)
 
 ExplicitMemoryClass = Literal[
     "explicit_fact",
@@ -215,6 +217,28 @@ class MostVisitedUpdate(BaseModel):
 
 class VisitEventCreate(BaseModel):
     visit: VisitEvent
+
+
+class MobileLocationSubmission(BaseModel):
+    model_config = {"extra": "forbid"}
+    update: MobileLocationUpdateV1
+
+
+class MobileVisitCorrection(BaseModel):
+    model_config = {"extra": "forbid"}
+    installation_id: UUID
+    event_id: UUID
+    classification: Literal["overnight", "transit"]
+
+
+class MobileInstallationRevoke(BaseModel):
+    model_config = {"extra": "forbid"}
+    installation_id: UUID
+
+
+class MobileInstallationRegister(BaseModel):
+    model_config = {"extra": "forbid"}
+    platform: Literal["ios", "android"]
 
 
 class ConversationDeleteConfirmation(BaseModel):
