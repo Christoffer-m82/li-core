@@ -160,6 +160,17 @@ class LiChatRequest(BaseModel):
     temporary_upload_context: str | None = Field(default=None, max_length=6000)
 
 
+class ConversationSearchResult(BaseModel):
+    conversation_id: UUID
+    message_id: UUID
+    role: Literal["user", "assistant", "system"]
+    snippet: str = Field(max_length=1200)
+    created_at: datetime
+    rank: float = Field(ge=0)
+    retrieval: Literal["full_text"] = "full_text"
+    canonical_memory_candidate: Literal[False] = False
+
+
 class SpecialistAttribution(BaseModel):
     request_id: UUID
     used_interaction_ids: list[UUID] = Field(min_length=1, max_length=12)
@@ -176,6 +187,7 @@ class LiChatResponse(BaseModel):
     artifacts: list[dict[str, Any]] = Field(default_factory=list)
     specialist_attribution: SpecialistAttribution | None = None
     action_intents: list[ActionIntent] = Field(default_factory=list)
+    context_selection: dict[str, Any] | None = None
 
 
 class ArtifactUpload(BaseModel):
