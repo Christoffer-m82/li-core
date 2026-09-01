@@ -412,6 +412,15 @@ def conversation_messages(conversation_id: str, limit: int = 40) -> list[dict[st
     return _call("get_recent_conversation_messages", (UUID(conversation_id), limit))
 
 
+def search_conversation_history(query: str, limit: int = 10) -> list[dict[str, object]]:
+    """Return bounded FTS snippets; this boundary never writes canonical memory."""
+    return _call("search_conversation_history", (query, limit))
+
+
+def list_skills_overview() -> list[dict[str, object]]:
+    return _call("list_skills_overview")
+
+
 def delete_conversation(conversation_id: str) -> dict[str, object] | None:
     rows = _owner_call("delete_private_conversation", (UUID(conversation_id),))
     return rows[0] if rows else None
