@@ -75,9 +75,16 @@ CREATE TABLE li_runtime_data.heavy_work_audit(
  max_seconds INTEGER NOT NULL CHECK(max_seconds BETWEEN 1 AND 1800), max_cost_usd NUMERIC(8,4) NOT NULL CHECK(max_cost_usd BETWEEN 0 AND 10),
  result_metadata JSONB NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(result_metadata)='object' AND pg_column_size(result_metadata)<=32768), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), finished_at TIMESTAMPTZ);
 
-ALTER TABLE li_runtime_data.skills,li_runtime_data.skill_outcomes,li_runtime_data.context_selections,li_runtime_data.conversation_compressions,
- li_runtime_data.watcher_events,li_runtime_data.temporary_worker_runs,li_runtime_data.model_registry,li_runtime_data.tool_registry,
- li_runtime_data.delivery_adapters,li_runtime_data.heavy_work_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.skills ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.skill_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.context_selections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.conversation_compressions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.watcher_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.temporary_worker_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.model_registry ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.tool_registry ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.delivery_adapters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE li_runtime_data.heavy_work_audit ENABLE ROW LEVEL SECURITY;
 CREATE POLICY skills_function_access ON li_runtime_data.skills FOR SELECT TO li_memory_function_owner USING(TRUE);
 CREATE POLICY skill_outcomes_function_access ON li_runtime_data.skill_outcomes FOR SELECT TO li_memory_function_owner USING(TRUE);
 GRANT SELECT ON li_runtime_data.skills,li_runtime_data.skill_outcomes TO li_memory_function_owner;
