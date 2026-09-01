@@ -559,6 +559,19 @@ def conversations() -> dict[str, object]:
         raise HTTPException(status_code=503, detail="Conversation history unavailable.") from exc
 
 
+@app.get("/conversations/search", response_model=list[ConversationSearchResult],
+         tags=["history"], dependencies=[Depends(require_api_token)])
+def conversation_search_endpoint(
+    q: str = Query(..., min_length=2, max_length=300),
+    limit: int = Query(default=10, ge=1, le=25),
+) -> list[ConversationSearchResult]:
+    try:
+        rows = search_conversation_history(q, limit)
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Conversation search is unavailable.") from exc
+    return [ConversationSearchResult.model_validate(row) for row in rows]
+
+
 @app.get("/conversations/{conversation_id}", dependencies=[Depends(require_api_token)])
 def conversation(conversation_id: UUID) -> dict[str, object]:
     try:
@@ -656,19 +669,6 @@ def skills_overview_endpoint() -> dict[str, object]:
     except RuntimeDataError as exc:
         raise HTTPException(status_code=503, detail="Skills overview is unavailable.") from exc
     return {"read_only": True, "progressive_disclosure": True, "skills": skills}
-
-
-@app.get("/conversations/search", response_model=list[ConversationSearchResult],
-         tags=["history"], dependencies=[Depends(require_api_token)])
-def conversation_search_endpoint(
-    q: str = Query(..., min_length=2, max_length=300),
-    limit: int = Query(default=10, ge=1, le=25),
-) -> list[ConversationSearchResult]:
-    try:
-        rows = search_conversation_history(q, limit)
-    except RuntimeDataError as exc:
-        raise HTTPException(status_code=503, detail="Conversation search is unavailable.") from exc
-    return [ConversationSearchResult.model_validate(row) for row in rows]
 
 
 @app.get("/action-policy", tags=["system"], dependencies=[Depends(require_api_token)])

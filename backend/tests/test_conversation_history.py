@@ -33,6 +33,19 @@ def test_chat_creates_persists_and_returns_conversation_id(monkeypatch) -> None:
     assert writes == [("user", "Hello"), ("assistant", "Hello back.")]
 
 
+def test_static_conversation_search_route_precedes_uuid_detail_route(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.search_conversation_history", lambda query, limit: [])
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        with TestClient(app) as client:
+            response = client.get("/conversations/search", params={"q": "migration", "limit": 3})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_chat_passes_bounded_history_to_runtime_and_change_resolver(monkeypatch) -> None:
     conversation_id = "4d9b7df2-9b69-4a62-bd7e-cef00bd4d82b"
     history = [
