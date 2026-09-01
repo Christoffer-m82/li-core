@@ -16,6 +16,7 @@ from app.governed_systems import (
     authorize_heavy_work,
     compress_conversation,
     evaluate_watcher,
+    governed_platform_overview,
     import_skill,
     route_model,
     transition_skill,
@@ -143,3 +144,12 @@ def test_gmail_send_and_rhythm_activation_are_absent_from_platform_contracts():
     source = __import__("app.governed_systems", fromlist=["x"])
     assert not hasattr(source, "send_gmail")
     assert WatcherDefinition(watcher_key="known-dates", condition="known_date").enabled is False
+
+
+def test_deployed_platform_statuses_do_not_claim_migration_is_pending():
+    overview = governed_platform_overview()
+    statuses = {system["id"]: system["status"] for system in overview["systems"]}
+
+    assert statuses[1] == "available"
+    assert statuses[3] == "available"
+    assert statuses[4] == "available_disabled"

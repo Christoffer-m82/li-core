@@ -357,10 +357,10 @@ def governed_platform_overview() -> dict[str, Any]:
     return {
         "read_only": True,
         "systems": (
-            {"id": 1, "name": "Governed Skills Platform", "status": "migration_ready"},
+            {"id": 1, "name": "Governed Skills Platform", "status": "available"},
             {"id": 2, "name": "Progressive Context Loader", "status": "available"},
-            {"id": 3, "name": "Historical Recall", "status": "migration_ready"},
-            {"id": 4, "name": "Deterministic Watchers", "status": "migration_ready_disabled"},
+            {"id": 3, "name": "Historical Recall", "status": "available"},
+            {"id": 4, "name": "Deterministic Watchers", "status": "available_disabled"},
             {"id": 5, "name": "Temporary Specialists", "status": "available_bounded"},
             {"id": 6, "name": "Long-context Compression", "status": "available"},
             {"id": 7, "name": "Model Capability Router", "status": "claude_primary"},
