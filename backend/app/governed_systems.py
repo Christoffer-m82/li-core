@@ -353,9 +353,19 @@ def authorize_heavy_work(request: HeavyWorkRequest, feature_flag: bool) -> None:
         raise PermissionError("heavy worker requested a governed or private capability")
 
 
-def governed_platform_overview() -> dict[str, Any]:
+def governed_platform_overview(
+    model_registry: list[dict[str, object]] | None = None,
+) -> dict[str, Any]:
+    models = model_registry or []
+    primary = next((model for model in models if model.get("is_primary") is True), None)
+    model_status = "not_configured"
+    if primary is not None:
+        model_status = str(primary.get("configuration_state", "not_configured"))
+        if model_status == "configured":
+            model_status = f"claude_{primary.get('health', 'unavailable')}_primary"
     return {
         "read_only": True,
+        "model_registry": models,
         "systems": (
             {"id": 1, "name": "Governed Skills Platform", "status": "available"},
             {"id": 2, "name": "Progressive Context Loader", "status": "available"},
@@ -363,7 +373,7 @@ def governed_platform_overview() -> dict[str, Any]:
             {"id": 4, "name": "Deterministic Watchers", "status": "available_disabled"},
             {"id": 5, "name": "Temporary Specialists", "status": "available_bounded"},
             {"id": 6, "name": "Long-context Compression", "status": "available"},
-            {"id": 7, "name": "Model Capability Router", "status": "claude_primary"},
+            {"id": 7, "name": "Model Capability Router", "status": model_status},
             {"id": 8, "name": "Tool & Delivery Platform", "status": "available"},
             {"id": 9, "name": "Isolated Heavy-work Runtime", "status": "experimental_disabled"},
         ),

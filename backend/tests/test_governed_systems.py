@@ -147,9 +147,23 @@ def test_gmail_send_and_rhythm_activation_are_absent_from_platform_contracts():
 
 
 def test_deployed_platform_statuses_do_not_claim_migration_is_pending():
-    overview = governed_platform_overview()
+    overview = governed_platform_overview([{
+        "model_key": "claude-primary", "provider": "anthropic",
+        "model_name": "claude-sonnet-5", "configuration_state": "configured",
+        "health": "healthy", "capabilities": ["reasoning", "structured_output", "coding"],
+        "context_limit": 200000, "cost_metadata": {}, "is_primary": True,
+        "configuration_version": 1,
+    }])
     statuses = {system["id"]: system["status"] for system in overview["systems"]}
 
     assert statuses[1] == "available"
     assert statuses[3] == "available"
     assert statuses[4] == "available_disabled"
+    assert statuses[7] == "claude_healthy_primary"
+    assert overview["model_registry"][0]["model_name"] == "claude-sonnet-5"
+
+
+def test_registry_status_does_not_infer_configuration_from_runtime_defaults():
+    overview = governed_platform_overview()
+    statuses = {system["id"]: system["status"] for system in overview["systems"]}
+    assert statuses[7] == "not_configured"

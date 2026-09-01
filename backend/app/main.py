@@ -137,6 +137,7 @@ from app.runtime_data import (
     set_category_suppression, list_category_suppressions,
     search_conversation_history,
     list_skills_overview,
+    list_model_registry_overview,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -658,7 +659,11 @@ def capability_inventory() -> dict[str, object]:
 @app.get("/governed-systems", tags=["system"], dependencies=[Depends(require_api_token)])
 def governed_systems_endpoint() -> dict[str, object]:
     """Safe read-only status for the nine governed Li-native systems."""
-    return governed_platform_overview()
+    try:
+        registry = list_model_registry_overview()
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Governed systems are unavailable.") from exc
+    return governed_platform_overview(registry)
 
 
 @app.get("/skills", tags=["skills"], dependencies=[Depends(require_api_token)])

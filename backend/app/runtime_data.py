@@ -421,6 +421,11 @@ def list_skills_overview() -> list[dict[str, object]]:
     return _call("list_skills_overview")
 
 
+def list_model_registry_overview() -> list[dict[str, object]]:
+    """Return safe registry metadata through the read-only function boundary."""
+    return _call("list_model_registry_overview")
+
+
 def delete_conversation(conversation_id: str) -> dict[str, object] | None:
     rows = _owner_call("delete_private_conversation", (UUID(conversation_id),))
     return rows[0] if rows else None
