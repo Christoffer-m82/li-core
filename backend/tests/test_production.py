@@ -41,6 +41,26 @@ def test_production_rejects_short_tokens() -> None:
         Settings(environment="production", _env_file=None, **{**BASE, "api_token": "short"})
 
 
+def test_production_allows_unconfigured_native_gateway_without_secret() -> None:
+    values = {key: value for key, value in BASE.items() if key != "native_gateway_api_token"}
+
+    settings = Settings(environment="production", _env_file=None, **values)
+
+    assert settings.native_gateway_status == "not_configured"
+
+
+def test_production_configured_native_gateway_requires_secret() -> None:
+    values = {key: value for key, value in BASE.items() if key != "native_gateway_api_token"}
+
+    with pytest.raises(ValidationError, match="native gateway token"):
+        Settings(
+            environment="production",
+            native_gateway_status="available",
+            _env_file=None,
+            **values,
+        )
+
+
 def test_production_rejects_partial_oauth_configuration() -> None:
     with pytest.raises(ValidationError, match="complete set"):
         Settings(

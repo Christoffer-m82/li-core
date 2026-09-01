@@ -106,7 +106,10 @@ class Settings(BaseSettings):
             )
         ):
             raise ValueError("Production API tokens must contain at least 32 characters.")
-        if self.native_gateway_api_token.get_secret_value().startswith("development-"):
+        if (
+            self.native_gateway_status != "not_configured"
+            and self.native_gateway_api_token.get_secret_value().startswith("development-")
+        ):
             raise ValueError("Production native gateway token must be supplied by Secret Manager.")
         if "*" in self.allowed_origins:
             raise ValueError("Wildcard CORS is forbidden in production.")
