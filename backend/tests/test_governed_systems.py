@@ -4,10 +4,22 @@ import pytest
 from pydantic import ValidationError
 
 from app.governed_systems import (
-    ContextItem, DeliveryAdapter, HeavyWorkRequest, ModelDefinition, SkillManifest,
-    TemporaryWorkerRequest, ToolDefinition, WatcherDefinition, assemble_context,
-    authorize_heavy_work, compress_conversation, evaluate_watcher, import_skill,
-    route_model, transition_skill, validate_temporary_worker,
+    ContextItem,
+    DeliveryAdapter,
+    HeavyWorkRequest,
+    ModelDefinition,
+    SkillManifest,
+    TemporaryWorkerRequest,
+    ToolDefinition,
+    WatcherDefinition,
+    assemble_context,
+    authorize_heavy_work,
+    compress_conversation,
+    evaluate_watcher,
+    import_skill,
+    route_model,
+    transition_skill,
+    validate_temporary_worker,
 )
 
 
@@ -65,12 +77,12 @@ def test_watcher_is_no_llm_idempotent_and_disabled_by_default():
 
 def test_temporary_worker_has_hard_isolation_and_limits():
     request = TemporaryWorkerRequest(role="translator", task="Translate", output_schema={})
-    validate_temporary_worker(request, parallel_count=3)
+    validate_temporary_worker(request, parallel_count=2)
     assert request.canonical_memory_write is False
     assert request.direct_database_access is False
     assert request.autonomous_actions is False
     with pytest.raises(ValueError):
-        validate_temporary_worker(request, parallel_count=4)
+        validate_temporary_worker(request, parallel_count=3)
 
 
 def test_compression_preserves_recent_unresolved_and_action_records():

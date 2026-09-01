@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 SQL = (Path(__file__).resolve().parents[2] / "memory" / "migrations" /
        "035_governed_li_native_systems.sql").read_text(encoding="utf-8")
 
@@ -23,5 +22,14 @@ def test_migration_covers_all_nine_durable_boundaries():
 
 def test_historical_search_is_bounded_and_does_not_write_memory():
     function = SQL.split("CREATE FUNCTION li_api.search_conversation_history", 1)[1]
-    assert "LIMIT LEAST(GREATEST(p_limit,1),25)" in function
+    assert "LIMIT LEAST(GREATEST(COALESCE(p_limit,10),1),25)" in function
     assert "INSERT INTO li_memory.memories" not in function
+
+
+def test_migration_owner_scope_authority_cleanup_and_no_direct_runtime_access():
+    assert "Migration 035 requires exactly one active owner" in SQL
+    assert "owner_user_id UUID NOT NULL REFERENCES li_memory.users(id)" in SQL
+    assert "SET LOCAL ROLE li_memory_function_owner" in SQL
+    assert "Temporary function-owner authority was not removed" in SQL
+    assert "FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime" in SQL
+    assert "credential_reference_count=0" in SQL

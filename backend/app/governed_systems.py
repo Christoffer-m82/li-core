@@ -7,8 +7,9 @@ objects; persistence and provider adapters sit behind the existing private API.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -36,7 +37,7 @@ class SkillManifest(BaseModel):
     review_status: Literal["pending", "approved", "rejected"] = "pending"
 
     @model_validator(mode="after")
-    def trusted_requires_review(self) -> "SkillManifest":
+    def trusted_requires_review(self) -> SkillManifest:
         if self.trust_state == "trusted" and (
             self.review_status != "approved" or not self.validation_tests
         ):
@@ -114,6 +115,8 @@ def assemble_context(
     items: list[ContextItem], *, total_budget: int = 30_000,
     caller: Literal["li", "specialist", "temporary", "heavy"] = "li",
 ) -> ContextAssembly:
+    if total_budget <= 0:
+        raise ValueError("context budget must be positive")
     selected: list[ContextItem] = []
     class_use: dict[str, int] = {}
     candidates = sorted(items, key=lambda item: (not item.mandatory, -item.relevance))
@@ -123,6 +126,8 @@ def assemble_context(
         class_budget = DEFAULT_CONTEXT_BUDGETS[item.context_class]
         used = class_use.get(item.context_class, 0)
         total = sum(value.tokens for value in selected)
+        if item.mandatory and total + item.tokens > total_budget:
+            raise ValueError("mandatory context exceeds the total context budget")
         if item.mandatory or (used + item.tokens <= class_budget and total + item.tokens <= total_budget):
             selected.append(item)
             class_use[item.context_class] = used + item.tokens
@@ -201,7 +206,7 @@ class TemporaryWorkerRequest(BaseModel):
     context: tuple[ContextItem, ...] = ()
     max_seconds: int = Field(default=90, ge=1, le=300)
     max_cost_usd: float = Field(default=0.25, ge=0, le=5)
-    allowed_tools: tuple[str, ...] = ()
+    allowed_tools: tuple[()] = ()
     canonical_memory_write: Literal[False] = False
     direct_database_access: Literal[False] = False
     autonomous_actions: Literal[False] = False
@@ -209,7 +214,7 @@ class TemporaryWorkerRequest(BaseModel):
 
 
 def validate_temporary_worker(request: TemporaryWorkerRequest, *, parallel_count: int) -> None:
-    if parallel_count > 3:
+    if parallel_count < 0 or parallel_count >= 3:
         raise ValueError("temporary worker parallelism exceeds governed limit")
     if any(item.private_to_li for item in request.context):
         raise ValueError("temporary workers cannot receive private_to_li context")
@@ -226,7 +231,7 @@ class CompressedConversation(BaseModel):
     quality_checks: dict[str, bool]
 
     @model_validator(mode="after")
-    def quality_passes(self) -> "CompressedConversation":
+    def quality_passes(self) -> CompressedConversation:
         if not all(self.quality_checks.get(key, False) for key in (
             "recent_preserved", "actions_preserved", "unresolved_preserved",
         )):
@@ -239,14 +244,22 @@ def compress_conversation(
 ) -> CompressedConversation:
     recent = tuple(turns[-keep_recent:])
     older = turns[:-keep_recent]
-    actions = tuple(t for t in older if t.get("action_intent") or t.get("tool_result"))
+    actions = tuple(t for t in turns if t.get("action_intent") or t.get("tool_result"))
     unresolved = tuple(str(t["commitment"]) for t in turns if t.get("commitment") and not t.get("resolved"))
     ids = tuple(UUID(str(t["message_id"])) for t in older if t.get("message_id"))
     return CompressedConversation(
         summary=summary, recent_turns=recent, unresolved_commitments=unresolved,
         action_records=actions, source_message_ids=ids,
-        quality_checks={"recent_preserved": len(recent) == min(len(turns), keep_recent),
-                        "actions_preserved": True, "unresolved_preserved": True},
+        quality_checks={
+            "recent_preserved": recent == tuple(turns[-keep_recent:]),
+            "actions_preserved": actions == tuple(
+                t for t in turns if t.get("action_intent") or t.get("tool_result")
+            ),
+            "unresolved_preserved": unresolved == tuple(
+                str(t["commitment"]) for t in turns
+                if t.get("commitment") and not t.get("resolved")
+            ),
+        },
     )
 
 
@@ -278,7 +291,11 @@ def route_model(
     candidates = [model for model in registry if model.health == "healthy"
                   and capability in model.capabilities
                   and (not private_data or model.privacy == "private_allowed")]
-    return sorted(candidates, key=lambda model: (model.cost_tier != "low", not model.primary))[0] if candidates else primary
+    if not candidates:
+        if primary.health != "healthy" or capability not in primary.capabilities:
+            raise ValueError("no healthy model satisfies the requested capability and privacy policy")
+        return primary
+    return min(candidates, key=lambda model: (model.cost_tier != "low", not model.primary))
 
 
 class ToolDefinition(BaseModel):
@@ -296,7 +313,7 @@ class ToolDefinition(BaseModel):
     evidence_required: bool = False
 
     @model_validator(mode="after")
-    def authority_is_safe(self) -> "ToolDefinition":
+    def authority_is_safe(self) -> ToolDefinition:
         if self.mode == "write" and "li" not in self.allowed_callers:
             raise ValueError("write tools must remain Li-owned")
         if self.action_class >= 3 and not self.approval_required:
