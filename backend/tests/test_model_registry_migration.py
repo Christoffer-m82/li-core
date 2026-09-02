@@ -14,7 +14,7 @@ def test_owner_only_function_boundary_and_no_direct_dml():
     for role in ("li_backend_runtime", "li_memory_theo", "li_retention_runtime"):
         assert f"has_function_privilege('{role}','{signature}','execute')" in sql
     assert "revoke all privileges on li_runtime_data.model_registry,li_runtime_data.model_registry_audit" in sql
-    assert "model registry direct table boundary is broader than intended" in sql
+    assert "role % retained direct privileges on %" in sql
 
 
 def test_known_claude_only_and_secret_fields_rejected():
@@ -46,4 +46,42 @@ def test_read_only_status_boundary_and_transactional_schema_gate():
     assert "create function li_api.list_model_registry_overview()" in sql
     assert "grant execute on function li_api.list_model_registry_overview() to li_memory_api" in sql
     assert "migration 036 requires applied schema 0.35" in sql
+    assert sql.strip().startswith("begin;")
+    assert "schema version 0.36 is already claimed" in sql
     assert sql.index("insert into li_memory.schema_versions") < sql.rindex("commit;")
+
+
+def test_table_and_function_owner_contexts_cover_trigger_and_acls():
+    sql = migration_sql()
+    owner_check = "model_registry has unexpected owner"
+    set_function_owner = "set local role li_memory_function_owner"
+    function_acl = "revoke all on function li_api.configure_model_registry"
+    reset_role = "reset role;"
+    trigger = "create trigger model_registry_audit_append_only"
+    table_acl = ("revoke all privileges on li_runtime_data.model_registry,"
+                 "li_runtime_data.model_registry_audit")
+    assert "join pg_catalog.pg_roles r on r.oid=c.relowner" in sql
+    assert sql.index(owner_check) < sql.index("alter table li_runtime_data.model_registry")
+    first_set = sql.index(set_function_owner)
+    first_reset = sql.index(reset_role)
+    trigger_index = sql.index(trigger)
+    second_set = sql.index(set_function_owner, first_set + 1)
+    second_reset = sql.index(reset_role, first_reset + 1)
+    assert first_set < first_reset < trigger_index < second_set
+    assert second_set < sql.index(function_acl) < second_reset < sql.index(table_acl)
+    assert "function % has unexpected owner" in sql
+    assert "model registry table has unexpected owner" in sql
+
+
+def test_append_only_audit_and_acl_cleanup_are_asserted_for_every_runtime_role():
+    sql = migration_sql()
+    assert "model_registry_function_select" in sql
+    assert "model_registry_function_update" in sql
+    assert "for all to li_memory_function_owner" not in sql
+    assert "function owner table boundary is incorrect" in sql
+    assert "role % retained direct privileges on %" in sql
+    assert "temporary li_api create authority was not removed" in sql
+    assert "temporary function-owner authority was not removed" in sql
+    assert "tgrelid='li_runtime_data.model_registry_audit'::regclass" in sql
+    assert "tgfoid='li_api.reject_model_registry_audit_mutation()'::regprocedure" in sql
+    assert "model registry unexpectedly owns a sequence" in sql

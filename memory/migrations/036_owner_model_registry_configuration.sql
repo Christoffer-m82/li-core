@@ -12,6 +12,19 @@ DO $$ BEGIN
  END IF;
 END $$;
 
+-- Migration 035 created model_registry as the database migration role. Table
+-- DDL, policies, ACLs, and triggers must stay in that owner context; function
+-- DDL and ACLs below use the dedicated NOLOGIN function owner instead.
+DO $$ DECLARE table_owner NAME; BEGIN
+ SELECT r.rolname INTO table_owner
+ FROM pg_catalog.pg_class c
+ JOIN pg_catalog.pg_roles r ON r.oid=c.relowner
+ WHERE c.oid='li_runtime_data.model_registry'::REGCLASS AND c.relkind='r';
+ IF table_owner IS DISTINCT FROM CURRENT_USER THEN
+  RAISE EXCEPTION 'model_registry has unexpected owner %; migration role is %',table_owner,CURRENT_USER;
+ END IF;
+END $$;
+
 ALTER TABLE li_runtime_data.model_registry
  ADD COLUMN configuration_state TEXT NOT NULL DEFAULT 'not_configured'
   CHECK(configuration_state IN('configured','not_configured')),
@@ -46,7 +59,8 @@ END $$;
 
 GRANT SELECT,INSERT ON li_runtime_data.model_registry_audit TO li_memory_function_owner;
 GRANT SELECT,UPDATE ON li_runtime_data.model_registry TO li_memory_function_owner;
-CREATE POLICY model_registry_function_access ON li_runtime_data.model_registry FOR ALL TO li_memory_function_owner USING(TRUE) WITH CHECK(TRUE);
+CREATE POLICY model_registry_function_select ON li_runtime_data.model_registry FOR SELECT TO li_memory_function_owner USING(TRUE);
+CREATE POLICY model_registry_function_update ON li_runtime_data.model_registry FOR UPDATE TO li_memory_function_owner USING(TRUE) WITH CHECK(TRUE);
 CREATE POLICY model_registry_audit_function_access ON li_runtime_data.model_registry_audit FOR SELECT TO li_memory_function_owner USING(TRUE);
 CREATE POLICY model_registry_audit_insert ON li_runtime_data.model_registry_audit FOR INSERT TO li_memory_function_owner WITH CHECK(TRUE);
 
@@ -54,9 +68,6 @@ SET LOCAL ROLE li_memory_function_owner;
 CREATE FUNCTION li_api.reject_model_registry_audit_mutation() RETURNS TRIGGER
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN RAISE EXCEPTION 'Model registry audit is append-only'; END $$;
-CREATE TRIGGER model_registry_audit_append_only
- BEFORE UPDATE OR DELETE ON li_runtime_data.model_registry_audit
- FOR EACH ROW EXECUTE FUNCTION li_api.reject_model_registry_audit_mutation();
 
 CREATE FUNCTION li_api.configure_model_registry(
  p_request_id UUID,p_actor_reference TEXT,p_model_key TEXT,p_provider TEXT,p_model_name TEXT,
@@ -111,26 +122,83 @@ CREATE FUNCTION li_api.list_model_registry_overview() RETURNS TABLE(
 $$;
 RESET ROLE;
 
+-- CREATE TRIGGER requires ownership of the target table. RESET ROLE returns to
+-- the migration role verified above, which owns both registry tables.
+CREATE TRIGGER model_registry_audit_append_only
+ BEFORE UPDATE OR DELETE ON li_runtime_data.model_registry_audit
+ FOR EACH ROW EXECUTE FUNCTION li_api.reject_model_registry_audit_mutation();
+
+-- Return to the function owner for function ACLs. The trigger is created first
+-- because CREATE TRIGGER also checks EXECUTE while new functions still carry
+-- PostgreSQL's default PUBLIC EXECUTE privilege.
+SET LOCAL ROLE li_memory_function_owner;
 REVOKE ALL ON FUNCTION li_api.configure_model_registry(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB,INTEGER,JSONB,TEXT,INTEGER)
  FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_api,li_memory_theo,li_artifact_retention,li_retention_runtime;
 GRANT EXECUTE ON FUNCTION li_api.configure_model_registry(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB,INTEGER,JSONB,TEXT,INTEGER) TO li_memory_owner_confirmation;
 REVOKE ALL ON FUNCTION li_api.reject_model_registry_audit_mutation() FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_api,li_memory_theo,li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
 REVOKE ALL ON FUNCTION li_api.list_model_registry_overview() FROM PUBLIC,anon,authenticated,service_role,li_memory_theo,li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
 GRANT EXECUTE ON FUNCTION li_api.list_model_registry_overview() TO li_memory_api;
+RESET ROLE;
+
 REVOKE ALL PRIVILEGES ON li_runtime_data.model_registry,li_runtime_data.model_registry_audit
  FROM PUBLIC,anon,authenticated,service_role,li_backend_runtime,li_memory_api,li_memory_theo,li_memory_owner_confirmation,li_artifact_retention,li_retention_runtime;
 
-DO $$ BEGIN
+DO $$ DECLARE function_name TEXT;role_name TEXT;table_name TEXT; BEGIN
  IF (SELECT added_create FROM migration_036_authority_state) THEN REVOKE CREATE ON SCHEMA li_api FROM li_memory_function_owner; END IF;
  IF (SELECT added_owner FROM migration_036_authority_state) THEN EXECUTE pg_catalog.format('REVOKE li_memory_function_owner FROM %I',(SELECT migration_role FROM migration_036_authority_state)); END IF;
- IF pg_catalog.has_function_privilege('li_backend_runtime','li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)','EXECUTE')
+ IF EXISTS(SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_roles r ON r.oid=c.relowner
+  WHERE c.oid IN('li_runtime_data.model_registry'::REGCLASS,'li_runtime_data.model_registry_audit'::REGCLASS)
+   AND r.rolname<>(SELECT migration_role FROM migration_036_authority_state)) THEN
+  RAISE EXCEPTION 'Model registry table has unexpected owner';
+ END IF;
+ FOREACH function_name IN ARRAY ARRAY[
+  'li_api.reject_model_registry_audit_mutation()',
+  'li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)',
+  'li_api.list_model_registry_overview()'
+ ] LOOP
+  IF (SELECT r.rolname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_roles r ON r.oid=p.proowner
+      WHERE p.oid=function_name::REGPROCEDURE) IS DISTINCT FROM 'li_memory_function_owner' THEN
+   RAISE EXCEPTION 'Function % has unexpected owner',function_name;
+  END IF;
+ END LOOP;
+ IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger
+  WHERE tgname='model_registry_audit_append_only'
+   AND tgrelid='li_runtime_data.model_registry_audit'::REGCLASS
+   AND tgfoid='li_api.reject_model_registry_audit_mutation()'::REGPROCEDURE
+   AND NOT tgisinternal) THEN RAISE EXCEPTION 'Model registry audit append-only trigger is missing'; END IF;
+ IF EXISTS(SELECT 1 FROM pg_catalog.pg_depend d JOIN pg_catalog.pg_class s ON s.oid=d.objid
+  WHERE d.classid='pg_catalog.pg_class'::REGCLASS AND d.refclassid='pg_catalog.pg_class'::REGCLASS
+   AND d.refobjid IN('li_runtime_data.model_registry'::REGCLASS,'li_runtime_data.model_registry_audit'::REGCLASS)
+   AND s.relkind='S') THEN RAISE EXCEPTION 'Model registry unexpectedly owns a sequence'; END IF;
+ IF NOT pg_catalog.has_table_privilege('li_memory_function_owner','li_runtime_data.model_registry','SELECT')
+  OR NOT pg_catalog.has_table_privilege('li_memory_function_owner','li_runtime_data.model_registry','UPDATE')
+  OR pg_catalog.has_table_privilege('li_memory_function_owner','li_runtime_data.model_registry','INSERT,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+  OR NOT pg_catalog.has_table_privilege('li_memory_function_owner','li_runtime_data.model_registry_audit','SELECT')
+  OR NOT pg_catalog.has_table_privilege('li_memory_function_owner','li_runtime_data.model_registry_audit','INSERT')
+  OR pg_catalog.has_table_privilege('li_memory_function_owner','li_runtime_data.model_registry_audit','UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
+  RAISE EXCEPTION 'Function owner table boundary is incorrect';
+ END IF;
+ FOREACH role_name IN ARRAY ARRAY['public','anon','authenticated','service_role','li_backend_runtime','li_memory_api','li_memory_theo','li_memory_owner_confirmation','li_artifact_retention','li_retention_runtime'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['model_registry','model_registry_audit'] LOOP
+   IF pg_catalog.has_table_privilege(role_name,pg_catalog.format('li_runtime_data.%I',table_name),'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
+    RAISE EXCEPTION 'Role % retained direct privileges on %',role_name,table_name;
+   END IF;
+  END LOOP;
+ END LOOP;
+ IF NOT pg_catalog.has_function_privilege('li_memory_owner_confirmation','li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)','EXECUTE')
+  OR pg_catalog.has_function_privilege('li_backend_runtime','li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)','EXECUTE')
   OR pg_catalog.has_function_privilege('li_memory_theo','li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)','EXECUTE')
-  OR pg_catalog.has_function_privilege('li_retention_runtime','li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)','EXECUTE')
-  OR NOT pg_catalog.has_function_privilege('li_memory_owner_confirmation','li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)','EXECUTE') THEN RAISE EXCEPTION 'Model registry owner boundary is incorrect'; END IF;
- IF pg_catalog.has_table_privilege('li_memory_owner_confirmation','li_runtime_data.model_registry','UPDATE')
-  OR pg_catalog.has_table_privilege('li_backend_runtime','li_runtime_data.model_registry','SELECT')
-  OR pg_catalog.has_table_privilege('li_memory_api','li_runtime_data.model_registry_audit','SELECT') THEN RAISE EXCEPTION 'Model registry direct table boundary is broader than intended'; END IF;
- IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger WHERE tgname='model_registry_audit_append_only' AND NOT tgisinternal) THEN RAISE EXCEPTION 'Model registry audit append-only trigger is missing'; END IF;
+  OR pg_catalog.has_function_privilege('li_retention_runtime','li_api.configure_model_registry(uuid,text,text,text,text,text,text,jsonb,integer,jsonb,text,integer)','EXECUTE') THEN RAISE EXCEPTION 'Model registry owner boundary is incorrect'; END IF;
+ IF NOT pg_catalog.has_function_privilege('li_memory_api','li_api.list_model_registry_overview()','EXECUTE')
+  OR pg_catalog.has_function_privilege('li_memory_theo','li_api.list_model_registry_overview()','EXECUTE')
+  OR pg_catalog.has_function_privilege('li_memory_owner_confirmation','li_api.list_model_registry_overview()','EXECUTE')
+  OR pg_catalog.has_function_privilege('li_retention_runtime','li_api.list_model_registry_overview()','EXECUTE') THEN RAISE EXCEPTION 'Model registry read boundary is incorrect'; END IF;
+ IF (SELECT added_create FROM migration_036_authority_state) AND pg_catalog.has_schema_privilege('li_memory_function_owner','li_api','CREATE') THEN RAISE EXCEPTION 'Temporary li_api CREATE authority was not removed'; END IF;
+ IF (SELECT added_owner FROM migration_036_authority_state) AND
+    (pg_catalog.pg_has_role((SELECT migration_role FROM migration_036_authority_state),'li_memory_function_owner','SET') OR
+     pg_catalog.pg_has_role((SELECT migration_role FROM migration_036_authority_state),'li_memory_function_owner','USAGE')) THEN
+  RAISE EXCEPTION 'Temporary function-owner authority was not removed';
+ END IF;
 END $$;
 
 INSERT INTO li_memory.schema_versions(version,description) VALUES('0.36','Owner-only audited model-registry configuration and safe read-only status');
