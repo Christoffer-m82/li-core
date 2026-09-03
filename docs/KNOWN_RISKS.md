@@ -2,7 +2,7 @@
 
 ## Scope
 
-This register contains risks supported by tracked repository evidence as of 2026-09-02. It does not
+This register contains risks supported by tracked repository evidence as of 2026-09-03. It does not
 assert live exploitability or external configuration. Severity and acceptance require owner and,
 where applicable, Heimdall review.
 
@@ -53,16 +53,6 @@ where applicable, Heimdall review.
   rotation/revocation, scoped backend token, and gateway rate controls are documented in the
   [Native Gateway ADR](../system/NATIVE_GATEWAY_ARCHITECTURE.md).
 - **Next review:** Complete or explicitly accept [OM-002](OPEN_MILESTONES.md).
-
-## KR-005: Migration validation is largely static in the repository
-
-- **Evidence:** Several backend tests assert migration text and invariants, but there is no tracked
-  general migration runner, disposable PostgreSQL/Supabase test harness, or CI workflow.
-- **Impact:** SQL syntax, upgrade behavior, RLS, ownership, grants, trigger behavior, and data
-  preservation may fail only during manual rehearsal or application.
-- **Current control:** Transactional migrations include explicit guards and assertions; policy
-  requires backup, non-production rehearsal, integrity checks, and independent review.
-- **Next review:** Implement [OM-008](OPEN_MILESTONES.md) without granting CI production authority.
 
 ## KR-006: Dependency resolution is not fully reproducible
 
