@@ -1,5 +1,9 @@
 plugins { id("com.android.library"); id("org.jetbrains.kotlin.android") }
 
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 android {
     namespace = "com.lios.nativepoc"
     compileSdk = 35

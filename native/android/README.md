@@ -12,4 +12,5 @@ continuous or background work. Background country-change or overnight support is
 opt-in capability requiring its own permission, battery, and privacy review.
 
 Repository CI compiles the library and runs its unit tests with the toolchain documented in
-[`docs/TESTING_AND_AUDIT.md`](../../docs/TESTING_AND_AUDIT.md#native-checks).
+[`docs/TESTING_AND_AUDIT.md`](../../docs/TESTING_AND_AUDIT.md#native-checks). The build also uses the
+tracked dependency lock and strict checksum verification metadata described there.
