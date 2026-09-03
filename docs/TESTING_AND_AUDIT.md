@@ -62,6 +62,11 @@ Repository CI runs both checks on isolated macOS and Linux hosts. These checks c
 Android proof-of-concept libraries and run their unit tests; they do not replace signed-app,
 simulator/device, permission-flow, or staged Native Gateway integration testing.
 
+External GitHub Actions in repository workflows are pinned to immutable 40-character commit SHAs;
+the adjacent release comment keeps the intended version readable. For an intentional action update,
+resolve the official upstream release tag to its commit, review the upstream release and diff, update
+the SHA and comment together, and let the repository audit reject any mutable tag reference.
+
 Absence of a local platform toolchain is a skipped check, not a pass.
 
 ## Documentation checks
