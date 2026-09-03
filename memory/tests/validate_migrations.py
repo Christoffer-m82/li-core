@@ -59,6 +59,7 @@ PRIVILEGED_ROLE_MIGRATIONS = {
     "008_theo_runtime_role.sql",
     "009_owner_memory_confirmation.sql",
 }
+FUNCTION_OWNER_ADMIN_BOOTSTRAP_AFTER = "009_owner_memory_confirmation.sql"
 EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 37)}
 
 
@@ -121,6 +122,18 @@ def apply_history() -> None:
             str(MIGRATIONS_ROOT / filename),
             user=executor,
         )
+        if filename == FUNCTION_OWNER_ADMIN_BOOTSTRAP_AFTER:
+            # PostgreSQL 16+ separates a role membership's ADMIN and SET
+            # options. Supabase's privileged executor owns the roles created
+            # by migrations 008-009, so give the ordinary migration executor
+            # authority to issue each migration's short-lived grant without
+            # allowing it to assume the function-owner role between files.
+            psql(
+                "--command",
+                "GRANT li_memory_function_owner TO postgres "
+                "WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;",
+                user="supabase_admin",
+            )
 
 
 def validate_result() -> None:
@@ -152,6 +165,9 @@ def validate_result() -> None:
             "WHERE n.nspname IN ('li_memory', 'li_runtime_data') "
             "AND r.rolname IN ('li_backend_runtime', 'li_theo_runtime', "
             "'li_owner_runtime', 'li_retention_runtime');"
+        ),
+        "migration executor cannot assume the function-owner role": (
+            "SELECT NOT pg_has_role('postgres', 'li_memory_function_owner', 'SET');"
         ),
         "private deletion capability was restored": (
             "SELECT to_regprocedure('li_api.delete_private_conversation(uuid)') IS NOT NULL;"
