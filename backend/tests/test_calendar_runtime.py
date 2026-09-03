@@ -122,6 +122,22 @@ def test_partial_provider_failure_quarantines_malformed_event() -> None:
     assert outcome.failed_items == 1
 
 
+def test_provider_event_with_naive_times_is_quarantined() -> None:
+    provider = RecordingProvider(search_result=[_event(
+        start=START.replace(tzinfo=None),
+        end=END.replace(tzinfo=None),
+    )])
+    outcome = execute_calendar_action(
+        CalendarActionEnvelope(request=SearchCalendarAction(
+            action="calendar.search", time_min=START, time_max=END
+        )),
+        provider,
+    )
+    assert outcome.status == "failed"
+    assert outcome.events == []
+    assert outcome.failed_items == 1
+
+
 def test_malformed_create_result_never_claims_success() -> None:
     provider = RecordingProvider(create_result={"id": "missing-required-fields"})
     outcome = execute_calendar_action(
