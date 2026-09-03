@@ -1,0 +1,86 @@
+name: docs-ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  markdown-links:
+    name: Validate markdown links and anchors
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check markdown files
+        run: |
+          python - <<'PY'
+          import re
+          import pathlib
+          import urllib.parse
+
+          ROOT = pathlib.Path(".")
+          MARKDOWN_FILES = list(ROOT.rglob("*.md"))
+
+          def normalize_heading(heading: str) -> str:
+            value = heading.strip().lower()
+            value = re.sub(r"[^\w\s-]", "", value, flags=re.UNICODE)
+            value = re.sub(r"\s+", "-", value)
+            value = value.replace("_", "-")
+            return re.sub(r"-+", "-", value).strip("-")
+
+          def read_headings(path: pathlib.Path):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            return [
+              normalize_heading(match.group(2))
+              for match in re.finditer(r"^(#{1,6})\s+(.+?)\s*$", text, re.MULTILINE)
+            ]
+
+          heading_cache = {path: read_headings(path) for path in MARKDOWN_FILES}
+
+          def has_anchor_in(path: pathlib.Path, anchor: str) -> bool:
+            target_anchor = normalize_heading(urllib.parse.unquote(anchor).lower())
+            return target_anchor in heading_cache.get(path, [])
+
+          broken = []
+
+          for file_path in MARKDOWN_FILES:
+            text = file_path.read_text(encoding="utf-8", errors="replace")
+            for match in re.finditer(r"\[[^\]]*\]\(([^)]+)\)", text):
+              target = match.group(1).strip()
+              if not target or target.startswith(("http://", "https://", "mailto:", "data:", "#")):
+                if target.startswith("#"):
+                  if not has_anchor_in(file_path, target[1:]):
+                    broken.append((file_path, target))
+                continue
+
+              if target.startswith("/"):
+                target_path = target
+                anchor = None
+              else:
+                target_path, _, anchor = target.partition("#")
+
+              target_path = target_path.strip()
+              if not target_path:
+                continue
+
+              resolved = (file_path.parent / target_path).resolve()
+              if not resolved.exists():
+                broken.append((file_path, target))
+                continue
+
+              if target_path.endswith(".md") and anchor:
+                target_md = resolved.relative_to(ROOT.resolve())
+                if not has_anchor_in(target_md, anchor):
+                  broken.append((file_path, target))
+
+          if broken:
+            print("Broken Markdown links found:")
+            for file_path, target in broken:
+              print(f"- {file_path}: {target}")
+            raise SystemExit(1)
+          print(f"Checked {len(MARKDOWN_FILES)} markdown files. No broken links detected.")
+          PY
