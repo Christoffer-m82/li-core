@@ -21,6 +21,11 @@ def test_shell_has_security_headers():
     assert response.status_code == 200
     assert response.headers["x-frame-options"] == "DENY"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert response.headers["permissions-policy"] == (
+        "camera=(), microphone=(self), geolocation=(self)"
+    )
+
+
 def test_place_ui_and_authenticated_bff_routes_exist():
     root = Path(__file__).parents[1]
     javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
