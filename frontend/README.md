@@ -20,6 +20,12 @@ The web service itself must be reachable for the OAuth redirect. Its application
 and API remain protected by Google sign-in plus the server-side email allowlist. The only
 anonymous endpoint is a data-free health check and the sign-in shell.
 
+## Android and Windows installation
+
+The web app manifest supplies explicit 192 px and 512 px PNG icons for Chromium installation on
+Android and Windows, plus full-bleed maskable variants for supported Android launchers. The service
+worker caches those install assets with the application shell. The SVG remains the browser favicon.
+
 ## Local validation
 
 From `frontend`, install the project with its `dev` extra, then run `ruff check app tests`,
@@ -42,4 +48,3 @@ longer `LI_WEB_SESSION_SECRET`. Bind all secrets to pinned versions for staging.
 After the first deployment supplies the final URL, set `LI_WEB_PUBLIC_ORIGIN` to that URL,
 add its callback URI to the OAuth client, and deploy a new revision. Gmail sending remains
 unavailable; this UI exposes no email mutation operation.
-
