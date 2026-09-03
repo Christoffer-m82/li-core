@@ -771,11 +771,16 @@ def run_rhythm_endpoint(
         now = datetime.now(UTC)
         candidates = []
         stood_down = {str(item["category"]) for item in list_category_suppressions()}
-        if rhythm_key == RhythmKey.morning and "today" not in stood_down:
+        calendar_scope = {
+            RhythmKey.morning: ("today", timedelta(days=2)),
+            RhythmKey.friday: ("next_week", timedelta(days=7)),
+        }.get(rhythm_key)
+        if calendar_scope and calendar_scope[0] not in stood_down:
+            calendar_category, calendar_horizon = calendar_scope
             calendar_result = execute_calendar_action(
                 CalendarActionEnvelope(request=SearchCalendarAction(
                     action="calendar.search", time_min=now,
-                    time_max=now + timedelta(days=2), max_results=50,
+                    time_max=now + calendar_horizon, max_results=50,
                 )),
                 app.state.calendar_provider,
             )
@@ -784,7 +789,8 @@ def run_rhythm_endpoint(
                     str(rhythm_state["timezone"]) if rhythm_state else "Europe/Berlin"
                 )
                 candidates.extend(upcoming_calendar_candidates(
-                    calendar_result.events, now=now, display_timezone=display_timezone,
+                    calendar_result.events, now=now, horizon=calendar_horizon,
+                    display_timezone=display_timezone, category=calendar_category,
                 ))
         if rhythm_key == RhythmKey.morning and "private_mail" not in stood_down:
             email_result = execute_email_action(

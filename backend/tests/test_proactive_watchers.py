@@ -69,6 +69,18 @@ def test_calendar_watcher_filters_cancelled_past_and_out_of_horizon_events():
     assert upcoming_calendar_candidates(values, now=NOW) == []
 
 
+def test_calendar_watcher_emits_low_urgency_next_week_candidate():
+    candidate = upcoming_calendar_candidates(
+        [event(start=NOW + timedelta(days=5))], now=NOW,
+        horizon=timedelta(days=7), category="next_week",
+    )[0]
+
+    assert candidate.category == "next_week"
+    assert candidate.urgency == "low"
+    assert candidate.why_now == "This calendar commitment starts within the next seven days"
+    assert candidate.attention_score > 0.20
+
+
 def test_calendar_watcher_rejects_unbounded_or_naive_evaluation_windows():
     with pytest.raises(ValueError, match="timezone-aware"):
         upcoming_calendar_candidates([], now=NOW.replace(tzinfo=None))
@@ -99,6 +111,22 @@ def test_calendar_watcher_detects_and_prioritises_private_conflicts():
     assert "first-private-id" not in serialized
     assert "second-private-id" not in serialized
     assert conflict.source.startswith("calendar_conflict:")
+
+
+def test_calendar_watcher_emits_next_week_conflict():
+    candidates = upcoming_calendar_candidates([
+        event(event_id="first", title="Workshop", start=NOW + timedelta(days=5)),
+        event(
+            event_id="second", title="Train",
+            start=NOW + timedelta(days=5, minutes=30),
+        ),
+    ], now=NOW, horizon=timedelta(days=7), category="next_week")
+
+    conflict = next(candidate for candidate in candidates if candidate.kind == "risk")
+    assert conflict.category == "next_week"
+    assert conflict.why_now == (
+        "These calendar commitments overlap within the next seven days"
+    )
 
 
 def test_calendar_watcher_does_not_flag_adjacent_or_duplicate_events_as_conflicts():
