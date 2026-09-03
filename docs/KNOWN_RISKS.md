@@ -56,15 +56,17 @@ where applicable, Heimdall review.
 
 ## KR-006: Dependency resolution is not fully reproducible
 
-- **Evidence:** Python project dependencies use bounded ranges in three `pyproject.toml` files; no
-  lock file is tracked. Android uses a checksum-pinned Gradle wrapper, but its dependency graph does
-  not have verification metadata or a lock file.
-- **Impact:** A clean build can resolve newer transitive packages or depend on host tooling, creating
-  build drift and supply-chain review gaps.
-- **Current control:** Major-version bounds, container builds, and a checksum-pinned Android Gradle
-  wrapper validated in CI.
-- **Next review:** Adopt reviewed lock/constraint and build-tool pinning with an update process that
-  preserves dependency security review.
+- **Evidence:** Each Python component has a universal lock used by CI, but the tracked container
+  builds still install from bounded `pyproject.toml` ranges rather than those locks. Android uses a
+  checksum-pinned Gradle wrapper, but its dependency graph does not have verification metadata or a
+  lock file.
+- **Impact:** A clean container or Android dependency resolution can select newer transitive packages,
+  creating build drift and supply-chain review gaps.
+- **Current control:** Python CI rejects stale locks and runs against exact artifact hashes; major
+  version bounds remain in package metadata; the Android Gradle wrapper is checksum-pinned and
+  validated in CI.
+- **Next review:** Make container builds consume the reviewed Python locks, then add Android dependency
+  locking and verification metadata with an explicit dependency-update process.
 
 ## KR-007: Live backup, IAM, scheduler, and migration state is not repository-verifiable
 

@@ -29,8 +29,12 @@ python -m pytest
 python -m compileall app
 ```
 
-Install each project with its `dev` extra in an isolated environment before running these commands.
-Do not copy production `.env` values into a development shell; use placeholders and synthetic data.
+Each component tracks a universal `uv.lock`. With uv 0.12.9, run `uv sync --locked --extra dev`
+inside the component before these commands, and prefix commands with `uv run --locked` to use the
+locked environment. After an intentional dependency change, regenerate that component's lock with
+`uv lock`, review the resolved-version and source changes, and rerun its checks. CI rejects a stale
+lock. Do not copy production `.env` values into a development shell; use placeholders and synthetic
+data.
 
 ## Native checks
 
