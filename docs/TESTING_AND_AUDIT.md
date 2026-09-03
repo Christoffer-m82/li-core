@@ -34,8 +34,8 @@ Do not copy production `.env` values into a development shell; use placeholders 
 
 ## Native checks
 
-- iOS package: run `swift test` from `native/ios/` on a host with the declared Swift 5.9 or newer
-  toolchain.
+- iOS package: run `xcodebuild test -scheme LiNativePOC -destination "platform=iOS
+  Simulator,name=iPhone 16 Pro,OS=18.5"` from `native/ios/` with Xcode 16.4.
 - Android library: run `gradle --no-daemon testDebugUnitTest` from `native/android/` with JDK 17,
   Gradle 8.9, and an Android SDK that includes compile SDK 35. This repository does not track a
   Gradle wrapper, so record the installed Gradle/JDK/SDK versions.
