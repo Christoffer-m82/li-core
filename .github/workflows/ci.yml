@@ -1,0 +1,139 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-components:
+    name: ${{ matrix.component }} checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - backend
+          - frontend
+          - native-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ matrix.component }}/pyproject.toml
+
+      - name: Install component and development dependencies
+        run: python -m pip install --disable-pip-version-check -e ".[dev]"
+        working-directory: ${{ matrix.component }}
+
+      - name: Lint
+        run: python -m ruff check app tests
+        working-directory: ${{ matrix.component }}
+
+      - name: Test
+        run: python -m pytest
+        working-directory: ${{ matrix.component }}
+        env:
+          # Synthetic values make backend test collection independent of a local
+          # .env file. They are not credentials and cannot access external systems.
+          LI_OS_ENVIRONMENT: development
+          LI_OS_API_TOKEN: ci-synthetic-api-token
+          LI_OS_THEO_API_TOKEN: ci-synthetic-theo-token
+          LI_OS_OWNER_API_TOKEN: ci-synthetic-owner-token
+          LI_OS_ANTHROPIC_API_KEY: ci-synthetic-anthropic-key
+          LI_OS_DB_HOST: test.invalid
+          LI_OS_DB_USER: li_backend_runtime.ci
+          LI_OS_DB_PASSWORD: ci-synthetic-runtime-password
+          LI_OS_THEO_DB_USER: li_theo_runtime.ci
+          LI_OS_THEO_DB_PASSWORD: ci-synthetic-theo-password
+          LI_OS_OWNER_DB_USER: li_owner_runtime.ci
+          LI_OS_OWNER_DB_PASSWORD: ci-synthetic-owner-password
+
+      - name: Compile
+        run: python -m compileall -q app
+        working-directory: ${{ matrix.component }}
+
+  repository-audit:
+    name: Repository secret and file audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject tracked secret files and high-confidence credentials
+        run: |
+          python - <<'PY'
+          import pathlib
+          import re
+          import subprocess
+
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")
+          tracked = [pathlib.Path(name) for name in tracked if name]
+
+          forbidden_suffixes = {".key", ".p12", ".pem", ".pfx"}
+          forbidden_paths = []
+          findings = []
+
+          patterns = {
+              "GitHub personal access token": re.compile(("gh" + "p_") + r"[A-Za-z0-9]{36}"),
+              "GitHub fine-grained token": re.compile(
+                  ("github" + "_pat_") + r"[A-Za-z0-9_]{60,}"
+              ),
+              "AWS access key": re.compile(("AK" + "IA") + r"[A-Z0-9]{16}"),
+              "Google API key": re.compile(("AI" + "za") + r"[A-Za-z0-9_-]{35}"),
+              "private key block": re.compile("-----BEGIN " + "(?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+          }
+
+          for path in tracked:
+              normalized = path.as_posix()
+              lowered_parts = {part.lower() for part in path.parts}
+              lowered_name = path.name.lower()
+              is_environment_file = lowered_name == ".env" or lowered_name.startswith(".env.")
+              is_example = lowered_name.endswith(".example")
+              is_credentials_file = lowered_name.endswith(
+                  ("credentials.json", "credentials.yaml", "credentials.yml")
+              )
+
+              if (
+                  (is_environment_file and not is_example)
+                  or is_credentials_file
+                  or path.suffix.lower() in forbidden_suffixes
+                  or "secrets" in lowered_parts
+                  or "credentials" in lowered_parts
+              ):
+                  forbidden_paths.append(normalized)
+
+              try:
+                  data = path.read_bytes()
+              except OSError:
+                  continue
+              if b"\0" in data:
+                  continue
+              text = data.decode("utf-8", errors="replace")
+              for label, pattern in patterns.items():
+                  if pattern.search(text):
+                      findings.append(f"{normalized}: {label}")
+
+          if forbidden_paths or findings:
+              if forbidden_paths:
+                  print("Tracked files violate the secret-file policy:")
+                  for name in forbidden_paths:
+                      print(f"- {name}")
+              if findings:
+                  print("Potential credentials detected (values are intentionally not printed):")
+                  for finding in findings:
+                      print(f"- {finding}")
+              raise SystemExit(1)
+
+          print(f"Audited {len(tracked)} tracked files; no prohibited secret files or credential patterns found.")
+          PY
