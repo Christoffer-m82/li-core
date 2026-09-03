@@ -79,7 +79,7 @@ async def security_headers(request: Request, call_next):
             "Referrer-Policy": "no-referrer",
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
-            "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)",
+            "Permissions-Policy": "camera=(), microphone=(self), geolocation=(self)",
         }
     )
     return response

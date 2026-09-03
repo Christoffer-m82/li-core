@@ -5,6 +5,8 @@ Li Web voice is an additive input/output adapter around the existing authenticat
 ## Web milestone
 
 - `BrowserVoiceTranscriptionProvider` wraps `SpeechRecognition` / `webkitSpeechRecognition` when the browser exposes it. It starts only after a microphone-button action, produces a visible transcript, and fails closed when there is no trustworthy final result.
+- The web response policy permits microphone access only to Li's own origin. Browser permission is
+  still required, and framing remains denied, so third-party origins cannot inherit microphone use.
 - `BrowserVoiceSynthesisProvider` wraps `speechSynthesis`. It speaks the actual final Li response, selects Swedish or English browser voices where available, and supports immediate cancellation.
 - The final transcript is sent through the existing BFF `POST /api/chat` to backend `POST /li/chat`. Memory, identity, specialist routing, ActionIntent creation, conversation history, and privacy behavior are therefore identical to typed chat.
 - Voice code has no audio-upload, audio-storage, logging, analytics, artifact, or memory API. Raw audio retention is none. Browser speech services and their availability or processing behavior are browser/vendor-dependent.
