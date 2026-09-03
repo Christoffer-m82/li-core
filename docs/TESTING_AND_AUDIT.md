@@ -34,9 +34,16 @@ Do not copy production `.env` values into a development shell; use placeholders 
 
 ## Native checks
 
-- iOS package: run `swift test` from `native/ios/` on a host with the declared Swift 5.9 toolchain.
-- Android library: use the project's Gradle tasks on an Android-capable host. This repository does
-  not currently track a Gradle wrapper, so record the Gradle/JDK/SDK versions and exact command used.
+- iOS package: from `native/ios/`, run `xcodebuild build -scheme LiNativePOC -destination
+  "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO`, then run `xcodebuild test -scheme LiNativePOC
+  -destination "platform=macOS,variant=Mac Catalyst" CODE_SIGNING_ALLOWED=NO` with Xcode 16.4.
+- Android library: run `gradle --no-daemon testDebugUnitTest` from `native/android/` with JDK 17,
+  Gradle 8.9, and an Android SDK that includes compile SDK 35. This repository does not track a
+  Gradle wrapper, so record the installed Gradle/JDK/SDK versions.
+
+Repository CI runs both checks on isolated macOS and Linux hosts. These checks compile the iOS and
+Android proof-of-concept libraries and run their unit tests; they do not replace signed-app,
+simulator/device, permission-flow, or staged Native Gateway integration testing.
 
 Absence of a local platform toolchain is a skipped check, not a pass.
 

@@ -10,3 +10,6 @@ The provider makes one balanced-power observation and passes the transient coord
 on-device `Geocoder`. It submits country and optional locality, creates no trail, and schedules no
 continuous or background work. Background country-change or overnight support is a later, separate
 opt-in capability requiring its own permission, battery, and privacy review.
+
+Repository CI compiles the library and runs its unit tests with the toolchain documented in
+[`docs/TESTING_AND_AUDIT.md`](../../docs/TESTING_AND_AUDIT.md#native-checks).

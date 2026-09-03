@@ -9,3 +9,7 @@ The default path makes a one-shot request at three-kilometre accuracy. Significa
 monitoring is exposed only as a separate user opt-in for country-change/overnight hints; it costs
 more battery and may wake the app in the background. The module never creates a trail, never
 serializes `CLLocation`, and releases the transient coordinate after local reverse geocoding.
+
+Repository CI builds the package for generic iOS and runs its unit tests through Mac Catalyst with
+the toolchain documented in
+[`docs/TESTING_AND_AUDIT.md`](../../docs/TESTING_AND_AUDIT.md#native-checks).
