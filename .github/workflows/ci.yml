@@ -137,3 +137,34 @@ jobs:
 
           print(f"Audited {len(tracked)} tracked files; no prohibited secret files or credential patterns found.")
           PY
+
+  migration-integration:
+    name: Disposable database migration checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-synthetic-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: ci-synthetic-postgres-password
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply and audit migration history
+        run: python memory/tests/validate_migrations.py
