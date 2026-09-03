@@ -11,6 +11,11 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+URGENCY_WEIGHTS = {"low": 0.35, "normal": 0.65, "high": 1.0}
+MINIMUM_ATTENTION_SCORE = 0.20
+MAX_BRIEF_ITEMS = 5
+
+
 class RhythmKey(str, Enum):
     morning = "morning"
     friday = "friday"
@@ -90,9 +95,18 @@ class BriefItem(BaseModel):
     why_now: str = Field(min_length=1, max_length=300)
     source: str = Field(min_length=1, max_length=200)
     urgency: Literal["low", "normal", "high"] = "normal"
+    kind: Literal["commitment", "opportunity", "risk", "positive_experience"] = "commitment"
+    importance: float = Field(default=0.7, ge=0, le=1)
+    relevance: float = Field(default=0.8, ge=0, le=1)
+    confidence: float = Field(default=0.8, ge=0, le=1)
     sensitive: bool = False
     evidence: dict[str, Any] | None = None
     action_intent_id: UUID | None = None
+
+    @property
+    def attention_score(self) -> float:
+        """Constitutional interruption test: importance x urgency x relevance x confidence."""
+        return self.importance * URGENCY_WEIGHTS[self.urgency] * self.relevance * self.confidence
 
 
 class ProactiveBrief(BaseModel):
@@ -111,7 +125,7 @@ CURRENT_WORLD_CATEGORIES = {"finance", "sports"}
 
 
 def build_brief(rhythm: RhythmKey, run_key: str, candidates: list[BriefItem]) -> ProactiveBrief | None:
-    """Build only from grounded candidates; empty categories and empty briefs disappear."""
+    """Build a small, grounded, value-ranked brief; low-value noise disappears."""
     allowed = {
         RhythmKey.morning: {"today", "commitment", "private_mail", "family", "movement", "finance", "sports"},
         RhythmKey.friday: {"commitment", "personal_admin", "home", "training", "next_week", "enjoyment"},
@@ -132,7 +146,21 @@ def build_brief(rhythm: RhythmKey, run_key: str, candidates: list[BriefItem]) ->
             competitive=bool(evidence.get("competitive")),
         )
 
-    items = tuple(item for item in candidates if item.category in allowed and grounded(item))
+    eligible = [
+        (position, item) for position, item in enumerate(candidates)
+        if item.category in allowed and grounded(item)
+        and item.attention_score >= MINIMUM_ATTENTION_SCORE
+    ]
+    # Multiple watchers can notice the same thing. Keep the strongest observation without
+    # repeating it in Christoffer's brief, then preserve source order for equal scores.
+    strongest: dict[tuple[str, str], tuple[int, BriefItem]] = {}
+    for position, item in eligible:
+        key = (item.category, item.title.strip().casefold())
+        current = strongest.get(key)
+        if current is None or item.attention_score > current[1].attention_score:
+            strongest[key] = (position, item)
+    ranked = sorted(strongest.values(), key=lambda value: (-value[1].attention_score, value[0]))
+    items = tuple(item for _, item in ranked[:MAX_BRIEF_ITEMS])
     if not items:
         return None
     return ProactiveBrief(rhythm=rhythm, run_key=run_key,
