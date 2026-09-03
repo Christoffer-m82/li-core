@@ -1,0 +1,58 @@
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from app.calendar_runtime import CalendarEvent
+from app.proactive_watchers import upcoming_calendar_candidates
+
+
+NOW = datetime(2026, 9, 3, 7, 30, tzinfo=UTC)
+
+
+def event(
+    *, event_id: str = "provider-secret-id", title: str = "Dentist",
+    start: datetime = NOW + timedelta(hours=4), status: str | None = "confirmed",
+) -> CalendarEvent:
+    return CalendarEvent(
+        event_id=event_id, title=title, start=start, end=start + timedelta(hours=1),
+        timezone="Europe/Berlin", location="Private address",
+        description="Private provider description", status=status,
+        html_link="https://calendar.example/private-event",
+    )
+
+
+def test_calendar_watcher_emits_private_minimised_read_only_candidate():
+    candidate = upcoming_calendar_candidates([event()], now=NOW)[0]
+
+    assert candidate.category == "today"
+    assert candidate.kind == "commitment"
+    assert candidate.urgency == "high"
+    assert candidate.sensitive is True
+    assert candidate.confidence == 1.0
+    assert candidate.why_now == "This calendar commitment starts within six hours"
+    assert candidate.detail == "Starts Thursday 03 September at 13:30"
+    serialized = candidate.model_dump_json()
+    assert "provider-secret-id" not in serialized
+    assert "Private address" not in serialized
+    assert "Private provider description" not in serialized
+    assert "calendar.example" not in serialized
+    assert candidate.source.startswith("calendar_event:")
+
+
+def test_calendar_watcher_filters_cancelled_past_and_out_of_horizon_events():
+    values = [
+        event(event_id="cancelled", status="cancelled"),
+        event(event_id="past", start=NOW - timedelta(hours=2)),
+        event(event_id="later", start=NOW + timedelta(days=3)),
+    ]
+
+    assert upcoming_calendar_candidates(values, now=NOW) == []
+
+
+def test_calendar_watcher_rejects_unbounded_or_naive_evaluation_windows():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        upcoming_calendar_candidates([], now=NOW.replace(tzinfo=None))
+    with pytest.raises(ValueError, match="seven days"):
+        upcoming_calendar_candidates([], now=NOW, horizon=timedelta(days=8))
+    with pytest.raises(ValueError, match="display timezone"):
+        upcoming_calendar_candidates([], now=NOW, display_timezone="Not/A-Timezone")

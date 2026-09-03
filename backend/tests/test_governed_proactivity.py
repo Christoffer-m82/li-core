@@ -170,6 +170,72 @@ def test_generation_failure_after_claim_is_durably_failed(monkeypatch):
     )]
 
 
+def test_morning_rhythm_adds_private_calendar_candidates_without_provider_writes(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    completed = []
+
+    class ReadOnlyCalendar:
+        def __init__(self):
+            self.searches = 0
+            self.creates = 0
+
+        def search_events(self, request):
+            self.searches += 1
+            return [{
+                "event_id": "calendar-id", "title": "Dentist",
+                "start": payload.scheduled_for + timedelta(hours=4),
+                "end": payload.scheduled_for + timedelta(hours=5),
+            }]
+
+        def create_event(self, request):
+            self.creates += 1
+            raise AssertionError("A proactive watcher must never create calendar events")
+
+    provider = ReadOnlyCalendar()
+    monkeypatch.setattr(main_module.app.state, "calendar_provider", provider)
+    monkeypatch.setattr(main_module, "complete_rhythm_run",
+                        lambda **values: completed.append(values) or "brief-id")
+    monkeypatch.setattr(main_module, "datetime", type("Clock", (), {
+        "now": staticmethod(lambda timezone: payload.scheduled_for),
+        "fromisoformat": staticmethod(datetime.fromisoformat),
+    }))
+
+    result = main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
+
+    assert result["state"] == "generated"
+    assert provider.searches == 1 and provider.creates == 0
+    item = completed[0]["content"]["items"][0]
+    assert item["title"] == "Dentist"
+    assert item["sensitive"] is True
+    assert item["why_now"] == "This calendar commitment starts within six hours"
+
+
+def test_calendar_outage_does_not_block_other_grounded_morning_items(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    completed = []
+
+    class UnavailableCalendar:
+        def search_events(self, request):
+            raise RuntimeError("provider unavailable")
+
+        def create_event(self, request):
+            raise AssertionError("not used")
+
+    monkeypatch.setattr(main_module.app.state, "calendar_provider", UnavailableCalendar())
+    monkeypatch.setattr(main_module, "list_open_loops", lambda: [{
+        "open_loop_id": "loop-id", "status": "open", "last_raised_at": None,
+        "suppressed_until": None, "due_at": None, "commitment_summary": "Call mum",
+        "next_action": "Choose a quiet time", "urgency": "normal",
+    }])
+    monkeypatch.setattr(main_module, "complete_rhythm_run",
+                        lambda **values: completed.append(values) or "brief-id")
+
+    result = main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
+
+    assert result["state"] == "generated"
+    assert completed[0]["content"]["items"][0]["title"] == "Call mum"
+
+
 def test_persistence_failure_after_claim_is_durably_failed(monkeypatch):
     payload = _claimed_run(monkeypatch)
     failures = []

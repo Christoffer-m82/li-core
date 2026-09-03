@@ -25,6 +25,11 @@ class CalendarEvent(BaseModel):
 
     @model_validator(mode="after")
     def end_must_follow_start(self) -> "CalendarEvent":
+        if (
+            self.start.tzinfo is None or self.start.utcoffset() is None
+            or self.end.tzinfo is None or self.end.utcoffset() is None
+        ):
+            raise ValueError("Calendar event times must be timezone-aware.")
         if self.end <= self.start:
             raise ValueError("Calendar event end must be after start.")
         return self

@@ -28,9 +28,11 @@ from app.proactivity import BriefItem, RhythmKey, build_brief, next_occurrence, 
 from app.calendar_runtime import (
     CalendarActionEnvelope,
     CalendarActionOutcome,
+    SearchCalendarAction,
     configured_calendar_provider,
     execute_calendar_action,
 )
+from app.proactive_watchers import upcoming_calendar_candidates
 from app.capabilities import build_capability_inventory
 from app.governed_systems import ContextItem, assemble_context, estimate_tokens, governed_platform_overview
 from app.claude import ClaudeError
@@ -765,6 +767,21 @@ def run_rhythm_endpoint(
         now = datetime.now(UTC)
         candidates = []
         stood_down = {str(item["category"]) for item in list_category_suppressions()}
+        if rhythm_key == RhythmKey.morning and "today" not in stood_down:
+            calendar_result = execute_calendar_action(
+                CalendarActionEnvelope(request=SearchCalendarAction(
+                    action="calendar.search", time_min=now,
+                    time_max=now + timedelta(days=2), max_results=50,
+                )),
+                app.state.calendar_provider,
+            )
+            if calendar_result.status == "completed":
+                display_timezone = (
+                    str(rhythm_state["timezone"]) if rhythm_state else "Europe/Berlin"
+                )
+                candidates.extend(upcoming_calendar_candidates(
+                    calendar_result.events, now=now, display_timezone=display_timezone,
+                ))
         for loop in list_open_loops():
             if loop.get("status") == "closed" or not should_surface(
                 last_raised_at=loop.get("last_raised_at"),
