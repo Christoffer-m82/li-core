@@ -54,18 +54,18 @@ where applicable, Heimdall review.
   [Native Gateway ADR](../system/NATIVE_GATEWAY_ARCHITECTURE.md).
 - **Next review:** Complete or explicitly accept [OM-002](OPEN_MILESTONES.md).
 
-## KR-006: Dependency resolution is not fully reproducible
+## KR-006: Android checksum refreshes require a trusted review
 
-- **Evidence:** Python CI and the three production container builds consume universal locks and pin
-  their Python base and uv build images by immutable digest. Android uses a checksum-pinned Gradle
-  wrapper, but its dependency graph does not have verification metadata or a lock file.
-- **Impact:** A clean Android dependency resolution can select newer transitive packages, creating
-  build drift and supply-chain review gaps.
-- **Current control:** Python CI rejects stale locks and runs against exact artifact hashes; container
-  CI builds the digest-pinned production images; major version bounds remain in package metadata; the
-  Android Gradle wrapper is checksum-pinned and validated in CI.
-- **Next review:** Add Android dependency locking and verification metadata with an explicit
-  dependency-update process.
+- **Evidence:** The Android dependency graph is version-locked and verified against tracked SHA-256
+  metadata, but signature verification is not enabled. Gradle-generated checksums originate from the
+  configured artifact repositories during an intentional refresh.
+- **Impact:** A compromised artifact first encountered during an approved refresh could be accepted
+  if its lock and checksum changes are committed without adequate provenance review.
+- **Current control:** CI resolves all Android configurations in strict verification mode before
+  compiling and testing. The [testing procedure](TESTING_AND_AUDIT.md#native-checks) requires explicit
+  regeneration and review of every dependency version and checksum change.
+- **Next review:** Evaluate PGP signature verification and independently published checksums for
+  critical dependencies before the native proof of concept becomes a distributed product.
 
 ## KR-007: Live backup, IAM, scheduler, and migration state is not repository-verifiable
 

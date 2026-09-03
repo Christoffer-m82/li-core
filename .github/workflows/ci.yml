@@ -210,8 +210,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Verify locked Android dependency graph
+        run: >-
+          ./gradlew --no-daemon --dependency-verification strict
+          :app:dependencies --quiet > "$RUNNER_TEMP/li-android-dependencies.txt"
+        working-directory: native/android
+
       - name: Compile and test Android library
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: ./gradlew --no-daemon --dependency-verification strict testDebugUnitTest
         working-directory: native/android
 
   ios-native:

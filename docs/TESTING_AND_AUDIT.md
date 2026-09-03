@@ -45,9 +45,18 @@ placeholders and synthetic data.
 - iOS package: from `native/ios/`, run `xcodebuild build -scheme LiNativePOC -destination
   "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO`, then run `xcodebuild test -scheme LiNativePOC
   -destination "platform=macOS,variant=Mac Catalyst" CODE_SIGNING_ALLOWED=NO` with Xcode 16.4.
-- Android library: run `./gradlew --no-daemon testDebugUnitTest` from `native/android/` with JDK 17
-  and an Android SDK that includes compile SDK 35. On Windows, use `gradlew.bat` instead. The tracked
-  wrapper pins Gradle 8.9 and verifies the downloaded distribution checksum.
+- Android library: from `native/android/`, first run `./gradlew --no-daemon
+  --dependency-verification strict :app:dependencies --quiet` to resolve and validate every
+  configuration, then run `./gradlew --no-daemon --dependency-verification strict
+  testDebugUnitTest`. Use JDK 17 and an Android SDK that includes compile SDK 35. On Windows, use
+  `gradlew.bat` instead. The tracked wrapper pins Gradle 8.9 and verifies the downloaded distribution
+  checksum. `app/gradle.lockfile` pins the resolved module versions, and
+  `gradle/verification-metadata.xml` verifies artifact and metadata SHA-256 checksums.
+
+After an intentional Android dependency or plugin change, run `./gradlew --no-daemon
+--write-locks --write-verification-metadata sha256 :app:dependencies`, review every lock and checksum
+change as supply-chain input, then rerun the strict dependency check and unit tests. Generated
+checksums establish continuity after review; they are not by themselves proof of publisher identity.
 
 Repository CI runs both checks on isolated macOS and Linux hosts. These checks compile the iOS and
 Android proof-of-concept libraries and run their unit tests; they do not replace signed-app,
