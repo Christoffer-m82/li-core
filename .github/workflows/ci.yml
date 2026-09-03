@@ -143,6 +143,28 @@ jobs:
           print(f"Audited {len(tracked)} tracked files; no prohibited secret files or credential patterns found.")
           PY
 
+  container-builds:
+    name: ${{ matrix.component }} container build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - backend
+          - frontend
+          - native-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build locked production image
+        run: |
+          docker build \
+            --file ${{ matrix.component }}/Dockerfile \
+            --tag li-os-${{ matrix.component }}:ci \
+            .
+          docker run --rm --entrypoint python li-os-${{ matrix.component }}:ci \
+            -c "import importlib.util, os, shutil, sys; import fastapi, uvicorn; assert sys.executable == '/app/.venv/bin/python'; assert os.geteuid() != 0; assert shutil.which('uv') is None; assert importlib.util.find_spec('pytest') is None"
+
   migration-integration:
     name: Disposable database migration checks
     runs-on: ubuntu-latest

@@ -33,8 +33,10 @@ Each component tracks a universal `uv.lock`. With uv 0.12.9, run `uv sync --lock
 inside the component before these commands, and prefix commands with `uv run --locked` to use the
 locked environment. After an intentional dependency change, regenerate that component's lock with
 `uv lock`, review the resolved-version and source changes, and rerun its checks. CI rejects a stale
-lock. Do not copy production `.env` values into a development shell; use placeholders and synthetic
-data.
+lock. The three production Dockerfiles use the same locks with development dependencies excluded;
+CI builds each image from the repository root to verify that path. The uv build binary is pinned by
+version and immutable image digest. Do not copy production `.env` values into a development shell;
+use placeholders and synthetic data.
 
 ## Native checks
 
