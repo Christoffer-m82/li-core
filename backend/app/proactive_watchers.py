@@ -25,10 +25,15 @@ def upcoming_calendar_candidates(
     except ZoneInfoNotFoundError as exc:
         raise ValueError("Calendar watcher display timezone is invalid.") from exc
 
+    upcoming = sorted(
+        (
+            event for event in events
+            if event.status != "cancelled" and event.end > now and event.start <= now + horizon
+        ),
+        key=lambda event: (event.start, event.end, event.event_id),
+    )
     candidates: list[BriefItem] = []
-    for event in events:
-        if event.status == "cancelled" or event.end <= now or event.start > now + horizon:
-            continue
+    for event in upcoming:
         starts_in = event.start - now
         if event.start <= now:
             why_now = "This calendar commitment is in progress"
@@ -64,6 +69,58 @@ def upcoming_calendar_candidates(
             confidence=1.0,
             sensitive=True,
         ))
+
+    for position, first in enumerate(upcoming):
+        for second in upcoming[position + 1:]:
+            if second.start >= first.end:
+                break
+            if first.event_id == second.event_id or second.end <= first.start:
+                continue
+            conflict_start = max(first.start, second.start)
+            conflict_end = min(first.end, second.end)
+            starts_in = min(first.start, second.start) - now
+            if min(first.start, second.start) <= now:
+                why_now = "These calendar commitments are already overlapping"
+                urgency = "high"
+            elif starts_in <= timedelta(hours=6):
+                why_now = "These calendar commitments overlap within six hours"
+                urgency = "high"
+            elif starts_in <= timedelta(days=1):
+                why_now = "These calendar commitments overlap within one day"
+                urgency = "high"
+            else:
+                why_now = "These calendar commitments overlap within two days"
+                urgency = "normal"
+            local_start = conflict_start.astimezone(display_zone)
+            local_end = conflict_end.astimezone(display_zone)
+            end_label = (
+                local_end.strftime("%H:%M")
+                if local_start.date() == local_end.date()
+                else local_end.strftime("%A %d %B, %H:%M")
+            )
+            title = f"Calendar conflict: {first.title} and {second.title}"[:200]
+            fingerprint = hashlib.sha256(
+                (
+                    f"{first.event_id}\x1f{first.start.isoformat()}\x1e"
+                    f"{second.event_id}\x1f{second.start.isoformat()}"
+                ).encode()
+            ).hexdigest()[:32]
+            candidates.append(BriefItem(
+                category="today",
+                title=title,
+                detail=(
+                    f"Overlap {local_start.strftime('%A %d %B, %H:%M')}"
+                    f" to {end_label}"
+                ),
+                why_now=why_now,
+                source=f"calendar_conflict:{fingerprint}",
+                urgency=urgency,
+                kind="risk",
+                importance=0.95,
+                relevance=0.98,
+                confidence=1.0,
+                sensitive=True,
+            ))
     return candidates
 
 
