@@ -85,10 +85,14 @@ def validate_inventory() -> None:
 
 
 def bootstrap_supabase_roles() -> None:
+    # Supabase's postgres migration role is intentionally not a true superuser.
+    # Keep the capabilities the history needs while preserving meaningful role-
+    # membership and RLS assertions in stock PostgreSQL.
     psql(
         "--command",
         "CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; "
-        "CREATE ROLE service_role NOLOGIN;",
+        "CREATE ROLE service_role NOLOGIN; "
+        "ALTER ROLE postgres NOSUPERUSER CREATEROLE CREATEDB BYPASSRLS;",
     )
 
 
