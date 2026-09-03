@@ -171,6 +171,28 @@ jobs:
           print("All external workflow actions use immutable commit SHAs.")
           PY
 
+      - name: Reject mutable workflow container images
+        run: |
+          python - <<'PY'
+          import pathlib
+          import re
+
+          mutable = []
+          for path in sorted(pathlib.Path(".github/workflows").glob("*.y*ml")):
+              for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  match = re.match(r"\s*(?:image|container):\s*([^#\s]+)", line)
+                  if match and not re.search(r"@sha256:[0-9a-f]{64}$", match.group(1)):
+                      mutable.append(f"{path}:{line_number}: {match.group(1)}")
+
+          if mutable:
+              print("Workflow container images must use immutable SHA-256 digests:")
+              for finding in mutable:
+                  print(f"- {finding}")
+              raise SystemExit(1)
+
+          print("All workflow container images use immutable SHA-256 digests.")
+          PY
+
   container-builds:
     name: ${{ matrix.component }} container build
     runs-on: ubuntu-latest
@@ -198,7 +220,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: supabase/postgres:17.6.1.136
+        image: supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
         env:
           POSTGRES_DB: postgres
           POSTGRES_PASSWORD: ci-synthetic-postgres-password

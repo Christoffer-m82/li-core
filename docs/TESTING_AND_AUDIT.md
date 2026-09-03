@@ -67,6 +67,11 @@ the adjacent release comment keeps the intended version readable. For an intenti
 resolve the official upstream release tag to its commit, review the upstream release and diff, update
 the SHA and comment together, and let the repository audit reject any mutable tag reference.
 
+Workflow service and container images retain a readable version tag and append the registry's
+immutable SHA-256 index digest. For an intentional image update, resolve the published multi-platform
+index, review its platform manifests and provenance, update the tag and digest together, and let the
+repository audit reject a tag-only image reference.
+
 Absence of a local platform toolchain is a skipped check, not a pass.
 
 ## Documentation checks
