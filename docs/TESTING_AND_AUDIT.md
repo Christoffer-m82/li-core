@@ -60,7 +60,9 @@ checksums establish continuity after review; they are not by themselves proof of
 
 Repository CI runs both checks on isolated macOS and Linux hosts. These checks compile the iOS and
 Android proof-of-concept libraries and run their unit tests; they do not replace signed-app,
-simulator/device, permission-flow, or staged Native Gateway integration testing.
+simulator/device, permission-flow, or staged Native Gateway integration testing. The macOS job
+selects `/Applications/Xcode_16.4.app/Contents/Developer` explicitly and fails before compilation if
+the hosted runner no longer provides Xcode 16.4.
 
 External GitHub Actions in repository workflows are pinned to immutable 40-character commit SHAs;
 the adjacent release comment keeps the intended version readable. For an intentional action update,
