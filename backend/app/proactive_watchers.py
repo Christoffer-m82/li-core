@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.calendar_runtime import CalendarEvent
+from app.email_runtime import EmailMessage
 from app.proactivity import BriefItem
 
 
@@ -61,6 +62,32 @@ def upcoming_calendar_candidates(
             importance=importance,
             relevance=0.95,
             confidence=1.0,
+            sensitive=True,
+        ))
+    return candidates
+
+
+def unread_important_email_candidates(messages: list[EmailMessage]) -> list[BriefItem]:
+    """Turn important unread email metadata into private, non-mutating brief candidates."""
+    candidates: list[BriefItem] = []
+    for message in messages:
+        labels = {label.upper() for label in message.labels}
+        if not {"IMPORTANT", "UNREAD"}.issubset(labels):
+            continue
+        subject = " ".join(message.subject.split())[:200] or "(no subject)"
+        sender = " ".join((message.sender or "Unknown sender").split())
+        fingerprint = hashlib.sha256(message.message_id.encode()).hexdigest()[:32]
+        candidates.append(BriefItem(
+            category="private_mail",
+            title=subject,
+            detail=f"From {sender}"[:1000],
+            why_now="Gmail marked this unread message as important",
+            source=f"email_message:{fingerprint}",
+            urgency="normal",
+            kind="commitment",
+            importance=0.8,
+            relevance=0.9,
+            confidence=0.85,
             sensitive=True,
         ))
     return candidates

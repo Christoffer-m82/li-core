@@ -86,6 +86,29 @@ def test_search_filters_and_message_mapping() -> None:
     assert requests[0].url.params.get_list("labelIds") == ["INBOX"]
 
 
+def test_metadata_only_search_requests_no_message_body() -> None:
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.url.path.endswith("/messages"):
+            return httpx.Response(
+                200, json={"messages": [{"id": "msg-1", "threadId": "thread-1"}]},
+                request=request,
+            )
+        return httpx.Response(200, json=_gmail_message(), request=request)
+
+    _provider(handler).search_messages(SearchEmailAction(
+        action="email.search", query="is:unread is:important", metadata_only=True,
+    ))
+
+    detail_request = requests[1]
+    assert detail_request.url.params["format"] == "metadata"
+    assert detail_request.url.params.get_list("metadataHeaders") == [
+        "From", "Subject", "Date",
+    ]
+
+
 def test_get_message_and_thread_preserve_metadata() -> None:
     def handler(request):
         if "/threads/" in request.url.path:

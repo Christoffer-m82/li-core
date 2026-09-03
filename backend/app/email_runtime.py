@@ -59,6 +59,7 @@ class SearchEmailAction(BaseModel):
     before: str | None = Field(default=None, pattern=r"^\d{4}/\d{2}/\d{2}$")
     label_ids: list[str] = Field(default_factory=list, max_length=50)
     max_results: int = Field(default=20, ge=1, le=100)
+    metadata_only: bool = False
 
 
 class GetEmailMessageAction(BaseModel):

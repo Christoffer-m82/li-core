@@ -236,6 +236,68 @@ def test_calendar_outage_does_not_block_other_grounded_morning_items(monkeypatch
     assert completed[0]["content"]["items"][0]["title"] == "Call mum"
 
 
+def test_morning_rhythm_adds_private_important_email_without_draft_write(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    completed = []
+
+    class ReadOnlyEmail:
+        def __init__(self):
+            self.searches = []
+            self.drafts = 0
+
+        def search_messages(self, request):
+            self.searches.append(request)
+            return [{
+                "message_id": "message-id", "thread_id": "thread-id",
+                "sender": "Alex <alex@example.com>", "subject": "Important follow-up",
+                "labels": ["INBOX", "IMPORTANT", "UNREAD"],
+                "snippet": "Private snippet", "body": "Private body",
+            }]
+
+        def create_draft(self, request):
+            self.drafts += 1
+            raise AssertionError("A proactive watcher must never create email drafts")
+
+    provider = ReadOnlyEmail()
+    monkeypatch.setattr(main_module.app.state, "email_provider", provider)
+    monkeypatch.setattr(main_module, "complete_rhythm_run",
+                        lambda **values: completed.append(values) or "brief-id")
+
+    result = main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
+
+    assert result["state"] == "generated"
+    assert len(provider.searches) == 1 and provider.drafts == 0
+    request = provider.searches[0]
+    assert request.metadata_only is True
+    assert request.query == (
+        "is:unread is:important newer_than:2d -category:promotions -category:social"
+    )
+    item = completed[0]["content"]["items"][0]
+    assert item["category"] == "private_mail"
+    assert item["title"] == "Important follow-up"
+    assert item["sensitive"] is True
+
+
+def test_private_mail_stand_down_prevents_proactive_mailbox_read(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    completed = []
+
+    class StoodDownEmail:
+        def search_messages(self, request):
+            raise AssertionError("A stood-down category must not read the mailbox")
+
+    monkeypatch.setattr(main_module.app.state, "email_provider", StoodDownEmail())
+    monkeypatch.setattr(main_module, "list_category_suppressions",
+                        lambda: [{"category": "private_mail"}])
+    monkeypatch.setattr(main_module, "complete_rhythm_run",
+                        lambda **values: completed.append(values) or None)
+
+    result = main_module.run_rhythm_endpoint(RhythmKey.morning, payload)
+
+    assert result["state"] == "empty"
+    assert completed[0]["content"] == {}
+
+
 def test_persistence_failure_after_claim_is_durably_failed(monkeypatch):
     payload = _claimed_run(monkeypatch)
     failures = []
