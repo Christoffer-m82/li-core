@@ -24,7 +24,10 @@ anonymous endpoint is a data-free health check and the sign-in shell.
 
 The web app manifest supplies explicit 192 px and 512 px PNG icons for Chromium installation on
 Android and Windows, plus full-bleed maskable variants for supported Android launchers. The service
-worker caches those install assets with the application shell. The SVG remains the browser favicon.
+worker caches only explicitly listed static assets. Pages, sign-in routes, API responses, and URLs
+with query strings remain network-only; opening Li and signing in require a connection. Older Li
+shell caches are removed on worker activation, without touching unrelated application caches.
+The SVG remains the browser favicon.
 When Chromium exposes its install prompt, Settings shows an in-app **Install Li on this device**
 control; otherwise it gives Android/Windows browser-menu guidance and detects standalone launch.
 
