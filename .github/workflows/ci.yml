@@ -65,6 +65,11 @@ jobs:
           LI_OS_OWNER_DB_USER: li_owner_runtime.ci
           LI_OS_OWNER_DB_PASSWORD: ci-synthetic-owner-password
 
+      - name: Test browser voice runtime
+        if: matrix.component == 'frontend'
+        run: node --test tests-js/*.test.mjs
+        working-directory: frontend
+
       - name: Compile
         run: uv run --locked python -m compileall -q app
         working-directory: ${{ matrix.component }}
