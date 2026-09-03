@@ -23,7 +23,9 @@ def test_manifest_has_explicit_any_and_maskable_install_icons():
     icons = {(icon["sizes"], icon["purpose"]): icon for icon in manifest["icons"]}
 
     assert manifest["display"] == "standalone"
+    assert manifest["id"] == "/"
     assert manifest["start_url"] == "/"
+    assert manifest["scope"] == "/"
     for size, pixels in (("192x192", 192), ("512x512", 512)):
         for purpose in ("any", "maskable"):
             icon = icons[(size, purpose)]
@@ -47,4 +49,17 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v5" in service_worker
+    assert "li-shell-v6" in service_worker
+
+
+def test_settings_exposes_install_control_and_fallback_guidance():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    app = (ROOT / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="install-app"' in html
+    assert 'id="install-status"' in html
+    assert 'id="install-status" class="muted" role="status" aria-live="polite"' in html
+    assert "beforeinstallprompt" in app
+    assert "appinstalled" in app
+    assert "display-mode: standalone" in app
+    assert "Install app or Add to Home screen" in app

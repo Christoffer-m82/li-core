@@ -1,8 +1,10 @@
 {
   "name": "Li OS",
   "short_name": "Li",
+  "id": "/",
   "description": "Your private AI operating system",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0b0910",
   "theme_color": "#0b0910",
