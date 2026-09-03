@@ -56,17 +56,16 @@ where applicable, Heimdall review.
 
 ## KR-006: Dependency resolution is not fully reproducible
 
-- **Evidence:** Each Python component has a universal lock used by CI, but the tracked container
-  builds still install from bounded `pyproject.toml` ranges rather than those locks. Android uses a
-  checksum-pinned Gradle wrapper, but its dependency graph does not have verification metadata or a
-  lock file.
-- **Impact:** A clean container or Android dependency resolution can select newer transitive packages,
-  creating build drift and supply-chain review gaps.
-- **Current control:** Python CI rejects stale locks and runs against exact artifact hashes; major
-  version bounds remain in package metadata; the Android Gradle wrapper is checksum-pinned and
-  validated in CI.
-- **Next review:** Make container builds consume the reviewed Python locks, then add Android dependency
-  locking and verification metadata with an explicit dependency-update process.
+- **Evidence:** Python CI and the three production container builds consume universal locks, but the
+  Python base-image tags are not pinned by immutable digest. Android uses a checksum-pinned Gradle
+  wrapper, but its dependency graph does not have verification metadata or a lock file.
+- **Impact:** A clean container can receive a changed base image, and Android can select newer
+  transitive packages, creating build drift and supply-chain review gaps.
+- **Current control:** Python CI rejects stale locks and runs against exact artifact hashes; container
+  CI builds with those same production selections and a digest-pinned uv binary; major version bounds
+  remain in package metadata; the Android Gradle wrapper is checksum-pinned and validated in CI.
+- **Next review:** Pin and deliberately refresh production Python base-image digests, then add Android
+  dependency locking and verification metadata with an explicit dependency-update process.
 
 ## KR-007: Live backup, IAM, scheduler, and migration state is not repository-verifiable
 
