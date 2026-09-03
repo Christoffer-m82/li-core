@@ -145,6 +145,8 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
+          POSTGRES_USER: ci_admin
+          POSTGRES_DB: postgres
           POSTGRES_PASSWORD: ci-synthetic-postgres-password
         ports:
           - 5432:5432
@@ -157,7 +159,7 @@ jobs:
       PGHOST: localhost
       PGPORT: 5432
       PGDATABASE: postgres
-      PGUSER: postgres
+      PGUSER: ci_admin
       PGPASSWORD: ci-synthetic-postgres-password
     steps:
       - uses: actions/checkout@v4

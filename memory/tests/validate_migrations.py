@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -92,8 +93,11 @@ def bootstrap_supabase_roles() -> None:
         "--command",
         "CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; "
         "CREATE ROLE service_role NOLOGIN; "
-        "ALTER ROLE postgres NOSUPERUSER CREATEROLE CREATEDB BYPASSRLS;",
+        "CREATE ROLE postgres LOGIN NOSUPERUSER CREATEROLE CREATEDB BYPASSRLS "
+        "PASSWORD 'ci-synthetic-postgres-password'; "
+        "ALTER DATABASE postgres OWNER TO postgres;",
     )
+    os.environ["PGUSER"] = "postgres"
 
 
 def apply_history() -> None:
