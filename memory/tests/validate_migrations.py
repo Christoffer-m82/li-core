@@ -60,6 +60,10 @@ PRIVILEGED_ROLE_MIGRATIONS = {
     "009_owner_memory_confirmation.sql",
 }
 FUNCTION_OWNER_ADMIN_BOOTSTRAP_AFTER = "009_owner_memory_confirmation.sql"
+DELEGATED_CAPABILITY_ROLES = (
+    "li_memory_function_owner",
+    "li_memory_owner_confirmation",
+)
 EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 37)}
 
 
@@ -124,13 +128,15 @@ def apply_history() -> None:
         )
         if filename == FUNCTION_OWNER_ADMIN_BOOTSTRAP_AFTER:
             # PostgreSQL 16+ separates a role membership's ADMIN and SET
-            # options. Supabase's privileged executor owns the roles created
-            # by migrations 008-009, so give the ordinary migration executor
-            # authority to issue each migration's short-lived grant without
-            # allowing it to assume the function-owner role between files.
+            # options. Supabase's privileged executor owns roles created by
+            # migrations 008-009, so give the ordinary migration executor
+            # authority to manage their grants without allowing it to assume
+            # either capability between migration files.
             psql(
                 "--command",
-                "GRANT li_memory_function_owner TO postgres "
+                "GRANT "
+                + ", ".join(DELEGATED_CAPABILITY_ROLES)
+                + " TO postgres "
                 "WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;",
                 user="supabase_admin",
             )
@@ -166,8 +172,10 @@ def validate_result() -> None:
             "AND r.rolname IN ('li_backend_runtime', 'li_theo_runtime', "
             "'li_owner_runtime', 'li_retention_runtime');"
         ),
-        "migration executor cannot assume the function-owner role": (
-            "SELECT NOT pg_has_role('postgres', 'li_memory_function_owner', 'SET');"
+        "migration executor cannot assume delegated capability roles": (
+            "SELECT bool_and(NOT pg_has_role('postgres', role_name, 'SET')) "
+            "FROM unnest(ARRAY['li_memory_function_owner', "
+            "'li_memory_owner_confirmation']) AS role_name;"
         ),
         "private deletion capability was restored": (
             "SELECT to_regprocedure('li_api.delete_private_conversation(uuid)') IS NOT NULL;"
