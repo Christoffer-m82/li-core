@@ -246,6 +246,70 @@ def test_morning_rhythm_prioritises_upcoming_calendar_conflict(monkeypatch):
     assert item["sensitive"] is True
 
 
+def test_friday_rhythm_adds_bounded_next_week_calendar_outlook(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    completed = []
+
+    class ReadOnlyCalendar:
+        def __init__(self):
+            self.searches = []
+            self.creates = 0
+
+        def search_events(self, request):
+            self.searches.append(request)
+            return [{
+                "event_id": "calendar-id", "title": "Workshop",
+                "start": payload.scheduled_for + timedelta(days=5),
+                "end": payload.scheduled_for + timedelta(days=5, hours=1),
+            }]
+
+        def create_event(self, request):
+            self.creates += 1
+            raise AssertionError("A proactive watcher must never create calendar events")
+
+    provider = ReadOnlyCalendar()
+    monkeypatch.setattr(main_module.app.state, "calendar_provider", provider)
+    monkeypatch.setattr(main_module, "complete_rhythm_run",
+                        lambda **values: completed.append(values) or "brief-id")
+    monkeypatch.setattr(main_module, "datetime", type("Clock", (), {
+        "now": staticmethod(lambda timezone: payload.scheduled_for),
+        "fromisoformat": staticmethod(datetime.fromisoformat),
+    }))
+
+    result = main_module.run_rhythm_endpoint(RhythmKey.friday, payload)
+
+    assert result["state"] == "generated"
+    assert len(provider.searches) == 1 and provider.creates == 0
+    request = provider.searches[0]
+    assert request.time_min == payload.scheduled_for
+    assert request.time_max == payload.scheduled_for + timedelta(days=7)
+    item = completed[0]["content"]["items"][0]
+    assert item["category"] == "next_week"
+    assert item["title"] == "Workshop"
+    assert item["why_now"] == "This calendar commitment starts within the next seven days"
+    assert item["sensitive"] is True
+
+
+def test_next_week_stand_down_prevents_friday_calendar_read(monkeypatch):
+    payload = _claimed_run(monkeypatch)
+    completed = []
+
+    class StoodDownCalendar:
+        def search_events(self, request):
+            raise AssertionError("A stood-down category must not read the calendar")
+
+    monkeypatch.setattr(main_module.app.state, "calendar_provider", StoodDownCalendar())
+    monkeypatch.setattr(main_module, "list_category_suppressions",
+                        lambda: [{"category": "next_week"}])
+    monkeypatch.setattr(main_module, "complete_rhythm_run",
+                        lambda **values: completed.append(values) or None)
+
+    result = main_module.run_rhythm_endpoint(RhythmKey.friday, payload)
+
+    assert result["state"] == "empty"
+    assert completed[0]["content"] == {}
+
+
 def test_calendar_outage_does_not_block_other_grounded_morning_items(monkeypatch):
     payload = _claimed_run(monkeypatch)
     completed = []

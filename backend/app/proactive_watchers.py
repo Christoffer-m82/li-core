@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timedelta
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.calendar_runtime import CalendarEvent
@@ -14,6 +15,7 @@ from app.proactivity import BriefItem
 def upcoming_calendar_candidates(
     events: list[CalendarEvent], *, now: datetime, horizon: timedelta = timedelta(days=2),
     display_timezone: str = "Europe/Berlin",
+    category: Literal["today", "next_week"] = "today",
 ) -> list[BriefItem]:
     """Turn upcoming authorized calendar reads into private, non-mutating brief candidates."""
     if now.tzinfo is None or now.utcoffset() is None:
@@ -48,16 +50,21 @@ def upcoming_calendar_candidates(
             urgency = "normal"
             importance = 0.85
         else:
-            why_now = "This calendar commitment starts within two days"
-            urgency = "normal"
-            importance = 0.7
+            if horizon > timedelta(days=2):
+                why_now = "This calendar commitment starts within the next seven days"
+                urgency = "low"
+                importance = 0.65
+            else:
+                why_now = "This calendar commitment starts within two days"
+                urgency = "normal"
+                importance = 0.7
 
         local_start = event.start.astimezone(display_zone)
         fingerprint = hashlib.sha256(
             f"{event.event_id}\x1f{event.start.isoformat()}".encode()
         ).hexdigest()[:32]
         candidates.append(BriefItem(
-            category="today",
+            category=category,
             title=event.title,
             detail=f"Starts {local_start.strftime('%A %d %B at %H:%M')}",
             why_now=why_now,
@@ -89,7 +96,11 @@ def upcoming_calendar_candidates(
                 why_now = "These calendar commitments overlap within one day"
                 urgency = "high"
             else:
-                why_now = "These calendar commitments overlap within two days"
+                why_now = (
+                    "These calendar commitments overlap within the next seven days"
+                    if horizon > timedelta(days=2)
+                    else "These calendar commitments overlap within two days"
+                )
                 urgency = "normal"
             local_start = conflict_start.astimezone(display_zone)
             local_end = conflict_end.astimezone(display_zone)
@@ -106,7 +117,7 @@ def upcoming_calendar_candidates(
                 ).encode()
             ).hexdigest()[:32]
             candidates.append(BriefItem(
-                category="today",
+                category=category,
                 title=title,
                 detail=(
                     f"Overlap {local_start.strftime('%A %d %B, %H:%M')}"
