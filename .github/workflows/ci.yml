@@ -169,3 +169,35 @@ jobs:
 
       - name: Apply and audit migration history
         run: python memory/tests/validate_migrations.py
+
+  android-native:
+    name: Android native checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compile and test Android library
+        run: gradle --no-daemon testDebugUnitTest
+        working-directory: native/android
+
+  ios-native:
+    name: iOS native checks
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record Swift toolchain
+        run: swift --version
+
+      - name: Compile and test iOS package
+        run: swift test
+        working-directory: native/ios
