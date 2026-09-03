@@ -44,6 +44,21 @@ jobs:
       - name: Test
         run: python -m pytest
         working-directory: ${{ matrix.component }}
+        env:
+          # Synthetic values make backend test collection independent of a local
+          # .env file. They are not credentials and cannot access external systems.
+          LI_OS_ENVIRONMENT: development
+          LI_OS_API_TOKEN: ci-synthetic-api-token
+          LI_OS_THEO_API_TOKEN: ci-synthetic-theo-token
+          LI_OS_OWNER_API_TOKEN: ci-synthetic-owner-token
+          LI_OS_ANTHROPIC_API_KEY: ci-synthetic-anthropic-key
+          LI_OS_DB_HOST: test.invalid
+          LI_OS_DB_USER: li_backend_runtime.ci
+          LI_OS_DB_PASSWORD: ci-synthetic-runtime-password
+          LI_OS_THEO_DB_USER: li_theo_runtime.ci
+          LI_OS_THEO_DB_PASSWORD: ci-synthetic-theo-password
+          LI_OS_OWNER_DB_USER: li_owner_runtime.ci
+          LI_OS_OWNER_DB_PASSWORD: ci-synthetic-owner-password
 
       - name: Compile
         run: python -m compileall -q app
