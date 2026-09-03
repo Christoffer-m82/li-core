@@ -55,16 +55,25 @@ MIGRATION_ORDER = tuple(
     ]
 )
 INTENTIONALLY_SKIPPED = {"021_private_conversation_deletion.sql"}
+PRIVILEGED_ROLE_MIGRATIONS = {
+    "008_theo_runtime_role.sql",
+    "009_owner_memory_confirmation.sql",
+}
 EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 37)}
 
 
 def psql(
-    *arguments: str, capture: bool = False, check: bool = True
+    *arguments: str,
+    capture: bool = False,
+    check: bool = True,
+    user: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    environment = None if user is None else {**os.environ, "PGUSER": user}
     return subprocess.run(
         ["psql", "-X", "--no-psqlrc", "--set", "ON_ERROR_STOP=1", *arguments],
         check=check,
         capture_output=capture,
+        env=environment,
         text=True,
     )
 
@@ -105,7 +114,13 @@ def bootstrap_supabase_roles() -> None:
 def apply_history() -> None:
     for filename in MIGRATION_ORDER:
         print(f"Applying {filename}", flush=True)
-        psql("--quiet", "--file", str(MIGRATIONS_ROOT / filename))
+        executor = "supabase_admin" if filename in PRIVILEGED_ROLE_MIGRATIONS else None
+        psql(
+            "--quiet",
+            "--file",
+            str(MIGRATIONS_ROOT / filename),
+            user=executor,
+        )
 
 
 def validate_result() -> None:
