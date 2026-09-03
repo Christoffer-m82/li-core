@@ -195,6 +195,17 @@ def test_responsive_breakpoints_are_present():
     assert "@media(max-width:680px)" in css
 
 
+def test_phone_navigation_keeps_all_primary_views_reachable():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    css = (root / "static" / "assets" / "app.css").read_text(encoding="utf-8")
+    bottom_navigation = html.split('<nav class="bottom-nav"', 1)[1].split("</nav>", 1)[0]
+
+    assert bottom_navigation.count('class="nav-item') == 5
+    assert 'data-view="history"' in bottom_navigation
+    assert ".bottom-nav .nav-item:nth-child(4){display:none}" not in css
+
+
 def test_productized_home_uses_only_real_backed_collections():
     root = Path(__file__).parents[1]
     html = (root / "static" / "index.html").read_text(encoding="utf-8")
