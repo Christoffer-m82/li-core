@@ -86,16 +86,18 @@ def validate_inventory() -> None:
 
 
 def bootstrap_supabase_roles() -> None:
-    # Supabase's postgres migration role is intentionally not a true superuser.
-    # Keep the capabilities the history needs while preserving meaningful role-
-    # membership and RLS assertions in stock PostgreSQL.
+    # The pinned Supabase image supplies its delegated postgres migration role.
+    # Add only client roles that are absent when the image runs without the full
+    # self-hosted stack's mounted initialization scripts.
     psql(
         "--command",
-        "CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; "
-        "CREATE ROLE service_role NOLOGIN; "
-        "CREATE ROLE postgres LOGIN NOSUPERUSER CREATEROLE CREATEDB BYPASSRLS "
-        "PASSWORD 'ci-synthetic-postgres-password'; "
-        "ALTER DATABASE postgres OWNER TO postgres;",
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN "
+        "CREATE ROLE anon NOLOGIN; END IF; "
+        "IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN "
+        "CREATE ROLE authenticated NOLOGIN; END IF; "
+        "IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN "
+        "CREATE ROLE service_role NOLOGIN; END IF; END $$;",
     )
     os.environ["PGUSER"] = "postgres"
 

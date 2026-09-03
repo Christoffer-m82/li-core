@@ -143,15 +143,14 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        image: supabase/postgres:17.6.1.136
         env:
-          POSTGRES_USER: ci_admin
           POSTGRES_DB: postgres
           POSTGRES_PASSWORD: ci-synthetic-postgres-password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U postgres -h localhost"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -159,7 +158,7 @@ jobs:
       PGHOST: localhost
       PGPORT: 5432
       PGDATABASE: postgres
-      PGUSER: ci_admin
+      PGUSER: supabase_admin
       PGPASSWORD: ci-synthetic-postgres-password
     steps:
       - uses: actions/checkout@v4
