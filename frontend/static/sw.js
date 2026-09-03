@@ -1,4 +1,4 @@
-const CACHE = 'li-shell-v5';
+const CACHE = 'li-shell-v6';
 const SHELL = [
   '/',
   '/assets/app.css',

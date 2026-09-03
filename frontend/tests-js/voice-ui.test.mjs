@@ -59,6 +59,7 @@ function loadApp() {
     return elements.get(selector);
   };
   const timers = new Map();
+  const windowEvents = new Map();
   let nextTimer = 1;
   const requests = [];
 
@@ -114,7 +115,7 @@ function loadApp() {
   };
   const window = {
     SpeechRecognition: FakeRecognition,
-    addEventListener() {},
+    addEventListener(name, handler) { windowEvents.set(name, handler); },
     clearTimeout,
     confirm: () => false,
     localStorage,
@@ -146,6 +147,10 @@ function loadApp() {
   return {
     elements,
     requests,
+    async dispatchWindow(name, event = {}) {
+      await windowEvents.get(name)?.(event);
+      await this.settle();
+    },
     async settle() {
       await new Promise((resolve) => queueMicrotask(resolve));
       await new Promise((resolve) => queueMicrotask(resolve));
@@ -195,4 +200,31 @@ test('cancel after transcription prevents the pending chat request', async () =>
   assert.equal(app.elements.get('#voice-status').classList.contains('hidden'), true);
   assert.equal(app.hasTimer(1200), false);
   assert.equal(app.requests.some((request) => request.url === '/api/chat'), false);
+});
+
+test('install prompt is offered once and reports accepted installation', async () => {
+  const app = loadApp();
+  let prevented = false;
+  let prompts = 0;
+  const installEvent = {
+    preventDefault() { prevented = true; },
+    prompt: async () => { prompts += 1; },
+    userChoice: Promise.resolve({ outcome: 'accepted' }),
+  };
+
+  await app.dispatchWindow('beforeinstallprompt', installEvent);
+  const installButton = app.elements.get('#install-app');
+  assert.equal(prevented, true);
+  assert.equal(installButton.classList.contains('hidden'), false);
+  assert.equal(app.elements.get('#install-status').textContent, 'Li is ready to install from this browser.');
+
+  await installButton.click();
+  await app.settle();
+
+  assert.equal(prompts, 1);
+  assert.equal(installButton.classList.contains('hidden'), true);
+  assert.equal(app.elements.get('#install-status').textContent, 'Li installation started.');
+
+  await app.dispatchWindow('appinstalled');
+  assert.equal(app.elements.get('#install-status').textContent, 'Li is installed on this device.');
 });
