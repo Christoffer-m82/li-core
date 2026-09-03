@@ -198,9 +198,18 @@ jobs:
       - name: Record Xcode toolchain
         run: xcodebuild -version
 
-      - name: Compile and test iOS package
+      - name: Compile iOS package
+        run: >-
+          xcodebuild build
+          -scheme LiNativePOC
+          -destination "generic/platform=iOS"
+          CODE_SIGNING_ALLOWED=NO
+        working-directory: native/ios
+
+      - name: Test package with Mac Catalyst
         run: >-
           xcodebuild test
           -scheme LiNativePOC
-          -destination "platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5"
+          -destination "platform=macOS,variant=Mac Catalyst"
+          CODE_SIGNING_ALLOWED=NO
         working-directory: native/ios
