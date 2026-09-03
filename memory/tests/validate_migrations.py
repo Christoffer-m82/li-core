@@ -187,18 +187,25 @@ def validate_result() -> None:
 
     allowed = psql(
         "--command",
-        "SET ROLE li_backend_runtime; SELECT count(*) FROM li_api.get_primary_user();",
+        "SET SESSION AUTHORIZATION li_backend_runtime; "
+        "SELECT count(*) FROM li_api.get_primary_user();",
         capture=True,
         check=False,
+        user="supabase_admin",
     )
     if allowed.returncode != 0:
-        raise RuntimeError("Backend runtime could not call its approved API capability")
+        raise RuntimeError(
+            "Backend runtime could not call its approved API capability: "
+            + allowed.stderr.strip()
+        )
 
     denied = psql(
         "--command",
-        "SET ROLE li_backend_runtime; SELECT count(*) FROM li_memory.memory_records;",
+        "SET SESSION AUTHORIZATION li_backend_runtime; "
+        "SELECT count(*) FROM li_memory.memory_records;",
         capture=True,
         check=False,
+        user="supabase_admin",
     )
     if denied.returncode == 0:
         raise RuntimeError(
