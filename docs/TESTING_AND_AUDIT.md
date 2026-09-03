@@ -22,6 +22,7 @@ cd ../frontend
 python -m ruff check app tests
 python -m pytest
 python -m compileall app
+node --test tests-js/*.test.mjs
 
 cd ../native-gateway
 python -m ruff check app tests
@@ -39,6 +40,9 @@ version and immutable image digest, as is the shared Python base image. Review a
 readable version together with its digest, keep the CI Python patch version synchronized with the
 container base, rebuild all three images, and inspect the source manifest before accepting a refresh.
 Do not copy production `.env` values into a development shell; use placeholders and synthetic data.
+The frontend Node tests execute the dependency-free browser voice adapter against controlled Web
+Speech API fakes, including final transcript, cancellation, timeout, permission/no-speech failure,
+synthesis, and language-selection paths. They never request a microphone or transmit audio.
 
 ## Native checks
 

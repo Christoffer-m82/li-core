@@ -21,6 +21,7 @@
       this.recognition = null;
       this.timer = null;
       this.settled = false;
+      this.rejectPending = null;
     }
 
     static isSupported() { return Boolean(SpeechRecognition); }
@@ -30,6 +31,7 @@
       this.cancel();
       this.settled = false;
       return new Promise((resolve, reject) => {
+        this.rejectPending = reject;
         const recognition = new SpeechRecognition();
         this.recognition = recognition;
         recognition.lang = this.language;
@@ -37,10 +39,11 @@
         recognition.continuous = false;
         recognition.maxAlternatives = 1;
         const finish = (callback, value) => {
-          if (this.settled) return;
+          if (this.settled || this.recognition !== recognition) return;
           this.settled = true;
-          clearTimeout(this.timer);
+          global.clearTimeout(this.timer);
           this.recognition = null;
+          this.rejectPending = null;
           callback(value);
         };
         recognition.onstart = () => onState?.('listening');
@@ -63,21 +66,27 @@
           if (!this.settled) finish(reject, new Error('no-speech'));
         };
         this.timer = global.setTimeout(() => {
-          recognition.abort();
           finish(reject, new Error('timeout'));
+          recognition.abort();
         }, this.timeoutMs);
         try { recognition.start(); } catch (error) { finish(reject, error); }
       });
     }
 
     cancel() {
-      clearTimeout(this.timer);
+      const rejectPending = this.rejectPending;
+      global.clearTimeout(this.timer);
       this.settled = true;
+      this.rejectPending = null;
       if (this.recognition) {
+        this.recognition.onstart = null;
+        this.recognition.onresult = null;
+        this.recognition.onerror = null;
         this.recognition.onend = null;
         this.recognition.abort();
         this.recognition = null;
       }
+      rejectPending?.(new Error('cancelled'));
     }
   }
 

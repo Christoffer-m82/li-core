@@ -62,7 +62,8 @@ def test_voice_uses_normal_history_and_cannot_call_approval_endpoint():
 
 
 def test_duplicate_recognition_callbacks_and_sends_are_fenced():
-    assert "if (this.settled) return" in VOICE
+    assert "if (this.settled || this.recognition !== recognition) return" in VOICE
+    assert "this.recognition.onerror = null" in VOICE
     assert "if (session !== state.voiceSession || state.sending) return" in APP
     assert "if (state.sending) return" in APP
 

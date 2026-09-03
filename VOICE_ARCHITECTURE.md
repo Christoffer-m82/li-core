@@ -17,6 +17,7 @@ Li Web voice is an additive input/output adapter around the existing authenticat
 The browser adapters define the reusable contract shape for later providers:
 
 - transcription: support detection, `start({onInterim, onState}) -> Promise<string>`, and `cancel()`;
+  cancellation aborts the active recognition and settles its pending start without a transcript;
 - synthesis: support detection, `speak(finalText, language, callbacks)`, `selectVoice(language)`, and `stop()`.
 
 A future server STT provider can implement the transcription contract behind an authenticated, ephemeral transport. It must not alter `/li/chat` semantics or retain raw audio by default. No server provider or credential is configured in this milestone.
