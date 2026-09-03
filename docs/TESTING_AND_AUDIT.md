@@ -55,7 +55,11 @@ For every Markdown change:
 
 Follow [Migration workflow](MIGRATION_WORKFLOW.md). Static SQL tests are necessary but not sufficient:
 they do not prove PostgreSQL syntax, transactional behavior, RLS, grants, ownership, or upgrade from
-the target environment's actual state. Record whether a disposable-database rehearsal was run.
+the target environment's actual state. The repository CI applies the explicit historical manifest
+in `memory/tests/validate_migrations.py` to a fresh disposable PostgreSQL service and checks version
+history, representative data preservation, RLS, ownership, allowed API access, denied direct table
+access, and replay rejection. This isolated rehearsal does not prove the state of any external
+database; record separately whether an authorized target-specific rehearsal was run.
 
 ## Security and privacy audit
 
