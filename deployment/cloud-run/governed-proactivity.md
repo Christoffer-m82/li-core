@@ -17,6 +17,23 @@ key from those values and atomically inserts it into `rhythm_runs`; retries and 
 replays therefore cannot create a second brief. Quiet hours and timezone live in typed durable
 rhythm state. No external notification channel is configured; delivery is Li Web only.
 
+## Current morning inputs
+
+The morning rhythm uses bounded [Level 1 reads](../../CONSTITUTION.md#11-actions-and-autonomy)
+and creates no provider-side state:
+
+- Calendar searches the next two days, retains only event titles and configured-local start times,
+  and raises overlapping commitments as higher-ranked private risks. Provider event identifiers are
+  replaced with one-way fingerprints; locations, descriptions, and links are not retained.
+- Gmail searches at most 20 messages from the previous two days that are both unread and marked
+  important, excluding promotions and social mail. It requests only From, Subject, and Date metadata;
+  bodies, snippets, recipients, thread identifiers, and provider message identifiers are not retained.
+
+Both sources fail closed without blocking other grounded brief items. Calendar and private-mail
+categories can be stood down independently; a stood-down category is not read. Every resulting item
+is marked sensitive so shoulder-visible previews remain neutral. These reads do not activate a
+rhythm or resume its paused scheduler job.
+
 The annual job defaults to January 2 until the owner approves a birthday-derived schedule.
 Do not encode a birthday in scheduler names, headers, logs, or public deployment metadata.
 

@@ -15,10 +15,11 @@ NOW = datetime(2026, 9, 3, 7, 30, tzinfo=UTC)
 
 def event(
     *, event_id: str = "provider-secret-id", title: str = "Dentist",
-    start: datetime = NOW + timedelta(hours=4), status: str | None = "confirmed",
+    start: datetime = NOW + timedelta(hours=4), end: datetime | None = None,
+    status: str | None = "confirmed",
 ) -> CalendarEvent:
     return CalendarEvent(
-        event_id=event_id, title=title, start=start, end=start + timedelta(hours=1),
+        event_id=event_id, title=title, start=start, end=end or start + timedelta(hours=1),
         timezone="Europe/Berlin", location="Private address",
         description="Private provider description", status=status,
         html_link="https://calendar.example/private-event",
@@ -75,6 +76,61 @@ def test_calendar_watcher_rejects_unbounded_or_naive_evaluation_windows():
         upcoming_calendar_candidates([], now=NOW, horizon=timedelta(days=8))
     with pytest.raises(ValueError, match="display timezone"):
         upcoming_calendar_candidates([], now=NOW, display_timezone="Not/A-Timezone")
+
+
+def test_calendar_watcher_detects_and_prioritises_private_conflicts():
+    candidates = upcoming_calendar_candidates([
+        event(event_id="first-private-id", title="Dentist", start=NOW + timedelta(hours=4)),
+        event(
+            event_id="second-private-id", title="Train",
+            start=NOW + timedelta(hours=4, minutes=30),
+        ),
+    ], now=NOW)
+
+    conflicts = [candidate for candidate in candidates if candidate.kind == "risk"]
+    assert len(conflicts) == 1
+    conflict = conflicts[0]
+    assert conflict.title == "Calendar conflict: Dentist and Train"
+    assert conflict.detail == "Overlap Thursday 03 September, 14:00 to 14:30"
+    assert conflict.urgency == "high"
+    assert conflict.sensitive is True
+    assert conflict.attention_score > candidates[0].attention_score
+    serialized = conflict.model_dump_json()
+    assert "first-private-id" not in serialized
+    assert "second-private-id" not in serialized
+    assert conflict.source.startswith("calendar_conflict:")
+
+
+def test_calendar_watcher_does_not_flag_adjacent_or_duplicate_events_as_conflicts():
+    first = event(event_id="same-id", start=NOW + timedelta(hours=4))
+    values = [
+        first,
+        event(event_id="next-id", start=first.end),
+        event(event_id="same-id", start=NOW + timedelta(hours=4)),
+    ]
+
+    assert not any(
+        candidate.kind == "risk"
+        for candidate in upcoming_calendar_candidates(values, now=NOW)
+    )
+
+
+def test_calendar_conflict_names_both_dates_when_overlap_crosses_midnight():
+    candidates = upcoming_calendar_candidates([
+        event(
+            event_id="late-one", start=NOW + timedelta(hours=12, minutes=30),
+            end=NOW + timedelta(hours=15, minutes=30),
+        ),
+        event(
+            event_id="late-two", start=NOW + timedelta(hours=14),
+            end=NOW + timedelta(hours=15),
+        ),
+    ], now=NOW)
+
+    conflict = next(candidate for candidate in candidates if candidate.kind == "risk")
+    assert conflict.detail == (
+        "Overlap Thursday 03 September, 23:30 to Friday 04 September, 00:30"
+    )
 
 
 def test_email_watcher_emits_private_metadata_only_candidate():
