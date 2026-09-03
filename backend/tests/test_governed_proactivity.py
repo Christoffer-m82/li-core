@@ -49,6 +49,53 @@ def test_current_world_items_fail_closed_without_freshness_and_provider_evidence
     assert build_brief(RhythmKey.morning, "run", [finance, sports]) is None
 
 
+def test_brief_ranks_value_suppresses_noise_deduplicates_and_caps_items():
+    candidates = [
+        BriefItem(category="today", title="Low-value noise", detail="Nothing actionable",
+                  why_now="Weak signal", source="watcher:noise", urgency="low",
+                  importance=0.2, relevance=0.2, confidence=0.2),
+        BriefItem(category="today", title="Useful opening", detail="A calm hour is available",
+                  why_now="Calendar gap", source="watcher:calendar", kind="opportunity",
+                  urgency="normal", importance=0.8, relevance=0.9, confidence=0.9),
+        BriefItem(category="today", title="Useful opening", detail="Duplicate weaker signal",
+                  why_now="Calendar gap", source="watcher:duplicate", kind="opportunity",
+                  urgency="normal", importance=0.7, relevance=0.8, confidence=0.8),
+        BriefItem(category="today", title="Lower-ranked item", detail="Can wait",
+                  why_now="Routine review", source="watcher:routine", urgency="low",
+                  importance=0.7, relevance=0.9, confidence=0.95),
+        *[
+            BriefItem(category="commitment", title=f"Commitment {number}", detail="Follow up",
+                      why_now="Due soon", source=f"open_loop:{number}", urgency="high",
+                      importance=0.9, relevance=0.9, confidence=1.0)
+            for number in range(4)
+        ],
+    ]
+
+    brief = build_brief(RhythmKey.morning, "morning:ranked", candidates)
+
+    assert brief is not None
+    assert len(brief.items) == 5
+    assert [item.title for item in brief.items[:2]] == ["Commitment 0", "Commitment 1"]
+    assert sum(item.title == "Useful opening" for item in brief.items) == 1
+    assert all(item.title != "Low-value noise" for item in brief.items)
+    assert all(item.title != "Lower-ranked item" for item in brief.items)
+
+
+def test_positive_opportunity_exposes_reason_and_constitutional_score():
+    item = BriefItem(
+        category="enjoyment", title="Take the quiet afternoon", detail="The weather is clear",
+        why_now="No commitments after 14:00", source="calendar:free-time",
+        kind="positive_experience", urgency="low", importance=0.9, relevance=0.9, confidence=0.9,
+    )
+
+    brief = build_brief(RhythmKey.friday, "friday:positive", [item])
+
+    assert brief is not None
+    assert brief.items[0].kind == "positive_experience"
+    assert brief.items[0].why_now == "No commitments after 14:00"
+    assert brief.items[0].attention_score == pytest.approx(0.25515)
+
+
 def test_snooze_stand_down_and_same_day_raise_suppress_resurfacing():
     now = datetime(2026, 8, 30, 10, tzinfo=UTC)
     assert not should_surface(last_raised_at=None, suppressed_until=now + timedelta(hours=1),

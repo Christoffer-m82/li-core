@@ -774,12 +774,15 @@ def run_rhythm_endpoint(
                 continue
             due = loop.get("due_at")
             why = "Explicit open commitment"
+            importance = 0.65
             if due and due <= now + timedelta(days=7):
                 why = "Commitment is due within seven days"
+                importance = 0.9
             candidates.append(BriefItem(
                 category="commitment", title=str(loop["commitment_summary"]),
                 detail=str(loop["next_action"]), why_now=why,
                 source=f"open_loop:{loop['open_loop_id']}", urgency=loop.get("urgency", "normal"),
+                kind="commitment", importance=importance, relevance=0.9, confidence=1.0,
             ))
         brief = build_brief(rhythm_key, run_key, candidates)
         next_run = None

@@ -361,6 +361,8 @@ def test_proactive_inbox_is_authenticated_private_and_marks_read(monkeypatch):
     javascript = (Path(__file__).parents[1] / "static" / "assets" / "app.js").read_text()
     assert "A new private Li brief" not in javascript
     assert "loadProactiveBriefs" in javascript
+    assert "Why now: ${item.why_now}" in javascript
+    assert "item.kind || 'commitment'" in javascript
     assert "/api/action-policy', { method: 'POST'" not in javascript
 
 
