@@ -171,11 +171,17 @@ class GoogleGmailProvider:
             raise EmailProviderError("Google Gmail returned an invalid payload.")
         return payload
 
-    def _get_message_id(self, message_id: str) -> object:
+    def _get_message_id(self, message_id: str, *, metadata_only: bool = False) -> object:
+        params: dict[str, object] = {"format": "full"}
+        if metadata_only:
+            params = {
+                "format": "metadata",
+                "metadataHeaders": ["From", "Subject", "Date"],
+            }
         payload = self._json(
             "GET",
             f"/users/{quote(self._user_id, safe='')}/messages/{quote(message_id, safe='')}",
-            params={"format": "full"},
+            params=params,
         )
         return _map_message(payload)
 
@@ -203,7 +209,9 @@ class GoogleGmailProvider:
         for item in items:
             if isinstance(item, Mapping) and isinstance(item.get("id"), str):
                 try:
-                    results.append(self._get_message_id(item["id"]))
+                    results.append(self._get_message_id(
+                        item["id"], metadata_only=request.metadata_only,
+                    ))
                 except EmailProviderError:
                     results.append({"malformed": True})
             else:

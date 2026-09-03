@@ -32,7 +32,10 @@ from app.calendar_runtime import (
     configured_calendar_provider,
     execute_calendar_action,
 )
-from app.proactive_watchers import upcoming_calendar_candidates
+from app.proactive_watchers import (
+    unread_important_email_candidates,
+    upcoming_calendar_candidates,
+)
 from app.capabilities import build_capability_inventory
 from app.governed_systems import ContextItem, assemble_context, estimate_tokens, governed_platform_overview
 from app.claude import ClaudeError
@@ -60,6 +63,7 @@ from app.database import (
 from app.email_runtime import (
     EmailActionEnvelope,
     EmailActionOutcome,
+    SearchEmailAction,
     configured_email_provider,
     execute_email_action,
 )
@@ -782,6 +786,21 @@ def run_rhythm_endpoint(
                 candidates.extend(upcoming_calendar_candidates(
                     calendar_result.events, now=now, display_timezone=display_timezone,
                 ))
+        if rhythm_key == RhythmKey.morning and "private_mail" not in stood_down:
+            email_result = execute_email_action(
+                EmailActionEnvelope(request=SearchEmailAction(
+                    action="email.search",
+                    query=(
+                        "is:unread is:important newer_than:2d "
+                        "-category:promotions -category:social"
+                    ),
+                    max_results=20,
+                    metadata_only=True,
+                )),
+                app.state.email_provider,
+            )
+            if email_result.status == "completed":
+                candidates.extend(unread_important_email_candidates(email_result.messages))
         for loop in list_open_loops():
             if loop.get("status") == "closed" or not should_surface(
                 last_raised_at=loop.get("last_raised_at"),
