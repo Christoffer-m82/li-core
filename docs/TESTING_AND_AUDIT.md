@@ -35,8 +35,10 @@ locked environment. After an intentional dependency change, regenerate that comp
 `uv lock`, review the resolved-version and source changes, and rerun its checks. CI rejects a stale
 lock. The three production Dockerfiles use the same locks with development dependencies excluded;
 CI builds each image from the repository root to verify that path. The uv build binary is pinned by
-version and immutable image digest. Do not copy production `.env` values into a development shell;
-use placeholders and synthetic data.
+version and immutable image digest, as is the shared Python base image. Review and update each
+readable version together with its digest, rebuild all three images, and inspect the source manifest
+before accepting a refresh. Do not copy production `.env` values into a development shell; use
+placeholders and synthetic data.
 
 ## Native checks
 
