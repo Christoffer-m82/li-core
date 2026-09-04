@@ -47,9 +47,28 @@ def test_system_agent_profiles_preserve_registry_roles_and_specialist_separation
         assert f"id: '{key}', name: '{match[1]}', role: '{match[2]}'" in script
     assert not (set(SYSTEM_PORTRAIT_HASHES) & {item["id"] for item in SPECIALISTS})
     html = client.get("/").text
-    for location in ("home-system-agents", "directory-system-agents", "backend-system-agents"):
+    assert 'id="home-system-agents"' not in html
+    assert "#home-system-agents" not in script
+    for location in ("directory-system-agents", "backend-system-agents"):
         assert f'id="{location}"' in html
     assert "not proof of current activity" in html
+
+
+def test_home_welcome_is_inside_chat_header_without_standalone_banner():
+    html = client.get("/").text
+    home = html.split('data-view-panel="home">', 1)[1].split('</section>', 1)[0]
+    heading = home.split('class="conversation-heading">', 1)[1].split('id="messages"', 1)[0]
+    assert 'home-orb-stage' not in home
+    assert 'System agents' not in home
+    for text in (
+        'LI IS READY',
+        'What can we work through?',
+        'One private conversation, with specialists brought in only when useful.',
+    ):
+        assert text in heading
+        assert home.count(text) == 1
+    for control in ('li-state-label', 'voice-output-toggle', 'stop-speaking'):
+        assert f'id="{control}"' in heading
 
 
 def png_dimensions(path: Path) -> tuple[int, int]:
@@ -57,6 +76,14 @@ def png_dimensions(path: Path) -> tuple[int, int]:
     assert data[:8] == b"\x89PNG\r\n\x1a\n"
     assert data[12:16] == b"IHDR"
     return struct.unpack(">II", data[16:24])
+
+
+def test_home_chat_can_shrink_and_preserves_touch_targets():
+    css = (ROOT / "static/assets/app.css").read_text(encoding="utf-8")
+    assert '.conversation-panel{grid-template-columns:minmax(0,1fr)}' in css
+    assert '.composer textarea{min-width:0}' in css
+    assert '.composer button{flex:0 0 44px;width:44px;height:44px}' in css
+    assert '.voice-output-controls .icon-button{width:44px;height:44px}' in css
 
 
 def test_manifest_has_explicit_any_and_maskable_install_icons():
@@ -90,7 +117,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v12" in service_worker
+    assert "li-shell-v13" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():

@@ -2,8 +2,7 @@
 body,button,input,select,textarea{font-family:var(--font-body)}
 h1,h2,h3,h4,.brand,.panel-heading{font-family:var(--font-heading)}
 .sidebar{background:var(--sidebar-surface,var(--bg))}
-.panel,.conversation-panel,.home-orb-stage,.auth-card{border-radius:var(--card-radius);background:var(--surface)}
-.home-orb-stage{background:color-mix(in srgb,var(--purple) 8%,var(--surface))}
+.panel,.conversation-panel,.auth-card{border-radius:var(--card-radius);background:var(--surface)}
 .brand-mark,.li-orb,.mini-avatar{background:radial-gradient(circle at 35% 25%,color-mix(in srgb,var(--accent) 65%,white),var(--accent));color:var(--on-accent)}
 .send-button,.primary-button,.microphone-button[aria-pressed="true"],.icon-button[aria-pressed="true"]{color:var(--on-accent)}
 @keyframes orb-idle{50%{box-shadow:0 10px 38px color-mix(in srgb,var(--accent) 40%,transparent)}}

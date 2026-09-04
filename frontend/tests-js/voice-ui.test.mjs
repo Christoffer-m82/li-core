@@ -281,7 +281,8 @@ test('cancel after transcription prevents the pending chat request', async () =>
 test('system-agent cards use selected portraits and open read-only profiles without API calls', async () => {
   const app = loadApp(); await app.settle();
   const requests = app.requests.length;
-  for (const selector of ['#home-system-agents', '#directory-system-agents', '#backend-system-agents']) {
+  assert.equal(app.elements.has('#home-system-agents'), false);
+  for (const selector of ['#directory-system-agents', '#backend-system-agents']) {
     const cards = app.elements.get(selector).children;
     assert.equal(cards.length, 3);
     for (const [i, card] of cards.entries()) {

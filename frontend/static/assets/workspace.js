@@ -81,7 +81,8 @@
         }
         const line = node('article', '', `workspace-message workspace-${row.sender}`);
         const person = row.sender === 'owner' ? owner() : row.sender === 'li' ? { name: 'Li' } : agent;
-        const pic = row.sender === 'specialist' && avatar ? avatar(agent) : node('span', row.sender === 'li' ? 'Li' : 'You', 'workspace-avatar');
+        const initials = person.initials || (person.name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || 'CM';
+        const pic = row.sender === 'specialist' && avatar ? avatar(agent) : node('span', row.sender === 'li' ? 'Li' : (person.name === 'You' ? 'CM' : initials), 'workspace-avatar');
         pic.setAttribute('aria-hidden', 'true');
         const bubble = node('div', '', 'workspace-bubble');
         bubble.append(node('strong', row.sender === 'owner' ? (person.name || 'You') : person.name), node('p', row.body));
@@ -185,6 +186,7 @@
       show() { if (pendingBottom && log.clientHeight > 0) { log.scrollTop = log.scrollHeight; pendingBottom = false; } },
       async open(item, records) {
         ++version; pendingSend = null; pendingBottom = false; agent = item; entries = records; sending = false; uploading = false; resetDraft();
+        root.setAttribute('data-chat-specialist', item.id);
         const option = (value, text) => { const el = node('option', text); el.value = value; return el; };
         recipient.replaceChildren(option('group', `Li + ${agent.name}`), option('specialist', `${agent.name} directly · Li included`)); recipient.value = 'group';
         return load(entries.find(e => validId(e.conversation_id))?.conversation_id || null);

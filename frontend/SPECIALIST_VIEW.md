@@ -22,9 +22,9 @@ returns to the bottom; Refresh preserves the reading position when reviewing old
 
 | Sender | Presentation |
 | --- | --- |
-| Owner | Green bubble aligned right, readable name and initial placeholder. A personal profile-photo setup is not implemented yet. |
+| Owner | Green bubble aligned right, readable name and initials (CM for the owner, never “You” inside the avatar). A personal profile-photo setup is not implemented yet. |
 | Li | Lavender bubble aligned left, Li placeholder reserved for a future portrait. |
-| Specialist | Blue bubble aligned left, existing selected portrait with initials fallback. |
+| Specialist | Soft portrait-background tint aligned left, existing selected portrait with initials fallback. Green/lavender portraits use distinct alternatives to avoid owner/Li colour collisions. |
 
 All messages show the recorded local date/time (or explicitly say the time was not recorded).
 Distinct labels and alignment supplement color; fixed light bubble tokens retain dark readable text
@@ -100,7 +100,7 @@ their underlying instrumentation is defined; no new tracking is silently introdu
 
 ## Portrait viewer
 
-Ada, Theo and Heimdall have separate system-agent cards on Home, Agents and Backend, leading to
+Ada, Theo and Heimdall have separate system-agent cards on Specialists and Backend, not Home, leading to
 read-only profiles with their exact registry names/roles, purpose and boundaries. They share the
 portrait viewer below, but are not added to the specialist history API or its analytics totals.
 These profiles explicitly show defined responsibilities, not verified live work; no system-agent

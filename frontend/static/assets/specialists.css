@@ -99,3 +99,17 @@ html:has(.specialist-portrait-dialog[open]){overflow:hidden}
 .workspace-limits{font-size:13px;line-height:1.5}
 .specialist-detail :is(textarea,.workspace-log):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 @media(max-width:700px){.workspace-log{padding:8px}.workspace-message{gap:6px}.workspace-bubble{max-width:calc(100% - 42px);padding:10px 12px}.workspace-controls{align-items:stretch}.workspace-controls label{width:100%}}
+/* Portrait-background tints. James (green) and Nora (lavender) use amber and sky
+   alternatives to keep the owner-green and Li-purple identities distinct. */
+#specialist-live[data-chat-specialist="sofia"]{--chat-specialist:#d7f0f4}
+#specialist-live[data-chat-specialist="marco"]{--chat-specialist:#ffe4cc}
+#specialist-live[data-chat-specialist="elena"]{--chat-specialist:#fff3bd}
+#specialist-live[data-chat-specialist="amelia"]{--chat-specialist:#f9dce4}
+#specialist-live[data-chat-specialist="freja"]{--chat-specialist:#dbeefe}
+#specialist-live[data-chat-specialist="oliver"]{--chat-specialist:#d9e3f3}
+#specialist-live[data-chat-specialist="james"]{--chat-specialist:#f6e6bd}
+#specialist-live[data-chat-specialist="victor"]{--chat-specialist:#f0d5df}
+#specialist-live[data-chat-specialist="nora"]{--chat-specialist:#d4edf9}
+#specialist-live[data-chat-specialist="milo"]{--chat-specialist:#f2e6d4}
+#specialist-live[data-chat-specialist="iris"]{--chat-specialist:#fbdcd3}
+#specialist-live[data-chat-specialist="clara"]{--chat-specialist:#e6e5df}
