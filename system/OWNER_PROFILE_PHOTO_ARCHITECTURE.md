@@ -3,7 +3,7 @@
 **Status:** Proposed technical design; hosted activation awaits cost-coverage verification and approval.
 **Date:** 2026-09-04
 **Decider:** Christoffer, after implementation/security review.
-**Release state:** Local domain and bounded file-intake foundations; no running service, upload UI or deployment.
+**Release state:** Local domain, bounded intake and decoder core; no running service, upload UI or deployment.
 
 ## Cost gate
 
@@ -14,8 +14,9 @@ provisioning, deployment and activation also require exact external-action appro
 resources and a provider free tier alone do not establish coverage without overage charges.
 
 Local implementation and synthetic tests may proceed without new paid dependencies or external calls.
-The [local foundations](../profile-service/README.md) test state transitions and bounded file intake,
-not decoded image safety. Verified existing hosting/storage coverage or an explicit owner change to
+The [local foundations](../profile-service/README.md) test state transitions, bounded file intake and
+image normalization with synthetic fixtures; worker isolation remains pending. Verified existing
+hosting/storage coverage or an explicit owner change to
 the spending rule is required before activation,
 in addition to the exact external-action approvals. Browser-only persistence would change the agreed
 cross-device/privacy behavior and is not silently substituted. Existing paid services are not cancelled
