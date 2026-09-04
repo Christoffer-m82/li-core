@@ -3,7 +3,8 @@
 **Status:** Proposed technical design; hosted activation awaits cost-coverage verification and approval.
 **Date:** 2026-09-04
 **Decider:** Christoffer, after implementation/security review.
-**Release state:** Local service foundations and disabled browser UI; no storage service or deployment.
+**Release state:** Local service/transport foundations and disabled browser integration; no configured
+profile service, provider storage or deployment.
 
 ## Cost gate
 
@@ -23,9 +24,10 @@ in addition to the exact external-action approvals. Browser-only persistence wou
 cross-device/privacy behavior and is not silently substituted. Existing paid services are not cancelled
 or reconfigured by this proposal.
 
-The browser now implements the shared avatar renderer and Settings controls against the proposed route
-shape. Its authenticated BFF routes intentionally return 503 until the isolated service exists. This is
-prepared UI, not a working upload feature or evidence of cloud state. See the
+The browser implements the shared avatar renderer and Settings controls against the proposed route shape.
+Its authenticated BFF has a disabled-by-default private-service client and bounded one-file multipart intake;
+the routes return 503 while the service settings remain unset. This is prepared integration, not a working
+upload feature or evidence of cloud state. See the
 [frontend profile-photo section](../frontend/README.md#owner-profile-photo).
 
 ## Context and verified repository facts
@@ -183,7 +185,8 @@ release. Offline mode uses CM, not a persisted private image. No real-time push 
 ## Acceptance and rollout gates
 
 1. Implement domain/storage interfaces with synthetic in-memory test doubles and the shared UI avatar.
-   Domain state and the shared disabled UI are complete; the durable storage adapter remains pending.
+   Domain state, transport adapters, BFF client boundary and shared disabled UI are complete; cryptographic
+   service identity verification, durable provider storage and server composition remain pending.
 2. Test upload/replace/remove/reload, CM fallback, crop preview, cancellation and sync refresh.
 3. Test denial for anonymous/wrong-owner/wrong-workload identities, foreign origins and stale revisions.
 4. Test oversized/chunked/malformed/animated/bomb images, metadata stripping and bounded decoding.

@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import MAX_UPLOAD_BYTES, app
+from app.profile_service import ProfileServiceResponse
 from app.security import require_user
 
 
@@ -131,6 +132,96 @@ def test_disabled_profile_mutations_still_enforce_origin_header_and_revision(met
     response = call(path, headers={**base, "If-Match": "absent"})
     assert response.status_code == 503
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_enabled_profile_metadata_and_image_validate_private_service(monkeypatch):
+    async def profile(_settings, method, path, **_kwargs):
+        if path.endswith("/image"):
+            return ProfileServiceResponse(200, b"synthetic-jpeg", "image/jpeg")
+        return ProfileServiceResponse(200, b'{"revision":"absent","state":"empty"}', "application/json")
+
+    monkeypatch.setattr("app.main.profile_service_configured", lambda _settings: True)
+    monkeypatch.setattr("app.main.request_profile_service", profile)
+    client = signed_in_client()
+    metadata = client.get("/api/profile/photo")
+    assert metadata.status_code == 200
+    assert metadata.json() == {"revision": "absent", "state": "empty"}
+    image = client.get("/api/profile/photo/image")
+    assert image.status_code == 200
+    assert image.content == b"synthetic-jpeg"
+    assert image.headers["content-type"] == "image/jpeg"
+
+
+def test_profile_replacement_extracts_one_bounded_file_and_forwards_no_filename(monkeypatch):
+    observed = {}
+
+    async def profile(_settings, method, path, **kwargs):
+        observed.update(method=method, path=path, **kwargs)
+        contents = bytearray()
+        async for chunk in kwargs["body"]:
+            contents.extend(chunk)
+        observed["contents"] = bytes(contents)
+        return ProfileServiceResponse(
+            200,
+            b'{"revision":"00000000-0000-0000-0000-000000000001","state":"available"}',
+            "application/json",
+        )
+
+    monkeypatch.setattr("app.main.profile_service_configured", lambda _settings: True)
+    monkeypatch.setattr("app.main.request_profile_service", profile)
+    response = signed_in_client().put(
+        "/api/profile/photo",
+        headers={
+            "Origin": "http://localhost:8080", "X-Li-Profile-Mutation": "1",
+            "If-Match": "absent",
+        },
+        files={"file": ("private-name.png", b"synthetic-png", "image/png")},
+    )
+    assert response.status_code == 200
+    assert observed == {
+        "method": "PUT", "path": "/v1/profile", "revision": "absent",
+        "content_type": "image/png", "content_length": 13,
+        "body": observed["body"], "contents": b"synthetic-png",
+    }
+    assert "private-name" not in repr(observed)
+
+
+def test_profile_replacement_rejects_extra_parts_and_unsupported_file(monkeypatch):
+    calls = 0
+
+    async def profile(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+
+    monkeypatch.setattr("app.main.profile_service_configured", lambda _settings: True)
+    monkeypatch.setattr("app.main.request_profile_service", profile)
+    headers = {
+        "Origin": "http://localhost:8080", "X-Li-Profile-Mutation": "1", "If-Match": "absent",
+    }
+    client = signed_in_client()
+    extra = client.put(
+        "/api/profile/photo", headers=headers, data={"note": "no"},
+        files={"file": ("photo.png", b"png", "image/png")},
+    )
+    assert extra.status_code == 400
+    unsupported = client.put(
+        "/api/profile/photo", headers=headers,
+        files={"file": ("photo.gif", b"gif", "image/gif")},
+    )
+    assert unsupported.status_code == 415
+    assert calls == 0
+
+
+def test_profile_service_authority_failure_is_not_browser_auth_failure(monkeypatch):
+    async def profile(*_args, **_kwargs):
+        return ProfileServiceResponse(403, b'{"detail":"internal"}', "application/json")
+
+    monkeypatch.setattr("app.main.profile_service_configured", lambda _settings: True)
+    monkeypatch.setattr("app.main.request_profile_service", profile)
+    response = signed_in_client().get("/api/profile/photo")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Private profile storage is unavailable."}
+    assert b"internal" not in response.content
 
 
 def test_upload_rejects_oversized_file():
