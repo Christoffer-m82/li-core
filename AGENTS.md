@@ -61,3 +61,12 @@ source before changing the operating layer.
 - `docs/`: Codex operating documentation, indexes, workflows, milestones, and risk register.
 
 See [CODEX.md](CODEX.md) for the operating-document index.
+
+## Specialist portrait work
+
+Before creating or revising any specialist thumbnail, read the owner-directed
+[portrait standard](system/specialist-portrait-standard.md) and the entire
+[assignment record](system/specialist-portrait-assignments.md). Use registry names and roles,
+plan variety against the whole roster, and preserve existing approved portraits. Update the
+assignment record when a new portrait is selected. Always use the specialist's registry name;
+Elena is Elena, with no revision labels. Only her current selected portrait belongs in the collection.
