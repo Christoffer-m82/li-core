@@ -1,21 +1,22 @@
 # ADR: private cross-device owner profile photo
 
-**Status:** Proposed technical design; hosted activation blocked by the no-spending requirement.
+**Status:** Proposed technical design; hosted activation awaits cost-coverage verification and approval.
 **Date:** 2026-09-04
 **Decider:** Christoffer, after implementation/security review.
-**Release state:** Local domain foundation only; no running service, upload UI or deployment.
+**Release state:** Local domain and bounded file-intake foundations; no running service, upload UI or deployment.
 
 ## Cost gate
 
-The owner's later [no-spending requirement](../AGENTS.md#no-spending-requirement) overrides earlier
-approval to pursue cross-device photos. This document is not spending authorization. The proposed
-cloud service/storage may incur charges, and zero cost has not been established. Do not provision,
-invoke, deploy or activate it, or trigger potentially billable hosted CI to test it. Existing cloud
-resources and a provider free tier do not establish zero cost.
+The owner's [no-spending requirement](../AGENTS.md#no-spending-requirement) permits existing paid-for
+coverage but prohibits additional charges. This document is not spending authorization. Coverage for
+the proposed cloud service/storage has not been established. Verify coverage before metered work;
+provisioning, deployment and activation also require exact external-action approval. Existing cloud
+resources and a provider free tier alone do not establish coverage without overage charges.
 
 Local implementation and synthetic tests may proceed without new paid dependencies or external calls.
-The [domain foundation](../profile-service/README.md) tests state transitions only. A verified no-cost
-hosting/storage option or an explicit owner change to the spending rule is required before activation,
+The [local foundations](../profile-service/README.md) test state transitions and bounded file intake,
+not decoded image safety. Verified existing hosting/storage coverage or an explicit owner change to
+the spending rule is required before activation,
 in addition to the exact external-action approvals. Browser-only persistence would change the agreed
 cross-device/privacy behavior and is not silently substituted. Existing paid services are not cancelled
 or reconfigured by this proposal.
