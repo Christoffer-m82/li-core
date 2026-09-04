@@ -35,10 +35,35 @@ source before changing the operating layer.
 - Commit and merge authority is governed by the project-limited authorization below; review and
   validation remain mandatory even when another owner approval is not required.
 
+## No-spending requirement
+
+The owner does not authorize anything that costs money for this project. This restriction takes
+precedence over earlier broad approvals and the autonomous workflow below.
+
+- Do not purchase, subscribe, upgrade plans, enable paid features, start trials that can become
+  chargeable, consume paid credits, or incur usage-based fees. This includes AI/provider calls,
+  image generation, hosted CI runners, cloud compute, storage, network egress and external services.
+- Existing credentials, subscriptions, configured services or past approvals are not spending
+  authorization. A free tier, trial, promotional credit or estimated low cost is not proof that
+  an operation cannot incur a charge or automatically exceed a quota.
+- Before triggering potentially billable work, including push/PR/merge workflows that start hosted
+  jobs, verify that it will not incur charges. If zero cost cannot be established, do not run it.
+  Prefer local tests, synthetic fixtures, mocks and verified free alternatives. Continue other
+  safe, no-cost work and report any cost-blocked step honestly.
+- Do not deploy or activate a design that depends on chargeable services. Flag the cost constraint
+  when evaluating designs; do not promise that a cloud-dependent feature can run for free.
+- Do not cancel existing services, delete resources, change billing settings or disrupt the live
+  system to enforce this rule without separate exact authorization. This rule does not establish
+  that existing services have stopped billing or that the owner's account has no existing costs.
+- Do not treat "keep going" or project-completion approval as an exception. Spending remains
+  prohibited unless the owner explicitly changes this no-spending requirement for a specified
+  action and budget. Never bypass a paid prerequisite or misrepresent a blocked check as passed.
+
 ## Project-limited end-to-end authorization
 
 The owner authorizes autonomous completion of this Li OS project's agreed scope, until that scope
-is fully completed or the owner revokes or changes this authorization. This is not authorization
+is fully completed or the owner revokes or changes this authorization, subject to the no-spending
+requirement above. This is not authorization
 for unrelated projects, indefinite maintenance, or newly invented product scope. Use the
 [personal-use acceptance checklist](docs/PERSONAL_V1_ACCEPTANCE.md) and the owner's agreed requests
 to track completion; green tests or merged code alone do not establish deployed, live or device readiness.
