@@ -21,6 +21,14 @@ The browser has disabled controls and authenticated placeholder routes so the us
 reviewed without pretending that storage exists.
 No production in-memory fallback is supplied. The in-memory repository exists only in tests.
 
+`profile_application.py` composes the state, bounded intake and decoder behind an exact workload
+audience/subject check. It accepts only claims produced by a future independently verified identity,
+never browser headers or an owner/profile identifier. The injected repository is already owner-bound.
+Wrong workloads and stale revisions are rejected before the upload stream or decoder is touched, and
+the state layer rechecks the revision at the atomic write. This is not token verification or an HTTP
+endpoint: cryptographic identity verification, multipart/transport limits and generic HTTP error mapping
+remain required before the application layer can be exposed.
+
 `upload_input.py` adds local file-part intake: a 5 MiB actual-byte limit, optional file-length
 consistency check, JPEG/PNG/WebP signature matching, a 15-second intake timeout and an 8192-chunk
 budget. It rejects malformed streams and hides transport diagnostics; cancellation propagates.
@@ -77,7 +85,8 @@ reviewed hashes before installation. See [Pillow security guidance](https://pill
 and [12.3.0 release notes](https://pillow.readthedocs.io/en/stable/releasenotes/12.3.0.html).
 
 Tests use synthetic byte fixtures, not photographs. Their fake JPEG markers deliberately do not claim
-decoder acceptance. Repository tests cover stale mutations, concurrent creation, tombstones, storage
+decoder acceptance. Repository and application tests cover identity denial before byte intake, stale
+mutations, concurrent creation, tombstones, storage
 failures before/after commit, immutable snapshots, bounded normalized output and metadata minimization.
 They do not prove cloud authorization, image safety, durable storage or successful deployment.
 Intake tests additionally cover size boundaries, misleading lengths, signature mismatch, interruption,
