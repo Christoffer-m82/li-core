@@ -11,6 +11,10 @@ const appSource = readFileSync(
   new URL('../static/assets/app.js', import.meta.url),
   'utf8',
 );
+const profileSource = readFileSync(
+  new URL('../static/assets/profile-photo.js', import.meta.url),
+  'utf8',
+);
 
 class FakeElement {
   constructor() {
@@ -156,6 +160,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   });
   vm.runInNewContext(voiceSource, context);
   vm.runInNewContext(readFileSync(new URL('../static/assets/themes.js', import.meta.url), 'utf8'), context);
+  vm.runInNewContext(profileSource, context);
   vm.runInNewContext(appSource, context);
 
   return {

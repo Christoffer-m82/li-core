@@ -1,4 +1,4 @@
-const CACHE = 'li-shell-v14';
+const CACHE = 'li-shell-v15';
 // Public fictional portraits are fetched only when displayed, never during shell installation.
 const PORTRAITS = ['sofia', 'marco', 'elena', 'amelia', 'freja', 'oliver', 'james', 'victor', 'nora', 'milo', 'iris', 'clara', 'ada', 'theo', 'heimdall'].map((id) => `/assets/portraits/${id}.png`);
 const SHELL = [
@@ -6,6 +6,7 @@ const SHELL = [
   '/assets/privacy.css',
   '/assets/appearance.css',
   '/assets/themes.js',
+  '/assets/profile-photo.js',
   '/assets/specialists.js',
   '/assets/workspace.js',
   '/assets/specialists.css',
@@ -22,7 +23,7 @@ self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).t
 self.addEventListener('activate', (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('li-shell-') && key !== CACHE).map((key) => caches.delete(key))))));
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  // Never retain authentication URLs, private responses, or query-string values.
+  // Never retain authentication URLs, /api/profile photos, private responses, or query-string values.
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.search || (!SHELL.includes(url.pathname) && !PORTRAITS.includes(url.pathname))) return;
   event.respondWith((async () => {
     // Portrait filenames are stable; bump CACHE when replacing a selected portrait.

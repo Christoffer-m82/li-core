@@ -129,7 +129,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v14" in service_worker
+    assert "li-shell-v15" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():
@@ -143,6 +143,19 @@ def test_settings_exposes_install_control_and_fallback_guidance():
     assert "appinstalled" in app
     assert "display-mode: standalone" in app
     assert "Install app or Add to Home screen" in app
+
+
+def test_profile_photo_controls_and_private_network_only_asset_are_wired():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    worker = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
+    response = client.get("/")
+    for control in ("profile-photo-input", "profile-photo-choose", "profile-photo-save",
+                    "profile-photo-cancel", "profile-photo-remove", "profile-photo-status"):
+        assert html.count(f'id="{control}"') == 1
+    assert "/assets/profile-photo.js" in html and "/assets/profile-photo.js" in worker
+    assert html.index('src="/assets/profile-photo.js"') < html.index('src="/assets/app.js"')
+    assert "/api/profile/" not in worker
+    assert "blob:" in response.headers["content-security-policy"]
 
 
 def test_appearance_assets_and_creator_are_available_without_external_fonts():
