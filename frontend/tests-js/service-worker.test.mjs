@@ -4,14 +4,14 @@ import vm from 'node:vm';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../static/sw.js', import.meta.url), 'utf8');
-function worker({ offline = false, ok = true, redirected = false, type = 'basic', writeFails = false } = {}) {
+function worker({ offline = false, ok = true, redirected = false, type = 'basic', writeFails = false, cacheHit = true, cacheOpenFails = false } = {}) {
   const handlers = new Map();
   const writes = [];
   const deleted = [];
   const cached = { cached: true };
   const response = { ok, redirected, type, clone() { return this; } };
   const cache = {
-    async match() { return cached; },
+    async match() { return cacheHit ? cached : undefined; },
     async put(request) { if (writeFails) throw new Error('quota'); writes.push(request.url); },
     async addAll(paths) { writes.push(...paths); },
   };
@@ -19,8 +19,8 @@ function worker({ offline = false, ok = true, redirected = false, type = 'basic'
     URL,
     self: { location: { origin: 'https://li.test' }, addEventListener: (name, handler) => handlers.set(name, handler) },
     caches: {
-      async open(name) { assert.equal(name, 'li-shell-v7'); return cache; },
-      async keys() { return ['li-shell-v6', 'li-shell-v7', 'other-app']; },
+      async open(name) { assert.equal(name, 'li-shell-v11'); if (cacheOpenFails) throw new Error('cache unavailable'); return cache; },
+      async keys() { return ['li-shell-v10', 'li-shell-v11', 'other-app']; },
       async delete(name) { deleted.push(name); },
     },
     async fetch() { if (offline) throw new Error('offline'); return response; },
@@ -51,6 +51,30 @@ test('private, authentication, query, cross-origin and mutation requests bypass 
   assert.deepEqual(app.writes, []);
 });
 
+test('portraits are cached on demand but never precached or broadened to private paths', async () => {
+  const app = worker({ cacheHit: false });
+  await app.dispatch('install');
+  assert.ok(!app.writes.some(path => path.includes('/portraits/')));
+  for (const name of ['sofia','marco','elena','amelia','freja','oliver','james','victor','nora','milo','iris','clara','ada','theo','heimdall']) {
+    const path = `/assets/portraits/${name}.png`;
+    assert.equal(await app.dispatch('fetch', path), app.response);
+    assert.ok(app.writes.includes(`https://li.test${path}`));
+  }
+  const hit = worker();
+  assert.equal(await hit.dispatch('fetch', '/assets/portraits/elena.png'), hit.cached);
+  assert.equal(hit.writes.length, 0);
+  const unavailableCache = worker({ cacheOpenFails: true });
+  assert.equal(await unavailableCache.dispatch('fetch', '/assets/portraits/elena.png'), unavailableCache.response);
+  for (const options of [{ ok: false }, { redirected: true }, { type: 'opaque' }]) {
+    const denied = worker({ ...options, cacheHit: false });
+    await denied.dispatch('fetch', '/assets/portraits/elena.png');
+    assert.equal(denied.writes.length, 0);
+  }
+  for (const path of ['/assets/portraits/unknown.png', '/assets/portraits/elena.png?private=1', 'https://other.test/assets/portraits/elena.png']) {
+    assert.equal(await hit.dispatch('fetch', path), undefined);
+  }
+});
+
 test('only successful nonredirected same-origin static responses are stored', async () => {
   const app = worker();
   assert.equal(await app.dispatch('fetch'), app.response);
@@ -76,5 +100,5 @@ test('installation caches static assets only and activation preserves unrelated 
   assert.ok(!app.writes.includes('/'));
   assert.ok(app.writes.every(path => path.startsWith('/assets/') || path === '/manifest.webmanifest'));
   await app.dispatch('activate');
-  assert.deepEqual(app.deleted, ['li-shell-v6']);
+  assert.deepEqual(app.deleted, ['li-shell-v10']);
 });

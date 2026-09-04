@@ -2,6 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import MAX_UPLOAD_BYTES, app
@@ -39,6 +40,31 @@ def test_specialist_history_does_not_fabricate_transcripts(monkeypatch):
     assert response.status_code == 200
     assert response.json()["interactions"] == []
     assert response.json()["live_events_available"] is True
+
+
+@pytest.mark.parametrize("path", ["/api/specialists", "/api/specialists/nora/interactions"])
+@pytest.mark.parametrize("failure", ["status", "transport", "malformed"])
+def test_specialist_unavailability_is_not_empty_activity(monkeypatch, path, failure):
+    async def backend(*args, **kwargs):
+        if failure == "transport":
+            raise httpx.ConnectError("internal detail must not leak")
+        return httpx.Response(503 if failure == "status" else 200, json={"interactions": None})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().get(path)
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Specialist activity is temporarily unavailable."}
+
+
+def test_specialist_deep_view_assets_and_controls():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    worker = (root / "static" / "sw.js").read_text(encoding="utf-8")
+    for asset in ("/assets/specialists.js", "/assets/specialists.css"):
+        assert asset in html and asset in worker
+    for control in ("specialist-refresh", "specialist-search", "specialist-filter", "specialist-record"):
+        assert f'id="{control}"' in html
+    assert html.index('src="/assets/specialists.js"') < html.index('src="/assets/app.js"')
 
 
 def test_conversation_delete_uses_owner_authority(monkeypatch):
@@ -185,7 +211,10 @@ def test_active_only_specialist_pulse_returns_to_idle_from_real_events():
     )
     assert ".specialist-card.active" in css and "animation:active-card" in css
     assert "clearInterval(specialistPoll); await loadSpecialists()" in javascript
-    assert "const recommendation = entry.outcome?.recommendation" in javascript
+    specialist_js = (Path(__file__).parents[1] / "static" / "assets" / "specialists.js").read_text(
+        encoding="utf-8"
+    )
+    assert "text(outcome.recommendation, missing)" in specialist_js
     assert "Interaction completed." not in javascript
 
 
@@ -225,10 +254,11 @@ def test_specialist_detail_is_truthful_and_has_live_history_tabs():
     assert 'data-specialist-tab="live"' in html
     assert 'data-specialist-tab="history"' in html
     assert 'id="handoff-to-li"' in html
-    assert "No live specialist interaction" in javascript
+    specialist_js = (root / "static" / "assets" / "specialists.js").read_text(encoding="utf-8")
+    assert "No live specialist interaction" in specialist_js
     assert "freshness_evidence" in javascript
     assert "Not measured" in javascript
-    assert "confidence" not in javascript[javascript.index("function evidencePanel"):javascript.index("function renderLiveInteraction")]
+    assert "confidence" not in javascript[javascript.index("function evidencePanel"):javascript.index("let specialistView")]
 
 
 def test_voice_state_drives_all_visible_li_orbs_and_respects_reduced_motion():
