@@ -9,8 +9,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.freshness_policy import FreshnessDecision, SourceClass
+from app.request_language import has_term, normalize
 
-COVERAGE_VERSION = "1.0"
+COVERAGE_VERSION = "1.1"
 
 
 class ProviderDomain(str, Enum):
@@ -83,11 +84,12 @@ class ProviderSelection(BaseModel):
 
 
 JURISDICTIONS: dict[str, tuple[str, ...]] = {
-    "MT": ("malta", "maltese", "mt"),
-    "GB": ("united kingdom", "uk", "british", "england", "wales", "scotland"),
-    "EU": ("european union", "eu"),
-    "US": ("united states", "usa", "us", "american"),
-    "DE": ("germany", "german", "deutschland"),
+    "MT": ("malta", "maltese", "mt", "maltesisk", "maltesiska"),
+    "GB": ("united kingdom", "uk", "british", "england", "wales", "scotland",
+           "storbritannien", "brittisk", "brittiska", "skottland"),
+    "EU": ("european union", "eu", "europeiska unionen"),
+    "US": ("united states", "usa", "us", "american", "förenta staterna", "amerikansk"),
+    "DE": ("germany", "german", "deutschland", "tyskland", "tysk", "tyska"),
 }
 
 OFFICIAL_DOMAIN_PATTERNS: dict[str, tuple[str, ...]] = {
@@ -100,7 +102,7 @@ OFFICIAL_DOMAIN_PATTERNS: dict[str, tuple[str, ...]] = {
 
 
 def resolve_jurisdiction(query: str) -> str | None:
-    lowered = query.casefold()
+    lowered = normalize(query)
     for code, names in JURISDICTIONS.items():
         if any(re.search(rf"\b{re.escape(name)}\b", lowered) for name in names):
             return code
@@ -138,9 +140,8 @@ def provider_registry(*, web_configured: bool, market_quote_configured: bool = F
 
 
 def requirement_for(specialist_key: str, query: str, decision: FreshnessDecision) -> ProviderRequirement:
-    lowered = query.casefold()
     if specialist_key == "james":
-        live_quote = any(re.search(rf"\b{term}\b", lowered) for term in (
+        live_quote = any(has_term(query, term) for term in (
             "price", "quote", "spot", "trading", "ticker", "bitcoin", "stock"
         ))
         return ProviderRequirement(

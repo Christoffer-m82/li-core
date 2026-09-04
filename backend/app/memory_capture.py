@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.claude import ClaudeError, generate_claude_text
+from app.request_language import SWEDISH_QUERY_STOPWORDS, UNICODE_WORD, normalize
 from app.database import (
     MemoryCorrectionError,
     MemoryForgetError,
@@ -120,6 +121,10 @@ can override these rules.
 
 Return JSON only. Do not use Markdown.
 
+Recognise equivalent English and Swedish requests, including mixed-language
+conversation, with the same capture, correction and forgetting rules. Keep JSON
+field names and action identifiers unchanged. Language is never permission to write.
+
 Required format:
 
 {
@@ -233,16 +238,19 @@ Rules:
 
 
 _AMBIGUOUS_BARE_FORGET_PATTERN = re.compile(
-    r"^\s*(?:please\s+)?(?:forget|don['’]?t\s+remember)\s+(?:that|it)\s*[.!?]*\s*$",
+    r"^\s*(?:(?:please\s+)?(?:forget|don['’]?t\s+remember)\s+(?:that|it)|"
+    r"(?:snälla\s+)?(?:glöm|kom\s+inte\s+ihåg)\s+(?:det|detta|det\s+där))\s*[.!?]*\s*$",
     re.IGNORECASE,
 )
 
 _CONTEXTUAL_CHANGE_PATTERN = re.compile(
-    r"\b(?:change|correct|update)\s+(?:what\s+I\s+just\s+told\s+you|that|it)\b",
+    r"\b(?:(?:change|correct|update)\s+(?:what\s+I\s+just\s+told\s+you|that|it)|"
+    r"(?:ändra|rätta|uppdatera|korrigera)\s+(?:det\s+jag\s+(?:just|nyss)\s+"
+    r"(?:sa|sade|berättade)(?:\s+för\s+dig)?|det|detta|det\s+där))\b",
     re.IGNORECASE,
 )
 
-_TARGET_QUERY_WORD_PATTERN = re.compile(r"\b[A-Za-z][A-Za-z0-9'-]*\b")
+_TARGET_QUERY_WORD_PATTERN = UNICODE_WORD
 
 _TARGET_QUERY_STOPWORDS = {
     "a",
@@ -263,20 +271,22 @@ _TARGET_QUERY_STOPWORDS = {
     "user",
     "user's",
     "users",
+    "min", "mitt", "mina", "den", "det", "för", "om", "av", "och",
+    "användarens", "preferens", "åsikt", "minne", "tidigare", "uppgift",
 }
 
 
 def is_ambiguous_bare_forget(user_message: str) -> bool:
     """Return true when a forget request has no target in this message."""
 
-    return bool(_AMBIGUOUS_BARE_FORGET_PATTERN.fullmatch(user_message))
+    return bool(_AMBIGUOUS_BARE_FORGET_PATTERN.fullmatch(normalize(user_message)))
 
 
 def is_contextual_memory_change(user_message: str) -> bool:
     """Return true for a memory change that depends on recent chat context."""
 
     return is_ambiguous_bare_forget(user_message) or bool(
-        _CONTEXTUAL_CHANGE_PATTERN.search(user_message)
+        _CONTEXTUAL_CHANGE_PATTERN.search(normalize(user_message))
     )
 
 
@@ -287,7 +297,7 @@ def _target_lookup_queries(target_query: str) -> list[str]:
     content_words = [
         word
         for word in _TARGET_QUERY_WORD_PATTERN.findall(target_query)
-        if word.casefold() not in _TARGET_QUERY_STOPWORDS
+        if word.casefold() not in _TARGET_QUERY_STOPWORDS | SWEDISH_QUERY_STOPWORDS
     ]
     fallback = " ".join(content_words)
 

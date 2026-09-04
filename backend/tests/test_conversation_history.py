@@ -1,4 +1,5 @@
 from uuid import UUID
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -107,7 +108,8 @@ def test_chat_reuses_conversation_without_creating_another(monkeypatch) -> None:
     assert response.json()["conversation_id"] == conversation_id
 
 
-def test_unresolved_contextual_forget_is_blocked_even_with_history(monkeypatch) -> None:
+@pytest.mark.parametrize("message", ["forget that", "glöm det"])
+def test_unresolved_contextual_forget_is_blocked_even_with_history(monkeypatch, message) -> None:
     conversation_id = "d729b771-a656-470e-bf83-2f542f910154"
     monkeypatch.setattr(
         "app.main.get_recent_conversation_messages",
@@ -128,7 +130,7 @@ def test_unresolved_contextual_forget_is_blocked_even_with_history(monkeypatch) 
     try:
         with TestClient(app) as client:
             response = client.post(
-                "/li/chat", json={"message": "forget that", "conversation_id": conversation_id}
+                "/li/chat", json={"message": message, "conversation_id": conversation_id}
             )
     finally:
         app.dependency_overrides.clear()

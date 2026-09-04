@@ -1,6 +1,12 @@
 # li-core
 Core architecture, identity, orchestration rules and configuration for Li OS — my personal AI operating system.
 
+## Bilingual request handling
+
+English and Swedish requests share reviewed routing and policy-trigger concepts. See
+[English and Swedish request handling](docs/BILINGUAL_REQUEST_HANDLING.md) for supported
+paths, paired regression tests and remaining language/retrieval limits.
+
 ## Mobile web interface
 
 Phase 1 of the responsive, installable Li web interface lives in `frontend/`. It uses a

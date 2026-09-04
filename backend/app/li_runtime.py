@@ -7,6 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.action_intents import ActionIntentProposal
+from app.request_language import SWEDISH_QUERY_STOPWORDS, UNICODE_WORD
 from app.claude import generate_claude_text
 from app.database import MemoryReadError, recall_memory
 from app.research_runtime import (
@@ -98,9 +99,7 @@ IDENTIFIER_PATTERN = re.compile(
 )
 
 
-WORD_PATTERN = re.compile(
-    r"\b[A-Za-z][A-Za-z0-9'-]*\b"
-)
+WORD_PATTERN = UNICODE_WORD
 
 
 class LiRuntimeError(RuntimeError):
@@ -187,6 +186,11 @@ for explicit approval. Never say or imply that an action ran merely because
 you proposed it. If a required action cannot be represented by the allowed
 action_intent schema, explain that limitation and do not claim success.
 
+Recognise equivalent English and Swedish requests by meaning, including mixed
+language, using the same action types and approval requirements. Keep machine
+identifiers and JSON field names unchanged. Neither "yes" nor "ja" in chat is a
+substitute for the runtime's required action-confirmation flow.
+
 Do not invent personal memories about the user.
 
 When information is uncertain, distinguish fact from inference.
@@ -250,7 +254,7 @@ def _memory_search_queries(
         if len(normalized) < 4:
             continue
 
-        if normalized in MEMORY_SEARCH_STOPWORDS:
+        if normalized in MEMORY_SEARCH_STOPWORDS or normalized in SWEDISH_QUERY_STOPWORDS:
             continue
 
         add_query(word)

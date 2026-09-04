@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from app.request_language import has_term
 
 
-POLICY_VERSION = "1.0"
+POLICY_VERSION = "1.1"
 
 
 class FreshnessMode(str, Enum):
@@ -158,16 +158,14 @@ if len(POLICIES) != 12 or any(key != policy.specialist_key for key, policy in PO
 
 def decide_freshness(specialist_key: str, message: str) -> FreshnessDecision:
     policy = POLICIES[specialist_key]
-    lowered = message.casefold()
     def matches(term: str) -> bool:
         # A few registry entries are intentional stems (for example ``pregnan``).
         # Everything else must match whole words so ``rate`` does not match
         # ``separate`` and ``market`` does not match ``marketing``.
-        suffix = "" if term in {"pregnan"} else r"\b"
-        return bool(re.search(rf"\b{re.escape(term)}{suffix}", lowered))
+        return has_term(message, term)
 
     high = next((term for term in policy.high_stakes_triggers if matches(term)), None)
-    explicit = next((term for term in COMMON_CURRENT if re.search(rf"\b{re.escape(term)}\b", lowered)), None)
+    explicit = next((term for term in COMMON_CURRENT if matches(term)), None)
     trigger = next((term for term in policy.live_verification_triggers if matches(term)), None)
     required = bool(high or explicit or trigger)
     reason = (f"High-stakes {policy.domain} request requires current verification." if high else
