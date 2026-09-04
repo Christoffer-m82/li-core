@@ -55,7 +55,7 @@ class FakeElement {
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
 }
 
-function loadApp({ geolocation } = {}) {
+function loadApp({ geolocation, storageBlocked = false, storageWriteFails = false } = {}) {
   const elements = new Map();
   const getElement = (selector) => {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
@@ -88,7 +88,10 @@ function loadApp({ geolocation } = {}) {
   const localStorage = {
     values: new Map(),
     getItem(key) { return this.values.get(key) ?? null; },
-    setItem(key, value) { this.values.set(key, String(value)); },
+    setItem(key, value) {
+      if (storageWriteFails) throw new Error('Storage quota exceeded');
+      this.values.set(key, String(value));
+    },
   };
   const setTimeout = (callback, delay) => {
     const id = nextTimer++;
@@ -144,6 +147,9 @@ function loadApp({ geolocation } = {}) {
     clearTimeout,
     window,
   };
+  if (storageBlocked) Object.defineProperty(context, 'localStorage', {
+    get() { throw new Error('Storage access denied'); },
+  });
   vm.runInNewContext(voiceSource, context);
   vm.runInNewContext(readFileSync(new URL('../static/assets/themes.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(appSource, context);
@@ -174,6 +180,39 @@ function loadApp({ geolocation } = {}) {
     hasTimer(delay) { return [...timers.values()].some((timer) => timer.delay === delay); },
   };
 }
+
+test('blocked storage does not prevent startup, theme selection, or voice controls', async () => {
+  const app = loadApp({ storageBlocked: true });
+  await app.settle();
+  assert.ok(app.requests.some(request => request.url === '/api/session'));
+  const forest = app.elements.get('#theme-library').children.find(button => button.dataset.themeChoice === 'forest');
+  await forest.click();
+  assert.equal(app.document.documentElement.dataset.theme, 'forest');
+  await app.elements.get('#voice-output-toggle').click();
+  assert.equal(app.elements.get('#voice-output-toggle').getAttribute('aria-pressed'), 'true');
+  await app.elements.get('#voice-output-toggle').click();
+  assert.equal(app.elements.get('#voice-output-toggle').getAttribute('aria-pressed'), 'false');
+});
+
+test('failed preference writes do not prevent disabling spoken responses', async () => {
+  const app = loadApp({ storageWriteFails: true });
+  await app.elements.get('#voice-output-toggle').click();
+  assert.equal(app.elements.get('#voice-output-toggle').getAttribute('aria-pressed'), 'true');
+  await app.elements.get('#voice-output-toggle').click();
+  assert.equal(app.elements.get('#voice-output-toggle').getAttribute('aria-pressed'), 'false');
+});
+
+test('blocked storage does not falsely report a custom theme as saved', () => {
+  const app = loadApp({ storageBlocked: true });
+  const values = { name: 'My theme', mode: 'light', bg: '#ffffff', surface: '#ffffff',
+    tile: '#ffffff', text: '#111111', muted: '#333333', accent: '#222222',
+    onAccent: '#ffffff', font: 'modern', radius: '20' };
+  for (const [key, value] of Object.entries(values)) app.document.querySelector(`#theme-${key}`).value = value;
+  const originalCount = app.elements.get('#theme-library').children.length;
+  app.elements.get('#theme-editor').events.get('submit')({ preventDefault() {} });
+  assert.match(app.elements.get('#theme-editor-status').textContent, /cannot save/);
+  assert.equal(app.elements.get('#theme-library').children.length, originalCount);
+});
 
 test('each specialist uses a local decorative portrait with initials fallback', () => {
   const app = loadApp();

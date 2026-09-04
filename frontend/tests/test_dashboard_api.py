@@ -14,6 +14,23 @@ def signed_in_client() -> TestClient:
     return TestClient(app)
 
 
+def test_workspace_recipient_forwarding_and_validation(monkeypatch):
+    calls = []
+
+    async def backend(*args, **kwargs):
+        calls.append((args, kwargs))
+        return httpx.Response(200, json={"response": "Reply"})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    client = signed_in_client()
+    for recipient in ("group", "specialist"):
+        assert client.post("/api/chat", json={"message": "Hi", "workspace_specialist": "nora", "workspace_recipient": recipient}).status_code == 200
+        assert calls[-1][1]["json_body"]["workspace_specialist"] == "nora"
+        assert calls[-1][1]["json_body"]["workspace_recipient"] == recipient
+    assert client.post("/api/chat", json={"message": "Hi", "workspace_specialist": "heimdall"}).status_code == 422
+    assert client.post("/api/chat", json={"message": "Hi", "workspace_recipient": "private"}).status_code == 422
+
+
 def teardown_function() -> None:
     app.dependency_overrides.clear()
 
@@ -60,11 +77,12 @@ def test_specialist_deep_view_assets_and_controls():
     root = Path(__file__).parents[1]
     html = (root / "static" / "index.html").read_text(encoding="utf-8")
     worker = (root / "static" / "sw.js").read_text(encoding="utf-8")
-    for asset in ("/assets/specialists.js", "/assets/specialists.css"):
+    for asset in ("/assets/specialists.js", "/assets/specialists.css", "/assets/workspace.js"):
         assert asset in html and asset in worker
     for control in ("specialist-refresh", "specialist-search", "specialist-filter", "specialist-record"):
         assert f'id="{control}"' in html
     assert html.index('src="/assets/specialists.js"') < html.index('src="/assets/app.js"')
+    assert 'aria-pressed="true" data-specialist-tab="live">Workspace' in html
 
 
 def test_conversation_delete_uses_owner_authority(monkeypatch):
@@ -178,7 +196,7 @@ def test_client_includes_activity_sorting_theme_fallback_and_real_artifact_guard
     assert "temporaryUploadContext" in javascript
     assert "loadArtifacts" in javascript
     assert "coords.latitude" in javascript
-    assert "localStorage.setItem('li-theme', choice)" in javascript
+    assert "savePreference('li-theme', choice)" in javascript
     assert "setInterval(loadSpecialists, 1200)" in javascript
     assert "item.active ? ' active' : ''" in javascript
     assert "renderActionIntent" in javascript

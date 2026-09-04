@@ -19,6 +19,7 @@ from app.freshness_policy import POLICIES, decide_freshness
 from app.provider_coverage import provider_registry, requirement_for, select_providers
 from app.specialist_runtime import (
     SPECIALIST_PROFILES,
+    RoutingDecision,
     ResearchRequest,
     SpecialistConsultation,
     SpecialistMemoryContext,
@@ -369,6 +370,8 @@ def talk_to_li_with_outcome(
     conversation_context: str | None = None,
     research_provider: ResearchProvider | None = None,
     location_context: str | None = None,
+    workspace_specialist: str | None = None,
+    workspace_recipient: str = "group",
 ) -> LiTurnOutcome:
     """
     Send a message to Li with relevant canonical memory context.
@@ -420,6 +423,23 @@ def talk_to_li_with_outcome(
         ])
 
     routing = route_specialists(user_message)
+    if workspace_specialist is not None:
+        if workspace_specialist not in SPECIALIST_PROFILES or workspace_recipient not in {"group", "specialist"}:
+            raise LiRuntimeError("Invalid specialist workspace recipient.")
+        routing = RoutingDecision(
+            specialists=[workspace_specialist], selection_mode="explicit", group_mode="solo",
+            route_category="explicit_specialist",
+            route_reason="Owner selected this specialist in the shared workspace; Li remains included.",
+        )
+        system_sections.extend([
+            "===== SHARED SPECIALIST WORKSPACE =====",
+            f"The owner selected {SPECIALIST_PROFILES[workspace_specialist].name}. "
+            + ("The owner addresses the specialist directly; keep your synthesis brief. "
+               if workspace_recipient == "specialist" else "The owner addresses you and the specialist together. ")
+            + "This is a shared conversation visible to Li, not a private thread. "
+            "The specialist's recorded recommendation is displayed separately. "
+            "All existing safety, evidence, minimum-context and action-confirmation rules still apply.",
+        ])
     interaction_ids: dict[str, str] = {}
     freshness_metadata: dict[str, dict[str, object]] = {}
     request_id: str = str(uuid4())

@@ -1393,6 +1393,9 @@ def li_chat_endpoint(
             runtime_kwargs["location_context"] = location_context
         if payload.temporary_upload_context:
             runtime_kwargs["temporary_upload_context"] = payload.temporary_upload_context
+        if payload.workspace_specialist:
+            runtime_kwargs["workspace_specialist"] = payload.workspace_specialist
+            runtime_kwargs["workspace_recipient"] = payload.workspace_recipient
         if is_research_provider_available(provider):
             runtime_kwargs["research_provider"] = provider
         with specialist_recording_context(conversation_id):
