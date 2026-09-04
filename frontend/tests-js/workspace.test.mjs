@@ -130,3 +130,23 @@ test('late post-send activity never publishes after switching specialists', asyn
   finish(reply({interactions:[{conversation_id:id,status:'completed'}]})); await pending;
   assert.equal(updates.length,0); assert.match(content(app.log()),/Sofia/);
 });
+test('owner avatar uses CM and specialist colour scope follows the selected agent', async () => {
+  const app = setup(async () => reply({messages:[{role:'user',content:'Hello'}]}), {owner:()=>({name:'Christoffer Melldén'})});
+  await app.view.open({id:'marco',name:'Marco'},[{conversation_id:id}]);
+  assert.equal(app.root.attributes['data-chat-specialist'],'marco');
+  assert.equal(app.log().children[0].children[0].textContent,'CM');
+  await app.view.open(agent,[]);
+  assert.equal(app.root.attributes['data-chat-specialist'],'nora');
+});
+
+test('all specialist tints retain readable dark ink and avoid the owner and Li fills', () => {
+  const css = readFileSync(new URL('../static/assets/specialists.css', import.meta.url), 'utf8');
+  const themeContext = {};
+  vm.runInNewContext(readFileSync(new URL('../static/assets/themes.js', import.meta.url), 'utf8'), themeContext);
+  const rows = [...css.matchAll(/data-chat-specialist="([a-z]+)"\]\{--chat-specialist:(#[0-9a-f]{6})\}/g)];
+  assert.equal(rows.length,12);
+  for(const [,id,color] of rows) {
+    assert.ok(themeContext.LiThemes.contrast('#172033',color)>=7, id);
+    assert.ok(!['#dcfce7','#ede9fe'].includes(color), id);
+  }
+});

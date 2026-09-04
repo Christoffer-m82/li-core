@@ -126,7 +126,7 @@ function openSystemAgent(item) {
   $('#system-agent-back').focus();
 }
 function renderSystemAgents() {
-  for (const selector of ['#home-system-agents', '#directory-system-agents', '#backend-system-agents']) {
+  for (const selector of ['#directory-system-agents', '#backend-system-agents']) {
     const host = $(selector); host.replaceChildren();
     for (const item of SYSTEM_AGENTS) {
       const card = document.createElement('button'); card.type = 'button';

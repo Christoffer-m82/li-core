@@ -38,7 +38,7 @@ template analysis. Themes change presentation only and are saved per browser/dev
 See [Specialist workspace](SPECIALIST_VIEW.md) for recorded exchanges, activity filters,
 evidence details, data limits, and the agent-view reference analysis.
 All 12 specialists have local portrait assets on Home, analytics cards, and their detail page.
-Ada, Theo and Heimdall appear separately as system agents on Home, Agents and Backend. Their
+Ada, Theo and Heimdall appear separately as system agents on Specialists and Backend, not Home. Their
 read-only profiles use their registry names and roles, selected portraits, and the same large
 portrait viewer. System-agent profiles describe responsibilities, not live activity or conversations;
 they do not enter specialist analytics or acquire new permissions. Li has no portrait.

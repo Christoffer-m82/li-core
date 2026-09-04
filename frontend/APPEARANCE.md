@@ -54,7 +54,9 @@ new Home data sources.
 Recommended next Home arrangement:
 
 1. Greeting and a compact Today at a glance summary, with freshness and unavailable states.
-2. The conversation/composer as the primary action, with a smaller decorative presence panel.
+2. The conversation/composer as the primary action, with welcome copy inside its compact header
+   rather than a separate presence panel. System agents stay off Home and remain in Specialists
+   and Backend/System.
 3. Agenda and up to three owner-selected priorities, drawn only from connected real data.
 4. A needs-attention section for approvals, overdue commitments, and useful unread briefs.
 5. Recent conversations and files below; specialists accessible without occupying most of a phone screen.
