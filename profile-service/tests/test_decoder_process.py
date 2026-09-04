@@ -1,6 +1,7 @@
 """Real subprocess lifecycle tests using synthetic byte producers, never private images."""
 
 import asyncio
+import io
 import os
 import sys
 import unittest
@@ -108,6 +109,18 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             self.skipTest("Non-Linux refusal check")
         with self.assertRaises(DecoderUnavailable):
             await DecoderProcess().normalize(UPLOAD)
+
+    async def test_real_worker_normalizes_only_with_linux_limits(self):
+        if sys.platform != "linux":
+            self.skipTest("Linux worker acceptance check")
+        from PIL import Image
+
+        source = io.BytesIO()
+        Image.new("RGB", (24, 16), (22, 88, 144)).save(source, format="PNG")
+        result = await DecoderProcess().normalize(EncodedUpload("image/png", source.getvalue()))
+        self.assertTrue(result.startswith(b"\xff\xd8"))
+        self.assertTrue(result.endswith(b"\xff\xd9"))
+        self.assertLessEqual(len(result), 512 * 1024)
 
     def test_environment_does_not_inherit_secrets(self):
         with patch.dict(os.environ, {"GH_TOKEN": "synthetic", "PYTHONPATH": "untrusted", "HTTPS_PROXY": "untrusted"}):

@@ -97,9 +97,11 @@ Show a square crop preview before Save. Upload only on Save. Keep an original se
 temporary browser memory; Cancel, successful Save, logout and navigation away release it. The server
 revalidates the bytes independently. No automatic Google-photo import, face recognition or camera access.
 
-## Proposed browser API contract
+## Browser API contract
 
-These routes do not exist yet. Every route requires the current allowlisted owner session.
+The authenticated BFF exposes these routes in a deliberately disabled state. Reads return 503 and
+mutations enforce their browser-side guards before returning 503 until the isolated service and storage
+are connected. Every route requires the current allowlisted owner session.
 
 | Route | Behavior |
 | --- | --- |
@@ -181,6 +183,7 @@ release. Offline mode uses CM, not a persisted private image. No real-time push 
 ## Acceptance and rollout gates
 
 1. Implement domain/storage interfaces with synthetic in-memory test doubles and the shared UI avatar.
+   Domain state and the shared disabled UI are complete; the durable storage adapter remains pending.
 2. Test upload/replace/remove/reload, CM fallback, crop preview, cancellation and sync refresh.
 3. Test denial for anonymous/wrong-owner/wrong-workload identities, foreign origins and stale revisions.
 4. Test oversized/chunked/malformed/animated/bomb images, metadata stripping and bounded decoding.

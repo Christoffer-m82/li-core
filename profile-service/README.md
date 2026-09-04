@@ -16,7 +16,9 @@ the caller must read metadata to reconcile an uncertain outcome. Missing state d
 The caller must already be authenticated and owner-bound, and supply bytes produced by an independently
 validated image decoder. Size and JPEG-marker checks here are defense in depth, **not image validation**.
 Do not expose this module directly as an upload endpoint. Authentication, origin checks, HTTP streaming
-integration, verified worker sandboxing, production persistence, UI, and device checks remain pending.
+integration, verified worker sandboxing, production persistence, enabled UI, and device checks remain pending.
+The browser has disabled controls and authenticated placeholder routes so the user journey can be
+reviewed without pretending that storage exists.
 No production in-memory fallback is supplied. The in-memory repository exists only in tests.
 
 `upload_input.py` adds local file-part intake: a 5 MiB actual-byte limit, optional file-length
@@ -83,7 +85,8 @@ timeout, cancellation and empty-chunk floods. Decoder tests use generated in-mem
 conversion, orientation/crop, transparency, metadata removal, animation, dimensions and invalid content.
 Process tests use real synthetic child processes for successful output, crashes, excess output,
 timeouts, slot reuse and cancellation during startup. Mocked limit configuration tests establish intent,
-not kernel enforcement. Linux kernel-limit and hostile-code isolation acceptance remain pending.
+not kernel enforcement. CI runs the real worker on Linux and proves that it refuses to produce an image
+unless limit setup succeeds; hostile-code isolation acceptance remains pending.
 These tests do not establish safe handling of every hostile image.
 
 A future storage adapter must make the entire revision check and write atomic across service instances,
