@@ -110,6 +110,29 @@ def test_upload_rejects_unsupported_type():
     assert response.status_code == 415
 
 
+def test_profile_routes_are_authenticated_disabled_and_no_store():
+    anonymous = TestClient(app)
+    assert anonymous.get("/api/profile/photo").status_code == 401
+    client = signed_in_client()
+    for path in ("/api/profile/photo", "/api/profile/photo/image"):
+        response = client.get(path)
+        assert response.status_code == 503
+        assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize("method", ["put", "delete"])
+def test_disabled_profile_mutations_still_enforce_origin_header_and_revision(method):
+    client = signed_in_client()
+    call = getattr(client, method)
+    path = "/api/profile/photo"
+    assert call(path).status_code == 403
+    base = {"Origin": "http://localhost:8080", "X-Li-Profile-Mutation": "1"}
+    assert call(path, headers={**base, "If-Match": "untrusted"}).status_code == 409
+    response = call(path, headers={**base, "If-Match": "absent"})
+    assert response.status_code == 503
+    assert response.headers["cache-control"] == "no-store"
+
+
 def test_upload_rejects_oversized_file():
     response = signed_in_client().post(
         "/api/uploads", files={"file": ("large.txt", b"x" * (MAX_UPLOAD_BYTES + 1), "text/plain")}

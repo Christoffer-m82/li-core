@@ -3,7 +3,7 @@
 **Status:** Proposed technical design; hosted activation awaits cost-coverage verification and approval.
 **Date:** 2026-09-04
 **Decider:** Christoffer, after implementation/security review.
-**Release state:** Local domain, intake, decoder and process supervisor; no running service, upload UI or deployment.
+**Release state:** Local service foundations and disabled browser UI; no storage service or deployment.
 
 ## Cost gate
 
@@ -22,6 +22,11 @@ the spending rule is required before activation,
 in addition to the exact external-action approvals. Browser-only persistence would change the agreed
 cross-device/privacy behavior and is not silently substituted. Existing paid services are not cancelled
 or reconfigured by this proposal.
+
+The browser now implements the shared avatar renderer and Settings controls against the proposed route
+shape. Its authenticated BFF routes intentionally return 503 until the isolated service exists. This is
+prepared UI, not a working upload feature or evidence of cloud state. See the
+[frontend profile-photo section](../frontend/README.md#owner-profile-photo).
 
 ## Context and verified repository facts
 

@@ -78,7 +78,7 @@ async def security_headers(request: Request, call_next):
             "Cache-Control": "no-store",
             "Content-Security-Policy": (
                 "default-src 'self'; script-src 'self'; style-src 'self'; "
-                "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; "
+                "img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; "
                 "base-uri 'self'; form-action 'self'"
             ),
             "Referrer-Policy": "no-referrer",
@@ -191,6 +191,44 @@ def session(request: Request, email: str = Depends(require_user)) -> dict[str, s
 @app.get("/api/ready")
 async def ready(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/ready")
+
+
+def profile_mutation_guard(request: Request) -> str:
+    if (
+        request.headers.get("origin") != settings.public_origin.rstrip("/")
+        or request.headers.get("x-li-profile-mutation") != "1"
+    ):
+        raise HTTPException(status_code=403, detail="Profile mutation rejected.")
+    revision = request.headers.get("if-match", "")
+    if revision != "absent":
+        try:
+            if str(UUID(revision)) != revision:
+                raise ValueError
+        except ValueError:
+            raise HTTPException(status_code=409, detail="Refresh your profile before saving.") from None
+    return revision
+
+
+@app.get("/api/profile/photo")
+async def profile_photo_metadata(_: str = Depends(require_user)) -> Response:
+    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+
+
+@app.get("/api/profile/photo/image")
+async def profile_photo_image(_: str = Depends(require_user)) -> Response:
+    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+
+
+@app.put("/api/profile/photo")
+async def replace_profile_photo(request: Request, _: str = Depends(require_user)) -> Response:
+    profile_mutation_guard(request)
+    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+
+
+@app.delete("/api/profile/photo")
+async def remove_profile_photo(request: Request, _: str = Depends(require_user)) -> Response:
+    profile_mutation_guard(request)
+    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
 
 
 @app.get("/api/capabilities")

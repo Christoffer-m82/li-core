@@ -58,6 +58,26 @@ service-worker installation. Private API and authentication responses remain net
 Replacing a portrait requires a service-worker cache-version bump. Smaller optimized derivatives
 remain a future bandwidth improvement; these source images have not been resized or recompressed.
 
+## Owner profile photo
+
+Settings contains the prepared private profile-photo experience. It shows CM by default and supports
+local JPEG/PNG/WebP selection (5 MiB maximum), preview, explicit Save, Cancel and confirmed Remove.
+The shared avatar renderer covers the account button, new Home messages and owner messages in Specialist
+Workspace. A saved 512 × 512 JPEG is held only in browser memory through a revocable `blob:` URL; logout,
+removal and stale-session invalidation release it. Photo responses use network-only `/api/profile/`
+routes and are never service-worker cached, placed in preference storage, chat payloads or theme exports.
+
+The current BFF routes are authenticated but deliberately return 503 because private profile storage is
+not configured. Mutation requests are rejected before that response unless they have the exact configured
+same-origin `Origin`, `X-Li-Profile-Mutation: 1`, and a current opaque revision. The UI therefore stays
+disabled and honestly reports that profile photos are unavailable; it does not replace this with local-only
+persistence. See the [profile-photo design](../system/OWNER_PROFILE_PHOTO_ARCHITECTURE.md) and
+[local service foundations](../profile-service/README.md). Storage adapter, internal workload authentication,
+HTTP streaming/decoder-worker integration, private hosting and physical-device checks remain pending.
+
+The CSP permits `blob:` only for image rendering; scripts and connections remain same-origin. This is needed
+for in-memory previews and saved-photo display and does not make profile URLs public.
+
 From `frontend`, install the project with its `dev` extra, then run `ruff check app tests`,
 `pytest`, and `python -m compileall app`. Start with
 `uvicorn app.main:app --host 127.0.0.1 --port 8080`.

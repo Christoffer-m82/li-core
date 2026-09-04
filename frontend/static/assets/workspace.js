@@ -21,7 +21,7 @@
     });
     return rows.sort((a, b) => stamp(a.at) - stamp(b.at) || String(a.id || '').localeCompare(String(b.id || '')));
   }
-  function create({ document, fetch, avatar, owner = () => ({ name: 'You' }), isBusy = () => false,
+  function create({ document, fetch, avatar, ownerAvatar, owner = () => ({ name: 'You' }), isBusy = () => false,
     onActions = () => {}, onActivity = () => {}, confirmDiscard = () => true }) {
     let agent = null, entries = [], messages = [], conversationId = null, version = 0;
     let sending = false, uploading = false, ready = false, attachment = null, pendingSend = null, pendingBottom = false;
@@ -82,7 +82,7 @@
         const line = node('article', '', `workspace-message workspace-${row.sender}`);
         const person = row.sender === 'owner' ? owner() : row.sender === 'li' ? { name: 'Li' } : agent;
         const initials = person.initials || (person.name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || 'CM';
-        const pic = row.sender === 'specialist' && avatar ? avatar(agent) : node('span', row.sender === 'li' ? 'Li' : (person.name === 'You' ? 'CM' : initials), 'workspace-avatar');
+        const pic = row.sender === 'specialist' && avatar ? avatar(agent) : row.sender === 'owner' && ownerAvatar ? ownerAvatar() : node('span', row.sender === 'li' ? 'Li' : (person.name === 'You' ? 'CM' : initials), 'workspace-avatar');
         pic.setAttribute('aria-hidden', 'true');
         const bubble = node('div', '', 'workspace-bubble');
         bubble.append(node('strong', row.sender === 'owner' ? (person.name || 'You') : person.name), node('p', row.body));
