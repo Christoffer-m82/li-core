@@ -50,6 +50,13 @@ choose how namespace health is verified, construct a Blob, grant access, create 
 retention/encryption settings. See Google's [Blob API](https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob)
 and [generation-precondition guide](https://docs.cloud.google.com/python/docs/reference/storage/latest/generation_metageneration).
 
+`google_storage_binding.py` provides the narrow SDK composition boundary. It validates explicit project,
+bucket and canonical opaque owner-profile settings, derives the only permitted object name, binds no billing
+project and probes the bucket before object-not-found can mean absence. The injectable constructor makes no
+provider call in tests. The real constructor uses Application Default Credentials only when separately called
+during an approved server startup; importing the module does not read credentials or contact metadata services.
+It creates no resource and does not verify bucket IAM, retention, encryption or cost coverage.
+
 `http_contract.py` defines the private service's framework-neutral response and error contract. It accepts
 one raw JPEG/PNG/WebP file stream only after a supplied verifier cryptographically validates a bearer token
 for the configured audience; exact workload authorization remains in the application layer. Known failures
