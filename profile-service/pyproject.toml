@@ -26,6 +26,7 @@ py-modules = [
     "decoder_worker",
     "gcs_object_store",
     "google_identity",
+    "google_storage_binding",
     "http_contract",
     "image_normalize",
     "object_repository",
