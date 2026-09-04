@@ -8,9 +8,9 @@ passed unless a dated work report records the result.
 
 ## Python component checks
 
-The three Python projects use Python 3.12+, pytest, and Ruff as declared in their `pyproject.toml`
-files. Run them from their own directories because each project exposes a top-level package named
-`app`.
+The four Python projects use Python 3.12+, pytest, and Ruff as declared in their `pyproject.toml`
+files. Run them from their own directories because three projects expose a top-level package named
+`app` and the profile service uses isolated top-level modules.
 
 ```text
 cd backend
@@ -28,14 +28,20 @@ cd ../native-gateway
 python -m ruff check app tests
 python -m pytest
 python -m compileall app
+
+cd ../profile-service
+python -m ruff check .
+python -m pytest
+python -m compileall -q .
 ```
 
 Each component tracks a universal `uv.lock`. With uv 0.12.9, run `uv sync --locked --extra dev`
 inside the component before these commands, and prefix commands with `uv run --locked` to use the
 locked environment. After an intentional dependency change, regenerate that component's lock with
 `uv lock`, review the resolved-version and source changes, and rerun its checks. CI rejects a stale
-lock. The three production Dockerfiles use the same locks with development dependencies excluded;
-CI builds each image from the repository root to verify that path. The uv build binary is pinned by
+lock. The three deployed components' production Dockerfiles use the same locks with development
+dependencies excluded; the profile-service remains a disabled foundation without a production image.
+CI builds each production image from the repository root to verify that path. The uv build binary is pinned by
 version and immutable image digest, as is the shared Python base image. Review and update each
 readable version together with its digest, keep the CI Python patch version synchronized with the
 container base, rebuild all three images, and inspect the source manifest before accepting a refresh.
