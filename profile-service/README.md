@@ -29,6 +29,13 @@ the state layer rechecks the revision at the atomic write. This is not token ver
 endpoint: cryptographic identity verification, multipart/transport limits and generic HTTP error mapping
 remain required before the application layer can be exposed.
 
+`object_repository.py` provides a provider-neutral durable-storage boundary for one already-bound
+private object. It stores revision, state and normalized bytes together and converts the hidden object
+generation into create-if-absent or generation-matched writes. A stale revision or provider-generation
+race cannot overwrite the winner; uncertain provider failures remain errors for read reconciliation.
+The strict versioned object format rejects malformed state and exposes neither provider generations nor
+paths to the application. It is not a cloud adapter and creates no bucket or object.
+
 `upload_input.py` adds local file-part intake: a 5 MiB actual-byte limit, optional file-length
 consistency check, JPEG/PNG/WebP signature matching, a 15-second intake timeout and an 8192-chunk
 budget. It rejects malformed streams and hides transport diagnostics; cancellation propagates.
@@ -86,7 +93,7 @@ and [12.3.0 release notes](https://pillow.readthedocs.io/en/stable/releasenotes/
 
 Tests use synthetic byte fixtures, not photographs. Their fake JPEG markers deliberately do not claim
 decoder acceptance. Repository and application tests cover identity denial before byte intake, stale
-mutations, concurrent creation, tombstones, storage
+mutations, concurrent creation, tombstones, versioned-object corruption and storage
 failures before/after commit, immutable snapshots, bounded normalized output and metadata minimization.
 They do not prove cloud authorization, image safety, durable storage or successful deployment.
 Intake tests additionally cover size boundaries, misleading lengths, signature mismatch, interruption,
