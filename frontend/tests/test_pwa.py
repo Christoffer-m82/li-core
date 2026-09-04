@@ -86,6 +86,18 @@ def test_home_chat_can_shrink_and_preserves_touch_targets():
     assert '.voice-output-controls .icon-button{width:44px;height:44px}' in css
 
 
+def test_appearance_edit_transfer_controls_are_labelled_and_present():
+    html = client.get("/").text
+    for control in (
+        "theme-edit-selected", "theme-copy-selected", "theme-export", "theme-import",
+        "theme-editor-panel", "theme-editor-heading", "theme-save", "theme-editor-cancel",
+    ):
+        assert html.count(f'id="{control}"') == 1
+    assert 'aria-describedby="theme-transfer-help"' in html
+    assert 'id="theme-transfer-status" role="status" aria-live="polite"' in html
+    assert "Built-in themes cannot be overwritten." in html
+
+
 def test_manifest_has_explicit_any_and_maskable_install_icons():
     manifest = json.loads((ROOT / "static" / "manifest.webmanifest").read_text(encoding="utf-8"))
     icons = {(icon["sizes"], icon["purpose"]): icon for icon in manifest["icons"]}
@@ -117,7 +129,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v13" in service_worker
+    assert "li-shell-v14" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():

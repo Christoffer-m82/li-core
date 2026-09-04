@@ -18,4 +18,5 @@ h1,h2,h3,h4,.brand,.panel-heading{font-family:var(--font-heading)}
 .theme-editor summary{min-height:44px;padding:12px 0;cursor:pointer;font-weight:650}
 .theme-editor .primary-button{margin-top:4px}
 .theme-editor p,.theme-editor-status{line-height:1.5}
+.theme-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0;align-items:center}.theme-actions button{min-height:44px}.theme-actions button:disabled{opacity:.55;cursor:not-allowed}.theme-import-label{display:grid;gap:6px;min-width:0;max-width:100%;font-size:14px}.theme-import-label input{max-width:100%;min-height:44px;color:var(--text)}.theme-import-label input::file-selector-button{min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--text);cursor:pointer}
 @media(max-width:480px){.theme-library,.theme-editor-grid{grid-template-columns:1fr}}

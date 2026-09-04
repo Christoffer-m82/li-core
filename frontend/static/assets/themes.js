@@ -13,6 +13,7 @@
     { id: 'forest', name: 'Forest', mode: 'light', bg: '#F6F4EF', surface: '#FFFFFF', tile: '#F7F5EF', text: '#14231D', muted: '#56655C', accent: '#1E5B44', onAccent: '#FFFFFF', font: 'humanist', radius: '20' },
   ].map(Object.freeze);
   const key = 'li-custom-themes-v1';
+  const transferLimit = 16 * 1024;
   function luminance(hex) {
     const values = hex.slice(1).match(/../g).map(value => parseInt(value, 16) / 255)
       .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
@@ -55,7 +56,28 @@
         custom = next;
         return theme;
       },
+      update(input, id) {
+        if (!custom.some(theme => theme.id === id)) throw new Error('Only an existing custom theme can be edited.');
+        const theme = { ...validate(input), id };
+        const next = custom.map(item => item.id === id ? theme : item);
+        try { storage.setItem(key, JSON.stringify(next)); } catch { throw new Error('This browser could not save your changes. Your previous theme is unchanged.'); }
+        custom = next;
+        return theme;
+      },
     };
+  }
+  function serialize(theme) {
+    return JSON.stringify({ format: 'li-appearance', version: 1, theme: validate(theme) }, null, 2);
+  }
+  function parseTransfer(text) {
+    if (typeof text !== 'string' || text.length > transferLimit) throw new Error('Choose a Li appearance JSON file no larger than 16 KB.');
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error('This file is not valid JSON. Choose an exported Li appearance.'); }
+    if (!data || data.format !== 'li-appearance' || data.version !== 1 ||
+        Object.keys(data).some(key => !['format', 'version', 'theme'].includes(key))) throw new Error('This appearance file format or version is not supported.');
+    const theme = validate(data.theme);
+    if (Object.keys(data.theme).some(key => !Object.hasOwn(theme, key))) throw new Error('Appearance files may contain only supported appearance settings.');
+    return theme;
   }
   function apply(theme, root, meta) {
     const style = root.style;
@@ -72,5 +94,5 @@
     root.dataset.theme = theme.id;
     meta.content = theme.bg;
   }
-  global.LiThemes = Object.freeze({ builtins, fonts, colors, contrast, validate, library, apply });
+  global.LiThemes = Object.freeze({ builtins, fonts, colors, contrast, validate, library, apply, serialize, parseTransfer, transferLimit });
 })(typeof window === 'undefined' ? globalThis : window);

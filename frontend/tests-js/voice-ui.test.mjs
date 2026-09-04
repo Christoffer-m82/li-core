@@ -65,6 +65,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   const windowEvents = new Map();
   let nextTimer = 1;
   const requests = [];
+  const downloads = []; const revoked = [];
 
   class FakeRecognition {
     start() {
@@ -79,6 +80,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   }
 
   const document = {
+    body: new FakeElement(),
     createElement: () => new FakeElement(),
     createTextNode: (text) => ({ textContent: text }),
     documentElement: new FakeElement(),
@@ -130,6 +132,8 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     setTimeout,
   };
   const context = {
+    Blob,
+    URL: { createObjectURL(blob) { downloads.push(blob); return 'blob:synthetic-theme'; }, revokeObjectURL(url) { revoked.push(url); } },
     console,
     crypto: { randomUUID: () => 'test-id' },
     document,
@@ -155,6 +159,9 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   vm.runInNewContext(appSource, context);
 
   return {
+    themes: window.LiThemes,
+    themeLibrary: vm.runInNewContext('themeLibrary', context),
+    downloads, revoked, localStorage,
     createSpecialistAvatar: vm.runInNewContext('createSpecialistAvatar', context),
     openSpecialistPortrait: vm.runInNewContext('openSpecialistPortrait', context),
     systemAgents: vm.runInNewContext('SYSTEM_AGENTS', context),
@@ -192,6 +199,67 @@ test('blocked storage does not prevent startup, theme selection, or voice contro
   assert.equal(app.elements.get('#voice-output-toggle').getAttribute('aria-pressed'), 'true');
   await app.elements.get('#voice-output-toggle').click();
   assert.equal(app.elements.get('#voice-output-toggle').getAttribute('aria-pressed'), 'false');
+});
+
+test('theme editor updates a custom theme without duplicating it; cancel preserves saved values', async () => {
+  const app = loadApp(); await app.settle();
+  await app.elements.get('#theme-copy-selected').click();
+  app.elements.get('#theme-name').value = 'My theme';
+  const submit = () => app.elements.get('#theme-editor').events.get('submit')({preventDefault(){}});
+  submit(); assert.equal(app.themeLibrary.all().length, 4);
+  assert.equal(app.elements.get('#theme-edit-selected').disabled, false);
+  await app.elements.get('#theme-edit-selected').click();
+  app.elements.get('#theme-name').value = 'Edited theme'; submit();
+  assert.equal(app.themeLibrary.all().length, 4);
+  assert.equal(app.themeLibrary.find('custom-test-id').name, 'Edited theme');
+  app.elements.get('#theme-name').value = 'Discarded';
+  await app.elements.get('#theme-editor-cancel').click();
+  assert.equal(app.themeLibrary.find('custom-test-id').name, 'Edited theme');
+  assert.equal(app.elements.get('#theme-editor-panel').open, false);
+});
+
+test('theme file import validates before opening a draft and does not save or call APIs', async () => {
+  const app = loadApp(); await app.settle(); const count = app.requests.length;
+  const input = app.elements.get('#theme-import');
+  const text = app.themes.serialize(app.themes.builtins[2]);
+  await input.events.get('change')({target:{files:[{size:text.length, text:async()=>text}],value:'selected'}});
+  assert.equal(app.elements.get('#theme-name').value, 'Forest');
+  assert.equal(app.themeLibrary.all().length,3);
+  assert.equal(app.document.documentElement.dataset.theme,'dark');
+  assert.equal(app.requests.length,count);
+  assert.match(app.elements.get('#theme-transfer-status').textContent,/editor only/);
+  const previous = app.elements.get('#theme-name').value;
+  await input.events.get('change')({target:{files:[{size:100,text:async()=>'{broken'}],value:''}});
+  assert.equal(app.elements.get('#theme-name').value,previous);
+  assert.match(app.elements.get('#theme-transfer-status').textContent,/not valid JSON/);
+});
+
+test('oversized imports are rejected before reading and stale imports cannot replace edited drafts', async () => {
+  const app = loadApp(); await app.settle(); const change = app.elements.get('#theme-import').events.get('change');
+  let reads = 0;
+  await change({target:{files:[{size:17000,text:async()=>{reads++;return '';}}],value:''}});
+  assert.equal(reads,0); assert.match(app.elements.get('#theme-transfer-status').textContent,/16 KB/);
+  let finish;
+  const pending = change({target:{files:[{size:100,text:()=>new Promise(resolve=>{finish=resolve;})}],value:''}});
+  await app.elements.get('#theme-copy-selected').click();
+  app.elements.get('#theme-name').value = 'New draft';
+  finish(app.themes.serialize(app.themes.builtins[2])); await pending;
+  assert.equal(app.elements.get('#theme-name').value,'New draft');
+  const pendingTyping = change({target:{files:[{size:100,text:()=>new Promise(resolve=>{finish=resolve;})}],value:''}});
+  app.elements.get('#theme-editor').events.get('input')();
+  finish(app.themes.serialize(app.themes.builtins[2])); await pendingTyping;
+  assert.equal(app.elements.get('#theme-name').value,'New draft');
+});
+
+test('theme export downloads only appearance data and releases the temporary URL', async () => {
+  const app = loadApp(); await app.settle(); const count=app.requests.length;
+  await app.elements.get('#theme-export').click();
+  assert.equal(app.downloads.length,1);
+  const envelope=JSON.parse(await app.downloads[0].text());
+  assert.equal(envelope.format,'li-appearance'); assert.equal(envelope.theme.name,'Dark');
+  assert.equal(app.document.body.children[0].download,'li-appearance.json');
+  assert.equal(app.requests.length,count);
+  await app.runTimer(1000); assert.deepEqual(app.revoked,['blob:synthetic-theme']);
 });
 
 test('failed preference writes do not prevent disabling spoken responses', async () => {
