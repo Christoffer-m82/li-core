@@ -20,6 +20,9 @@ rather than rewriting the authoritative design.
 
 ## Maintenance rule
 
+The [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) orders the current completion
+work and separates automated checks from live and physical-device evidence.
+
 When closing or changing a milestone, update the authoritative source first when the underlying
 decision or design changed. In this index, record only the new status and evidence link. Move durable
 accepted design decisions to [Decisions](DECISIONS.md) and residual issues to

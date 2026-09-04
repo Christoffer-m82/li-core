@@ -158,6 +158,11 @@ class LiChatRequest(BaseModel):
     retain_until: datetime | None = None
     privacy_metadata: dict[str, Any] = Field(default_factory=dict)
     temporary_upload_context: str | None = Field(default=None, max_length=6000)
+    workspace_specialist: Literal[
+        "sofia", "marco", "elena", "amelia", "freja", "oliver",
+        "james", "nora", "victor", "milo", "iris", "clara",
+    ] | None = None
+    workspace_recipient: Literal["group", "specialist"] = "group"
 
 
 class ConversationSearchResult(BaseModel):

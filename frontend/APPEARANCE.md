@@ -16,6 +16,10 @@ fixed count limit, but browser storage capacity applies. Themes and selection ar
 browser/device, not synchronized through Li memory. Clearing browser storage removes custom themes.
 Export/import, editing existing themes, and cross-device synchronization are not implemented yet.
 
+When browser storage is blocked, Li still starts with its default appearance and spoken responses
+off. Theme selection and voice controls work for the current visit even if preferences cannot be
+persisted. Custom-theme creation reports a save failure rather than claiming a theme was saved.
+
 Archivo and Archivo Expanded are preferred for Forest if installed locally, with Segoe UI/system
 fallbacks. No remote fonts are loaded. Exact design-kit typography requires a separately reviewed,
 licensed local font bundle. Font options currently include modern sans, humanist sans and editorial serif.

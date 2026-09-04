@@ -34,6 +34,11 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
     conversation_id: str | None = None
     temporary_upload_context: str | None = Field(default=None, max_length=6000)
+    workspace_specialist: Literal[
+        "sofia", "marco", "elena", "amelia", "freja", "oliver",
+        "james", "nora", "victor", "milo", "iris", "clara",
+    ] | None = None
+    workspace_recipient: Literal["group", "specialist"] = "group"
 
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -225,6 +230,9 @@ async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response
         body["conversation_id"] = payload.conversation_id
     if payload.temporary_upload_context:
         body["temporary_upload_context"] = payload.temporary_upload_context
+    if payload.workspace_specialist:
+        body["workspace_specialist"] = payload.workspace_specialist
+        body["workspace_recipient"] = payload.workspace_recipient
     return await proxy("POST", "/li/chat", json_body=body)
 
 
