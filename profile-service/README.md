@@ -36,6 +36,13 @@ race cannot overwrite the winner; uncertain provider failures remain errors for 
 The strict versioned object format rejects malformed state and exposes neither provider generations nor
 paths to the application. It is not a cloud adapter and creates no bucket or object.
 
+`http_contract.py` defines the private service's framework-neutral response and error contract. It accepts
+one raw JPEG/PNG/WebP file stream only after a supplied verifier cryptographically validates a bearer token
+for the configured audience; exact workload authorization remains in the application layer. Known failures
+map to generic 401/403/404/409/413/415/422/503 responses with private no-store and nosniff headers. The
+browser BFF will remain responsible for extracting the one multipart file and forwarding only its bounded
+raw stream. This module is not a server and deliberately supplies no permissive verifier.
+
 `upload_input.py` adds local file-part intake: a 5 MiB actual-byte limit, optional file-length
 consistency check, JPEG/PNG/WebP signature matching, a 15-second intake timeout and an 8192-chunk
 budget. It rejects malformed streams and hides transport diagnostics; cancellation propagates.
@@ -92,8 +99,9 @@ reviewed hashes before installation. See [Pillow security guidance](https://pill
 and [12.3.0 release notes](https://pillow.readthedocs.io/en/stable/releasenotes/12.3.0.html).
 
 Tests use synthetic byte fixtures, not photographs. Their fake JPEG markers deliberately do not claim
-decoder acceptance. Repository and application tests cover identity denial before byte intake, stale
-mutations, concurrent creation, tombstones, versioned-object corruption and storage
+decoder acceptance. Repository, application and HTTP-contract tests cover authentication/identity denial
+before byte intake, generic response mapping, stale mutations, concurrent creation, tombstones,
+versioned-object corruption and storage
 failures before/after commit, immutable snapshots, bounded normalized output and metadata minimization.
 They do not prove cloud authorization, image safety, durable storage or successful deployment.
 Intake tests additionally cover size boundaries, misleading lengths, signature mismatch, interruption,
