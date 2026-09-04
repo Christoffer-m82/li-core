@@ -15,7 +15,6 @@ from object_repository import (
 )
 from profile_state import RepositoryError, Snapshot
 
-
 PHOTO = b"\xff\xd8synthetic-photo\xff\xd9"
 REVISION = "00000000-0000-0000-0000-000000000001"
 NEXT = "00000000-0000-0000-0000-000000000002"

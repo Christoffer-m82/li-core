@@ -5,10 +5,13 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from profile_application import ProfileAccessDenied, ProfileApplication, VerifiedWorkloadIdentity
+from profile_application import (
+    ProfileAccessDenied,
+    ProfileApplication,
+    VerifiedWorkloadIdentity,
+)
 from profile_state import ProfileConflict, ProfileState, Snapshot
 from upload_input import UnsupportedUpload
-
 
 PHOTO = b"\xff\xd8normalized-synthetic-photo\xff\xd9"
 GOOD = VerifiedWorkloadIdentity("profile-service", "frontend-bff")
