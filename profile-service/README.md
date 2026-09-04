@@ -36,6 +36,19 @@ race cannot overwrite the winner; uncertain provider failures remain errors for 
 The strict versioned object format rejects malformed state and exposes neither provider generations nor
 paths to the application. It is not a cloud adapter and creates no bucket or object.
 
+`gcs_object_store.py` adapts one already-bound Google Cloud Storage Blob to that object boundary without
+accepting a bucket, path, client, credential or billing project. Reads pin the download to the generation
+observed by metadata reload and cap the streamed object before it reaches the repository. An object-level
+not-found becomes absence only after a separately injected namespace-health verifier returns exactly true;
+a missing or unverifiable namespace remains an outage. Writes use
+`if_generation_match` (including generation 0 for create-if-absent), checksum verification, a bounded timeout
+and no automatic retry; a lost provider response therefore remains an error for explicit reconciliation.
+The caller must inject the installed SDK's reviewed exception classes and the independent namespace verifier
+so absence, lost preconditions and provider failures stay distinct. This adapter does not install the SDK,
+choose how namespace health is verified, construct a Blob, grant access, create storage or prove
+retention/encryption settings. See Google's [Blob API](https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob)
+and [generation-precondition guide](https://docs.cloud.google.com/python/docs/reference/storage/latest/generation_metageneration).
+
 `http_contract.py` defines the private service's framework-neutral response and error contract. It accepts
 one raw JPEG/PNG/WebP file stream only after a supplied verifier cryptographically validates a bearer token
 for the configured audience; exact workload authorization remains in the application layer. Known failures
@@ -116,8 +129,10 @@ before byte intake, generic response mapping, stale mutations, concurrent creati
 versioned-object corruption and storage
 failures before/after commit, immutable snapshots, bounded normalized output and metadata minimization.
 Adapter tests additionally cover exact routing, response headers, duplicate/oversized headers, declared and
-streamed size rejection, disconnects and overload rejection without queueing. They do not prove cloud
-authorization, image safety, durable storage or successful deployment.
+streamed size rejection, disconnects and overload rejection without queueing. Synthetic GCS tests cover
+generation-pinned bounded reads, create/replace preconditions, disabled retries and generic provider errors;
+they make no provider calls and do not prove cloud authorization, retention, image safety, durable live
+storage or successful deployment.
 Intake tests additionally cover size boundaries, misleading lengths, signature mismatch, interruption,
 timeout, cancellation and empty-chunk floods. Decoder tests use generated in-memory images for format
 conversion, orientation/crop, transparency, metadata removal, animation, dimensions and invalid content.

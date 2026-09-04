@@ -3,8 +3,8 @@
 **Status:** Proposed technical design; hosted activation awaits cost-coverage verification and approval.
 **Date:** 2026-09-04
 **Decider:** Christoffer, after implementation/security review.
-**Release state:** Local service/transport foundations and disabled browser integration; no configured
-profile service, provider storage or deployment.
+**Release state:** Local service/transport foundations, disabled browser integration and an unconfigured
+GCS Blob adapter; no SDK composition, configured profile service, storage resource or deployment.
 
 ## Cost gate
 
@@ -185,8 +185,8 @@ release. Offline mode uses CM, not a persisted private image. No real-time push 
 ## Acceptance and rollout gates
 
 1. Implement domain/storage interfaces with synthetic in-memory test doubles and the shared UI avatar.
-   Domain state, transport adapters, BFF client boundary and shared disabled UI are complete; cryptographic
-   service identity verification, durable provider storage and server composition remain pending.
+   Domain state, transport adapters, BFF client boundary, GCS Blob adapter and shared disabled UI are complete;
+   cryptographic service identity verification, SDK/resource composition and server composition remain pending.
 2. Test upload/replace/remove/reload, CM fallback, crop preview, cancellation and sync refresh.
 3. Test denial for anonymous/wrong-owner/wrong-workload identities, foreign origins and stale revisions.
 4. Test oversized/chunked/malformed/animated/bomb images, metadata stripping and bounded decoding.
