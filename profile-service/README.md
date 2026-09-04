@@ -56,6 +56,14 @@ map to generic 401/403/404/409/413/415/422/503 responses with private no-store a
 browser BFF will remain responsible for extracting the one multipart file and forwarding only its bounded
 raw stream. This module is not a server and deliberately supplies no permissive verifier.
 
+`google_identity.py` provides the strict verifier for Google-signed workload ID tokens. Its production
+constructor lazily loads google-auth, which verifies the signature, validity window, audience and Google
+issuer before the adapter accepts only the exact audience and a bounded subject identifier. All other claims,
+including email, are discarded. The application independently compares that subject with its configured BFF
+workload allowlist. The SDK is not installed by this foundation, and synthetic tests inject a verifier rather
+than fetching certificates or tokens. See Google's [service-to-service authentication guide](https://docs.cloud.google.com/run/docs/authenticating/service-to-service)
+and [token claim reference](https://docs.cloud.google.com/docs/authentication/token-types).
+
 `asgi_adapter.py` maps that contract to an exact dependency-free ASGI surface at `/v1/profile` and
 `/v1/profile/image`. It caps request-header count and bytes, rejects duplicate security-sensitive headers,
 streams one raw upload body, enforces an overall deadline, stops when intake reports a disconnect and rejects
@@ -131,8 +139,9 @@ failures before/after commit, immutable snapshots, bounded normalized output and
 Adapter tests additionally cover exact routing, response headers, duplicate/oversized headers, declared and
 streamed size rejection, disconnects and overload rejection without queueing. Synthetic GCS tests cover
 generation-pinned bounded reads, create/replace preconditions, disabled retries and generic provider errors;
-they make no provider calls and do not prove cloud authorization, retention, image safety, durable live
-storage or successful deployment.
+identity tests cover issuer/audience/subject minimization and generic verification failure. They make no
+provider calls and do not prove cloud authorization, retention, image safety, durable live storage or
+successful deployment.
 Intake tests additionally cover size boundaries, misleading lengths, signature mismatch, interruption,
 timeout, cancellation and empty-chunk floods. Decoder tests use generated in-memory images for format
 conversion, orientation/crop, transparency, metadata removal, animation, dimensions and invalid content.
