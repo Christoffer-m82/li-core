@@ -29,7 +29,7 @@ def _selection(specialist: str, query: str, *, web=True, quote=False):
 
 def test_registry_is_typed_versioned_queryable_and_secret_free():
     payload = public_provider_coverage(web_configured=True)
-    assert payload["coverage_version"] == "1.0" and payload["read_only"] is True
+    assert payload["coverage_version"] == "1.1" and payload["read_only"] is True
     assert all(item["schema_version"] == "1.0" for item in payload["providers"])
     serialized = str(payload).casefold()
     assert "api_key" not in serialized and "secret_value" not in serialized

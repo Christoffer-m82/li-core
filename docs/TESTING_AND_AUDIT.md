@@ -83,6 +83,12 @@ Absence of a local platform toolchain is a skipped check, not a pass.
 
 ## Documentation checks
 
+For Li voice or language changes, also use the
+[English and Swedish conversation evaluation](LI_CONVERSATION_EVALUATION.md).
+Offline prompt-wiring tests do not establish real-model conversational quality.
+For request-trigger changes, also run the paired checks in
+[English and Swedish request handling](BILINGUAL_REQUEST_HANDLING.md).
+
 For every Markdown change:
 
 1. Parse all relative Markdown links, ignore URL fragments for filesystem resolution, and confirm

@@ -222,7 +222,8 @@ def test_forget_requires_specific_target() -> None:
 
 @pytest.mark.parametrize(
     "message",
-    ["forget that", "Please forget it.", "don't remember that!"],
+    ["forget that", "Please forget it.", "don't remember that!",
+     "glöm det", "Snälla glöm det där.", "Kom inte ihåg detta!"],
 )
 def test_bare_forget_is_ignored_without_calling_claude(monkeypatch, message) -> None:
     def fail_if_called(**kwargs):

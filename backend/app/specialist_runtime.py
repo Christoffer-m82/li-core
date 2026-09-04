@@ -9,6 +9,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from app.claude import ClaudeError, generate_claude_text
+from app.request_language import has_term, normalize
 
 
 class SpecialistRuntimeError(RuntimeError):
@@ -155,14 +156,16 @@ _TRIGGERS: dict[str, tuple[str, ...]] = {
     "clara": ("wellbeing", "habit", "stress", "routine", "motivation", "resilience", "burnout"),
 }
 _SIMPLE_PREFIX = re.compile(
-    r"^\s*(?:hi|hello|thanks|thank you|what is|who is|define|translate|summari[sz]e)\b", re.I
+    r"^\s*(?:hi|hello|thanks|thank you|what is|who is|define|translate|summari[sz]e|"
+    r"hej|hejsan|tack|vad är|vem är|definiera|översätt|sammanfatta)\b", re.I
 )
 _DECISION_TERMS = re.compile(
     r"\b(?:compare|trade-?offs?|options?|recommend|decision|choose|evaluate|plan|strategy|pros and cons)\b",
     re.I,
 )
 _PERSONAL_CONTEXT = re.compile(
-    r"\b(?:my|me|i prefer|for me|based on what you know|my priorities|my goals|my budget|my schedule|my work)\b",
+    r"\b(?:my|me|i prefer|for me|based on what you know|my priorities|my goals|my budget|my schedule|my work|"
+    r"min|mitt|mina|mig|jag föredrar|utifrån vad du vet|baserat på vad du vet)\b",
     re.I,
 )
 _EXPLICIT_ACTION = re.compile(r"\b(?:ask|consult|use|get|have|bring in|route to)\b", re.I)
@@ -207,26 +210,50 @@ SPECIALIST_PROFILES = SPECIALIST_CONTRACTS
 SUPPORTED_SPECIALISTS = tuple(SPECIALIST_CONTRACTS)
 
 
+def _excluded_specialists(message: str) -> set[str]:
+    """Respect direct EN/SV opt-outs; this is not a general negation parser."""
+    return {
+        key for key, contract in SPECIALIST_CONTRACTS.items()
+        if re.search(
+            r"\b(?:(?:do not|don't|don’t|never)\s+(?:ask|consult|use|bring in)|"
+            r"(?:be|fråga|rådfråga|konsultera|använd|koppla in|ta in)\s+inte|"
+            r"without|utan)\s+" + re.escape(contract.name) + r"\b", message, re.I,
+        )
+    }
+
+
 def _named_specialists(message: str) -> list[str]:
+    message = normalize(message)
+    excluded = _excluded_specialists(message)
     named = [
         key
         for key, contract in SPECIALIST_CONTRACTS.items()
-        if re.search(rf"\b{re.escape(contract.name)}\b", message, re.I)
+        if key not in excluded and re.search(rf"\b{re.escape(contract.name)}(?:s)?\b", message, re.I)
     ]
     direct = any(
         re.search(
-            rf"\b{re.escape(SPECIALIST_CONTRACTS[key].name)}(?:'s)?\s+(?:view|analysis|opinion|advice|recommendation)\b",
+            rf"\b{re.escape(SPECIALIST_CONTRACTS[key].name)}(?:'s|s)?\s+"
+            r"(?:view|analysis|opinion|advice|recommendation|syn|analys|åsikt|råd|rekommendation)\b",
             message,
             re.I,
         )
         for key in named
     )
-    return named if named and (_EXPLICIT_ACTION.search(message) or direct) else []
+    swedish_request = any(
+        re.search(
+            rf"(?:\b(?:fråga|rådfråga|konsultera|anlita|koppla in|ta in|använd|låt)|"
+            rf"^\s*(?:snälla\s+)?be|\b(?:kan|kunde|skulle)\s+du\s+(?:snälla\s+)?be)\s+"
+            rf"(?:gärna\s+)?{re.escape(SPECIALIST_CONTRACTS[key].name)}\b", message, re.I,
+        )
+        for key in named
+    )
+    return named if named and (_EXPLICIT_ACTION.search(message) or direct or swedish_request) else []
 
 
 def route_specialists(user_message: str) -> RoutingDecision:
     """Choose Li-only, one adviser, or bounded concurrent advisers."""
-    message = user_message.strip()
+    message = normalize(user_message.strip())
+    excluded = _excluded_specialists(message)
     explicit = _named_specialists(message)
     if explicit:
         selected = explicit[:MAX_SPECIALISTS_PER_REQUEST]
@@ -237,22 +264,29 @@ def route_specialists(user_message: str) -> RoutingDecision:
             route_category="explicit_specialist",
             route_reason="User explicitly named the selected registered specialist(s).",
         )
-    if _SIMPLE_PREFIX.search(message) and not _DECISION_TERMS.search(message):
+    decision_request = bool(_DECISION_TERMS.search(message)) or any(
+        has_term(message, term) for term in (
+            "compare", "trade-offs", "options", "recommend", "decision", "choose",
+            "evaluate", "plan", "strategy", "pros and cons",
+        )
+    )
+    if _SIMPLE_PREFIX.search(message) and not decision_request:
         return RoutingDecision(
             route_category="li_only_simple", route_reason="Simple self-contained request."
         )
-    lowered = message.casefold()
     ranked = [
         key
         for key, contract in SPECIALIST_CONTRACTS.items()
-        if any(trigger in lowered for trigger in contract.triggers)
+        if key not in excluded
+        and any(has_term(message, trigger, english_plural=True) for trigger in contract.triggers)
     ]
     if not ranked:
         return RoutingDecision(
             route_category="li_only_general",
             route_reason="No specialist domain materially matched.",
         )
-    complex_request = bool(_DECISION_TERMS.search(message)) or len(message.split()) >= 18
+    # Equivalent requests can have different word counts across languages.
+    complex_request = decision_request
     selected = (
         ranked[:MAX_SPECIALISTS_PER_REQUEST] if complex_request and len(ranked) > 1 else ranked[:1]
     )
@@ -271,7 +305,7 @@ def route_specialist(user_message: str) -> RoutingDecision:
 
 
 def specialist_needs_canonical_memory(user_message: str) -> bool:
-    return bool(_PERSONAL_CONTEXT.search(user_message))
+    return bool(_PERSONAL_CONTEXT.search(normalize(user_message)))
 
 
 def nora_needs_canonical_memory(user_message: str) -> bool:

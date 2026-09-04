@@ -124,6 +124,7 @@ from app.schemas import (
     ConversationSearchResult,
 )
 from app.location_settings import CurrentPlace, minimal_location_context, validate_mobile_freshness
+from app.request_language import requests_history
 from app.runtime_data import (
     RuntimeDataError, change_artifact, conversation_messages,
     finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
@@ -256,7 +257,9 @@ def _persist_artifact(payload: ArtifactUpload, source: str, keep: bool) -> dict[
 def _requested_text_artifact(message: str) -> bool:
     return bool(re.search(
         r"\b(?:create|make|generate|return|give me|save)(?:\s+\w+){0,5}\s+"
-        r"(?:text|markdown|txt|md)?\s*file\b", message, re.IGNORECASE,
+        r"(?:text|markdown|txt|md)?\s*file\b|"
+        r"\b(?:skapa|gör|generera|ge mig|spara)(?:\s+\w+){0,5}\s+"
+        r"(?:textfil|markdownfil|fil|(?:text|markdown|txt|md)\s*fil)\b", message, re.IGNORECASE,
     ))
 
 
@@ -1277,9 +1280,7 @@ def li_chat_endpoint(
                     tokens=estimate_tokens(raw_conversation_context), relevance=1,
                     selection_reason="recent turns preserve active conversational continuity")
     ] if raw_conversation_context else []
-    recall_markers = ("we discussed", "previous conversation", "last year", "what was that",
-                      "do you remember", "earlier chat")
-    if any(marker in payload.message.casefold() for marker in recall_markers):
+    if requests_history(payload.message):
         try:
             snippets = search_conversation_history(payload.message, 6)
         except RuntimeDataError:
