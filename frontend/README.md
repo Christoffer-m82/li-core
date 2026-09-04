@@ -33,6 +33,31 @@ control; otherwise it gives Android/Windows browser-menu guidance and detects st
 
 ## Local validation
 
+See [Appearance library](APPEARANCE.md) for built-in/custom themes, extension rules, and the Home
+template analysis. Themes change presentation only and are saved per browser/device.
+See [Specialist workspace](SPECIALIST_VIEW.md) for recorded exchanges, activity filters,
+evidence details, data limits, and the agent-view reference analysis.
+All 12 specialists have local portrait assets on Home, analytics cards, and their detail page.
+Ada, Theo and Heimdall appear separately as system agents on Home, Agents and Backend. Their
+read-only profiles use their registry names and roles, selected portraits, and the same large
+portrait viewer. System-agent profiles describe responsibilities, not live activity or conversations;
+they do not enter specialist analytics or acquire new permissions. Li has no portrait.
+Names and roles remain visible; failed images fall back to initials. The approved portrait is
+always named Elena, with no revision labels. See the
+[portrait standard](../system/specialist-portrait-standard.md) and
+[assignment record](../system/specialist-portrait-assignments.md) before adding another specialist.
+
+On a specialist's detail page, press their portrait to open a large, theme-aware popup with their
+name and role above the uncropped original. Close it with **Close** or Escape. **Open original image**
+opens the full-resolution asset in a new tab for browser zoom. See the
+[portrait viewer](SPECIALIST_VIEW.md#portrait-viewer) for interaction and accessibility details.
+
+Portraits currently retain the original 1254 × 1254 PNGs (about 32 MB for all 15 selected portraits).
+Images load lazily and their exact public static paths are cached on demand, not precached during
+service-worker installation. Private API and authentication responses remain network-only.
+Replacing a portrait requires a service-worker cache-version bump. Smaller optimized derivatives
+remain a future bandwidth improvement; these source images have not been resized or recompressed.
+
 From `frontend`, install the project with its `dev` extra, then run `ruff check app tests`,
 `pytest`, and `python -m compileall app`. Start with
 `uvicorn app.main:app --host 127.0.0.1 --port 8080`.

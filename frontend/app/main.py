@@ -317,11 +317,29 @@ async def artifact_retention(artifact_id: str, request: Request,
     return await proxy("POST", f"/artifacts/{artifact_id}/retention", json_body={"action": action})
 
 
+async def recorded_specialist_interactions(path: str) -> list[dict[str, object]]:
+    """Do not turn an upstream outage into an empty or idle specialist history."""
+    try:
+        upstream = await request_backend(settings, "GET", path)
+        if upstream.status_code != 200:
+            raise ValueError("Specialist activity unavailable")
+        payload = upstream.json()
+        events = payload.get("interactions") if isinstance(payload, dict) else None
+        if not isinstance(events, list) or any(
+            not isinstance(event, dict) for event in events
+        ):
+            raise ValueError("Invalid interaction response")
+        return events
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(
+            status_code=502, detail="Specialist activity is temporarily unavailable."
+        ) from exc
+
+
 @app.get("/api/specialists")
 async def specialists(_: str = Depends(require_user)) -> dict[str, object]:
-    upstream = await request_backend(settings, "GET", "/specialists/interactions")
-    events = upstream.json().get("interactions", []) if upstream.status_code == 200 else []
-    active = {event["specialist_key"] for event in events if event["status"] == "active"}
+    events = await recorded_specialist_interactions("/specialists/interactions")
+    active = {event.get("specialist_key") for event in events if event.get("status") == "active"}
     return {"specialists": [dict(item, active=item["id"] in active,
         status="Working" if item["id"] in active else "Available") for item in SPECIALISTS],
         "live_events_available": True}
@@ -334,11 +352,10 @@ async def specialist_interactions(
     specialist = next((item for item in SPECIALISTS if item["id"] == specialist_id), None)
     if specialist is None:
         raise HTTPException(status_code=404, detail="Specialist not found.")
-    upstream = await request_backend(
-        settings, "GET", f"/specialists/interactions?specialist={specialist_id}"
+    interactions = await recorded_specialist_interactions(
+        f"/specialists/interactions?specialist={specialist_id}"
     )
-    interactions = upstream.json().get("interactions", []) if upstream.status_code == 200 else []
-    return {"specialist": specialist, "active": any(x["status"] == "active" for x in interactions),
+    return {"specialist": specialist, "active": any(x.get("status") == "active" for x in interactions),
         "interactions": interactions, "live_events_available": True,
         "message": "No real Li-specialist interactions have been recorded yet."}
 

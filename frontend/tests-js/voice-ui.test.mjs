@@ -39,6 +39,9 @@ class FakeElement {
   addEventListener(name, handler) { this.events.set(name, handler); }
   append(...children) { this.children.push(...children); }
   appendChild(child) { this.children.push(child); return child; }
+  contains(child) { return this.children.includes(child); }
+  showModal() { this.open = true; }
+  close() { this.open = false; this.events.get('close')?.(); }
   before() {}
   click() { return this.events.get('click')?.({ target: this, preventDefault() {} }); }
   focus() {}
@@ -52,7 +55,7 @@ class FakeElement {
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
 }
 
-function loadApp() {
+function loadApp({ geolocation } = {}) {
   const elements = new Map();
   const getElement = (selector) => {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
@@ -120,7 +123,7 @@ function loadApp() {
     confirm: () => false,
     localStorage,
     matchMedia: () => ({ matches: false, addEventListener() {} }),
-    navigator: { language: 'en-GB' },
+    navigator: { language: 'en-GB', geolocation },
     setTimeout,
   };
   const context = {
@@ -142,9 +145,15 @@ function loadApp() {
     window,
   };
   vm.runInNewContext(voiceSource, context);
+  vm.runInNewContext(readFileSync(new URL('../static/assets/themes.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(appSource, context);
 
   return {
+    createSpecialistAvatar: vm.runInNewContext('createSpecialistAvatar', context),
+    openSpecialistPortrait: vm.runInNewContext('openSpecialistPortrait', context),
+    systemAgents: vm.runInNewContext('SYSTEM_AGENTS', context),
+    setView: vm.runInNewContext('setView', context),
+    document,
     elements,
     requests,
     async dispatchWindow(name, event = {}) {
@@ -165,6 +174,34 @@ function loadApp() {
     hasTimer(delay) { return [...timers.values()].some((timer) => timer.delay === delay); },
   };
 }
+
+test('each specialist uses a local decorative portrait with initials fallback', () => {
+  const app = loadApp();
+  for (const id of ['sofia','marco','elena','amelia','freja','oliver','james','victor','nora','milo','iris','clara']) {
+    const avatar = app.createSpecialistAvatar({id, name:id, initials:id.slice(0,2).toUpperCase()});
+    assert.equal(avatar.getAttribute('aria-hidden'), 'true');
+    assert.equal(avatar.children.length, 1);
+    const image = avatar.children[0];
+    assert.equal(image.src, `/assets/portraits/${id}.png`);
+    assert.equal(image.alt, '');
+    assert.equal(image.loading, 'lazy');
+    image.events.get('error')();
+    assert.equal(avatar.children[0].textContent, id.slice(0,2).toUpperCase());
+  }
+  const unknown = app.createSpecialistAvatar({id:'../private', name:'New specialist', initials:'NS'});
+  assert.equal(unknown.children.length, 0);
+  assert.equal(unknown.textContent, 'NS');
+});
+
+test('late Auto location callback cannot replace a subsequently selected theme', async () => {
+  let locationCallback;
+  const app = loadApp({ geolocation: { getCurrentPosition(callback) { locationCallback = callback; } } });
+  const choices = app.elements.get('#theme-library').children;
+  await choices.find(button => button.dataset.themeChoice === 'auto').click();
+  await choices.find(button => button.dataset.themeChoice === 'forest').click();
+  locationCallback({ coords: { latitude: 52, longitude: 13 } });
+  assert.equal(app.document.documentElement.dataset.theme, 'forest');
+});
 
 test('microphone interaction sends one visible transcript through normal chat', async () => {
   const app = loadApp();
@@ -200,6 +237,60 @@ test('cancel after transcription prevents the pending chat request', async () =>
   assert.equal(app.elements.get('#voice-status').classList.contains('hidden'), true);
   assert.equal(app.hasTimer(1200), false);
   assert.equal(app.requests.some((request) => request.url === '/api/chat'), false);
+});
+
+test('system-agent cards use selected portraits and open read-only profiles without API calls', async () => {
+  const app = loadApp(); await app.settle();
+  const requests = app.requests.length;
+  for (const selector of ['#home-system-agents', '#directory-system-agents', '#backend-system-agents']) {
+    const cards = app.elements.get(selector).children;
+    assert.equal(cards.length, 3);
+    for (const [i, card] of cards.entries()) {
+      const item = app.systemAgents[i];
+      assert.equal(card.children[0].children[0].src, `/assets/portraits/${item.id}.png`);
+      card.click();
+      const profile = app.elements.get('#system-agent-heading').children[0];
+      assert.equal(profile.children[1].children[0].textContent, item.name);
+      assert.equal(profile.children[1].children[1].textContent, item.role);
+      assert.equal(app.elements.get('#system-agent-boundary').textContent, item.boundary);
+      profile.children[0].click();
+      assert.equal(app.elements.get('#specialist-portrait-name').textContent, item.name);
+      app.elements.get('#specialist-portrait-close').click();
+    }
+  }
+  assert.equal(app.requests.length, requests);
+});
+
+test('portrait dialog uses originals, ignores stale image events, and closes on navigation', async () => {
+  const app = loadApp();
+  await app.settle();
+  const get = (id) => app.document.querySelector(`#specialist-portrait-${id}`);
+  const initialRequests = app.requests.length;
+  app.openSpecialistPortrait({ id: 'elena', name: 'Elena', role: 'Nutrition & Cooking' });
+  assert.equal(get('dialog').open, true);
+  assert.equal(get('name').textContent, 'Elena');
+  assert.equal(get('role').textContent, 'Nutrition & Cooking');
+  const oldImage = get('image').children[0];
+  assert.equal(oldImage.src, '/assets/portraits/elena.png');
+  assert.equal(oldImage.width, 1254);
+  assert.equal(get('original').href, oldImage.src);
+  oldImage.events.get('load')();
+  assert.equal(get('status').textContent, '');
+  get('close').click();
+  assert.equal(get('dialog').open, false);
+  assert.equal(get('image').children.length, 0);
+  app.openSpecialistPortrait({ id: '../../unknown', name: 'Unknown', role: 'Unknown' });
+  assert.equal(get('dialog').open, false);
+  app.openSpecialistPortrait({ id: 'nora', name: 'Nora', role: 'Research' });
+  oldImage.events.get('error')();
+  assert.equal(get('status').textContent, 'Loading portrait…');
+  const currentImage = get('image').children[0];
+  currentImage.events.get('error')();
+  assert.equal(currentImage.hidden, true);
+  assert.match(get('status').textContent, /could not be loaded/);
+  assert.equal(app.requests.length, initialRequests);
+  app.setView('home');
+  assert.equal(get('dialog').open, false);
 });
 
 test('install prompt is offered once and reports accepted installation', async () => {

@@ -4,11 +4,52 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import SPECIALISTS, app
 
 
 ROOT = Path(__file__).parents[1]
 client = TestClient(app)
+ELENA_HASH = "eeef7b0c7497054e9593d1ef41cd59bac148ae8c084758455b61db87013d4d74"
+SYSTEM_PORTRAIT_HASHES = {
+    "ada": "e9e3b12a069e053820b7ee9ba0dff6bc2d5676e9da5e66d0d5d62ca9ef94751e",
+    "theo": "56381041c2c9f3f4c6cc239f2fae53d673d598c23165b84b5d67292bb6615caa",
+    "heimdall": "5b0b11e64a30e451304548add5940fd6dbfd517cd1f9df24fa45a9c7b7acaa68",
+}
+
+
+def test_every_specialist_has_a_served_portrait_and_canonical_elena():
+    import hashlib
+
+    asset_dir = ROOT / "static" / "assets" / "portraits"
+    names = {item["id"] for item in SPECIALISTS} | SYSTEM_PORTRAIT_HASHES.keys()
+    assert {path.stem for path in asset_dir.glob("*.png")} == names
+    for name in names:
+        asset = asset_dir / f"{name}.png"
+        assert png_dimensions(asset) == (1254, 1254)
+        response = client.get(f"/assets/portraits/{name}.png")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+        assert response.content == asset.read_bytes()
+    # Locks in the owner's selected Elena without putting revision labels in the UI.
+    assert hashlib.sha256((asset_dir / "elena.png").read_bytes()).hexdigest() == ELENA_HASH
+    for name, expected in SYSTEM_PORTRAIT_HASHES.items():
+        assert hashlib.sha256((asset_dir / f"{name}.png").read_bytes()).hexdigest() == expected
+
+
+def test_system_agent_profiles_preserve_registry_roles_and_specialist_separation():
+    import re
+
+    script = (ROOT / "static/assets/app.js").read_text(encoding="utf-8")
+    registry = (ROOT.parent / "agents/registry.yaml").read_text(encoding="utf-8")
+    for key in SYSTEM_PORTRAIT_HASHES:
+        match = re.search(rf'  {key}:\s+name: "([^"]+)"\s+type: "system"\s+role: "([^"]+)"', registry)
+        assert match
+        assert f"id: '{key}', name: '{match[1]}', role: '{match[2]}'" in script
+    assert not (set(SYSTEM_PORTRAIT_HASHES) & {item["id"] for item in SPECIALISTS})
+    html = client.get("/").text
+    for location in ("home-system-agents", "directory-system-agents", "backend-system-agents"):
+        assert f'id="{location}"' in html
+    assert "not proof of current activity" in html
 
 
 def png_dimensions(path: Path) -> tuple[int, int]:
@@ -49,7 +90,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v7" in service_worker
+    assert "li-shell-v11" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():
@@ -63,3 +104,15 @@ def test_settings_exposes_install_control_and_fallback_guidance():
     assert "appinstalled" in app
     assert "display-mode: standalone" in app
     assert "Install app or Add to Home screen" in app
+
+
+def test_appearance_assets_and_creator_are_available_without_external_fonts():
+    html = client.get("/").text
+    worker = client.get("/sw.js").text
+    for asset in ("/assets/themes.js", "/assets/appearance.css"):
+        assert client.get(asset).status_code == 200
+        assert asset in html and asset in worker
+    assert html.index('src="/assets/themes.js"') < html.index('src="/assets/app.js"')
+    assert 'id="theme-library"' in html and 'id="theme-editor"' in html
+    assert 'id="theme-editor-status" role="status" aria-live="polite"' in html
+    assert "fonts.googleapis.com" not in html
