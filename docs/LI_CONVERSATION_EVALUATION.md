@@ -81,10 +81,63 @@ citations and approval boundaries. Never translate away a warning or invent spec
 
 ## Automated checks and limits
 
+### Isolated comparison runner
+
+The [core-voice evaluator](../backend/app/voice_evaluation.py) reads the twenty scenarios
+above rather than maintaining a second scenario list. It reads prompt documents and the
+literal runtime rules from two Git revisions without executing historical code. It does
+not import application settings, load `.env`, connect to a database, retrieve personal
+memories, call specialists, or expose action executors.
+
+From `backend`, inspect the plan without credentials, file output, or network calls:
+
+```text
+python -m app.voice_evaluation --baseline d9fe740f6a6d98ca0fc99eacd7c65bccc4eebdf4 --candidate 6d82fba599d8eafd718fd6c457c6e326e876b4b4
+```
+
+Those revisions compare the pre-change voice with the merged language update. The default
+plan is 240 provider calls: 20 scenarios × two prompt versions × three repetitions × two
+turns. The default response limit is 2,048 tokens per call. This is a call/output-token
+ceiling, not a monetary budget; system prompts also incur input-token charges. Review
+provider pricing and approve the run's spend separately before enabling live mode.
+
+For an authorised live run, the operator privately supplies a test-only provider key as
+the process environment variable `LI_OS_EVAL_ANTHROPIC_API_KEY`. Never paste it into chat,
+commit it, persist it in this repository, or copy production `.env` values. Use the existing
+authorised Anthropic provider and operator-verified Li model; no new provider is selected.
+The runner will send version-controlled identity/constitutional text (which includes the
+owner's name) and fictional scenario history, not canonical personal memory.
+
+Add `--live --model <verified-model-id> --output <new-absolute-directory-outside-repository>`
+to the dry-run command. Replace the placeholders locally; the output directory must not
+already exist. The test-only variable is the sole credential source; production variable
+names are deliberately ignored. Clear the test variable when finished. Do not enable SDK
+debug logging or terminal transcripts while supplying credentials.
+
+Calls have a 60-second timeout and no automatic retries. Provider failures or incomplete
+responses stop the run, preserving partial results without a completion marker. Retry only
+after diagnosis, in a new output directory, with a fresh approved call budget.
+
+The output contains prompt snapshots, resolved commit hashes, prompt/scenario hashes,
+generation settings, and incrementally saved conversations. Give the reviewer only
+`review.jsonl`: A/B labels are randomised independently for each scenario/repetition, with
+scores and safety gates left blank. Keep `answer-key.jsonl`, `manifest.json`, and prompt
+snapshots separate until scoring is finished. A `completion.json` file means generation
+finished, **not** that quality passed or release was approved. Store outputs privately;
+they contain generated text and system definitions and must not be committed.
+
+This runner evaluates the core voice with a common synthetic-context wrapper. It bypasses
+the runtime's structured synthesis, routing, memory classification and specialist tools.
+It therefore does not replace their separate integration/provider-backed acceptance or
+prove how the deployed service behaves. Apply the human evaluation and release gates above.
+
+### Offline regression checks
+
 From `backend`, using the existing development environment:
 
 ```text
 python -m pytest tests/test_li_conversation_voice.py tests/test_li_orchestration.py tests/test_action_intents.py tests/test_container_runtime_files.py
+python -m pytest tests/test_voice_evaluation.py
 python -m ruff check app tests
 python -m pytest
 ```
