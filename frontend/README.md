@@ -67,13 +67,15 @@ Workspace. A saved 512 × 512 JPEG is held only in browser memory through a revo
 removal and stale-session invalidation release it. Photo responses use network-only `/api/profile/`
 routes and are never service-worker cached, placed in preference storage, chat payloads or theme exports.
 
-The current BFF routes are authenticated but deliberately return 503 because private profile storage is
-not configured. Mutation requests are rejected before that response unless they have the exact configured
-same-origin `Origin`, `X-Li-Profile-Mutation: 1`, and a current opaque revision. The UI therefore stays
-disabled and honestly reports that profile photos are unavailable; it does not replace this with local-only
+The BFF routes stay disabled with 503 while both private profile service settings are unset. Their prepared
+client accepts only the exact internal operations, obtains a workload identity for the separate profile
+audience, refuses redirects and bounds every response. Replacement validates the browser mutation guard
+before incrementally parsing exactly one multipart file, then forwards only its bounded raw bytes, media type,
+actual size and current opaque revision—never its filename. The UI therefore still honestly reports that
+profile photos are unavailable in the current unconfigured state; it does not replace this with local-only
 persistence. See the [profile-photo design](../system/OWNER_PROFILE_PHOTO_ARCHITECTURE.md) and
-[local service foundations](../profile-service/README.md). Storage adapter, internal workload authentication,
-HTTP streaming/decoder-worker integration, private hosting and physical-device checks remain pending.
+[local service foundations](../profile-service/README.md). A cryptographic service-side verifier, provider
+storage, server composition, private hosting and physical-device checks remain pending.
 
 The CSP permits `blob:` only for image rendering; scripts and connections remain same-origin. This is needed
 for in-memory previews and saved-photo display and does not make profile URLs public.

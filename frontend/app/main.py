@@ -1,4 +1,5 @@
 import base64
+import json
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlencode
@@ -11,9 +12,17 @@ from fastapi.staticfiles import StaticFiles
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from pydantic import BaseModel, Field
+from starlette.datastructures import UploadFile as StarletteUploadFile
+from starlette.formparsers import MultiPartException, MultiPartParser
 
 from app.backend import request_backend
 from app.config import get_settings
+from app.profile_service import (
+    ProfileServiceResponse,
+    ProfileServiceUnavailable,
+    profile_service_configured,
+    request_profile_service,
+)
 from app.security import (
     OAUTH_STATE_COOKIE,
     SESSION_COOKIE,
@@ -42,6 +51,8 @@ class ChatRequest(BaseModel):
 
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_PROFILE_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_PROFILE_MULTIPART_BYTES = MAX_PROFILE_UPLOAD_BYTES + 256 * 1024
 ALLOWED_UPLOAD_TYPES = {
     "application/pdf", "text/plain", "text/markdown", "text/csv",
     "application/json", "image/png", "image/jpeg", "image/webp",
@@ -209,26 +220,138 @@ def profile_mutation_guard(request: Request) -> str:
     return revision
 
 
+def ensure_profile_configured() -> None:
+    if not profile_service_configured(settings):
+        raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+
+
+async def profile_request(method: str, path: str, **kwargs) -> ProfileServiceResponse:
+    ensure_profile_configured()
+    try:
+        result = await request_profile_service(settings, method, path, **kwargs)
+    except ProfileServiceUnavailable:
+        raise HTTPException(status_code=503, detail="Private profile storage is unavailable.") from None
+    if result.status in {401, 403, 503}:
+        raise HTTPException(status_code=503, detail="Private profile storage is unavailable.")
+    return result
+
+
+def profile_metadata_response(result: ProfileServiceResponse) -> Response:
+    if result.status != 200 or result.content_type != "application/json":
+        raise HTTPException(status_code=503, detail="Private profile storage is unavailable.")
+    try:
+        value = json.loads(result.body)
+        if not isinstance(value, dict) or set(value) != {"revision", "state"}:
+            raise ValueError
+        revision = value["revision"]
+        if value["state"] not in {"available", "empty"} or not isinstance(revision, str):
+            raise ValueError
+        if revision != "absent" and str(UUID(revision)) != revision:
+            raise ValueError
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+        raise HTTPException(status_code=503, detail="Private profile storage is unavailable.") from None
+    return JSONResponse(value)
+
+
+def profile_mutation_response(result: ProfileServiceResponse) -> Response:
+    if result.status == 200:
+        return profile_metadata_response(result)
+    errors = {
+        409: "Refresh your profile before saving changes.",
+        413: "Profile photos must be 5 MB or smaller.",
+        415: "Use JPEG, PNG or WebP.",
+        422: "This profile photo could not be processed.",
+    }
+    detail = errors.get(result.status)
+    if detail is None:
+        raise HTTPException(status_code=503, detail="Private profile storage is unavailable.")
+    raise HTTPException(status_code=result.status, detail=detail)
+
+
 @app.get("/api/profile/photo")
 async def profile_photo_metadata(_: str = Depends(require_user)) -> Response:
-    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+    result = await profile_request("GET", "/v1/profile")
+    return profile_metadata_response(result)
 
 
 @app.get("/api/profile/photo/image")
 async def profile_photo_image(_: str = Depends(require_user)) -> Response:
-    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+    result = await profile_request("GET", "/v1/profile/image")
+    if result.status == 404:
+        raise HTTPException(status_code=404, detail="Profile photo is not set.")
+    if result.status != 200 or result.content_type != "image/jpeg":
+        raise HTTPException(status_code=503, detail="Private profile storage is unavailable.")
+    return Response(content=result.body, media_type="image/jpeg")
 
 
 @app.put("/api/profile/photo")
 async def replace_profile_photo(request: Request, _: str = Depends(require_user)) -> Response:
-    profile_mutation_guard(request)
-    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+    revision = profile_mutation_guard(request)
+    ensure_profile_configured()
+    content_length = request.headers.get("content-length")
+    try:
+        if content_length is not None and (
+            not content_length.isascii()
+            or not content_length.isdecimal()
+            or len(content_length) > 10
+            or int(content_length) > MAX_PROFILE_MULTIPART_BYTES
+        ):
+            raise HTTPException(status_code=413, detail="Profile photos must be 5 MB or smaller.")
+
+        async def bounded_stream():
+            total = 0
+            async for chunk in request.stream():
+                total += len(chunk)
+                if total > MAX_PROFILE_MULTIPART_BYTES:
+                    raise HTTPException(status_code=413, detail="Profile photos must be 5 MB or smaller.")
+                yield chunk
+
+        parser = MultiPartParser(
+            request.headers,
+            bounded_stream(),
+            max_files=1,
+            max_fields=0,
+            max_part_size=MAX_PROFILE_UPLOAD_BYTES,
+        )
+        form = await parser.parse()
+    except HTTPException:
+        raise
+    except MultiPartException:
+        raise HTTPException(status_code=400, detail="Choose one valid profile photo.") from None
+
+    parts = list(form.multi_items())
+    if len(parts) != 1 or parts[0][0] != "file" or not isinstance(parts[0][1], StarletteUploadFile):
+        await form.close()
+        raise HTTPException(status_code=400, detail="Choose one valid profile photo.")
+    file = parts[0][1]
+    try:
+        if (
+            file.content_type not in {"image/jpeg", "image/png", "image/webp"}
+            or type(file.size) is not int
+            or not 1 <= file.size <= MAX_PROFILE_UPLOAD_BYTES
+        ):
+            status = 415 if file.content_type not in {"image/jpeg", "image/png", "image/webp"} else 413
+            detail = "Use JPEG, PNG or WebP." if status == 415 else "Profile photos must be 5 MB or smaller."
+            raise HTTPException(status_code=status, detail=detail)
+
+        async def chunks():
+            while chunk := await file.read(64 * 1024):
+                yield chunk
+
+        result = await profile_request(
+            "PUT", "/v1/profile", revision=revision, content_type=file.content_type,
+            content_length=file.size, body=chunks(),
+        )
+    finally:
+        await form.close()
+    return profile_mutation_response(result)
 
 
 @app.delete("/api/profile/photo")
 async def remove_profile_photo(request: Request, _: str = Depends(require_user)) -> Response:
-    profile_mutation_guard(request)
-    raise HTTPException(status_code=503, detail="Private profile storage is not configured.")
+    revision = profile_mutation_guard(request)
+    result = await profile_request("DELETE", "/v1/profile", revision=revision)
+    return profile_mutation_response(result)
 
 
 @app.get("/api/capabilities")
