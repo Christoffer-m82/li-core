@@ -43,6 +43,16 @@ map to generic 401/403/404/409/413/415/422/503 responses with private no-store a
 browser BFF will remain responsible for extracting the one multipart file and forwarding only its bounded
 raw stream. This module is not a server and deliberately supplies no permissive verifier.
 
+`asgi_adapter.py` maps that contract to an exact dependency-free ASGI surface at `/v1/profile` and
+`/v1/profile/image`. It caps request-header count and bytes, rejects duplicate security-sensitive headers,
+streams one raw upload body, enforces an overall deadline, stops when intake reports a disconnect and rejects
+concurrent uploads rather than queueing them. It accepts HTTP scopes only, rejects path aliases and query
+parameters, and intentionally provides no server startup,
+token verifier, multipart parser, storage adapter, CORS or public route. The BFF must authenticate its browser
+session and extract the multipart file before invoking this private boundary. A production proxy and ASGI
+server must independently cap request/header allocation, body bytes, connection lifetime and concurrency;
+application checks occur after the server has already allocated each ASGI event.
+
 `upload_input.py` adds local file-part intake: a 5 MiB actual-byte limit, optional file-length
 consistency check, JPEG/PNG/WebP signature matching, a 15-second intake timeout and an 8192-chunk
 budget. It rejects malformed streams and hides transport diagnostics; cancellation propagates.
@@ -75,8 +85,9 @@ includes normal process startup; uninterruptible OS spawn/reaping is not a hard 
 These controls are **not a filesystem, network or hostile-code sandbox**. Before live activation,
 verify Linux enforcement and run under a separately approved least-privilege runtime with no photo-storage
 credentials, network access or private filesystem access; the current subprocess alone cannot enforce
-those boundaries or contain a compromised decoder spawning descendants. HTTP/storage/UI integration stays
-disabled. Do not replace unsupported limits with an unrestricted fallback.
+those boundaries or contain a compromised decoder spawning descendants. Token verification, provider storage,
+server configuration and UI integration stay disabled. Do not replace unsupported limits with an unrestricted
+fallback.
 
 From the repository root, use an existing Python 3.12+ interpreter:
 
@@ -99,11 +110,14 @@ reviewed hashes before installation. See [Pillow security guidance](https://pill
 and [12.3.0 release notes](https://pillow.readthedocs.io/en/stable/releasenotes/12.3.0.html).
 
 Tests use synthetic byte fixtures, not photographs. Their fake JPEG markers deliberately do not claim
-decoder acceptance. Repository, application and HTTP-contract tests cover authentication/identity denial
+decoder acceptance. Repository, application, HTTP-contract and ASGI-adapter tests cover
+authentication/identity denial
 before byte intake, generic response mapping, stale mutations, concurrent creation, tombstones,
 versioned-object corruption and storage
 failures before/after commit, immutable snapshots, bounded normalized output and metadata minimization.
-They do not prove cloud authorization, image safety, durable storage or successful deployment.
+Adapter tests additionally cover exact routing, response headers, duplicate/oversized headers, declared and
+streamed size rejection, disconnects and overload rejection without queueing. They do not prove cloud
+authorization, image safety, durable storage or successful deployment.
 Intake tests additionally cover size boundaries, misleading lengths, signature mismatch, interruption,
 timeout, cancellation and empty-chunk floods. Decoder tests use generated in-memory images for format
 conversion, orientation/crop, transparency, metadata removal, animation, dimensions and invalid content.
