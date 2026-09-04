@@ -14,7 +14,31 @@ Create another theme lets the owner name and save colours, a local font family, 
 card corners. Saving creates an additional choice; it does not replace a built-in. There is no
 fixed count limit, but browser storage capacity applies. Themes and selection are local to each
 browser/device, not synchronized through Li memory. Clearing browser storage removes custom themes.
-Export/import, editing existing themes, and cross-device synchronization are not implemented yet.
+Custom themes can be edited, and appearance files can be transferred manually between devices.
+Automatic cross-device synchronization is not implemented.
+
+### Edit and transfer
+
+- Select a custom theme, then **Edit selected theme**. Save validates the changes and updates that
+  theme in place. A failed save leaves the previous theme intact. **Cancel editing** discards the draft.
+- **Create from current look** copies the displayed palette into a new draft. Built-in themes remain
+  read-only. After saving, the editor edits that new theme; use Create again for another separate theme.
+- **Export current look** downloads `li-appearance.json`. With Auto selected, it exports the currently
+  displayed Light/Dark palette, not a location or automatic-switching rule. Browser download handling varies.
+- **Import appearance** reads a local JSON file (16 KB maximum) into the editor without uploading it,
+  changing the active appearance, or saving it. Review and press Save to add a new theme. Imported names
+  may match existing names, but new identifiers prevent replacement. No existing themes are removed.
+
+The version-1 transfer envelope contains `format: "li-appearance"`, `version: 1`, and a `theme` with only
+the validated name, mode, colours, font key and corner radius. IDs, CSS, URLs, scripts and unknown fields
+are not accepted. Unsupported versions and unreadable palettes are rejected before saving. No conversation,
+profile photo, credential or location is included. Theme names are included: avoid personal information in
+names if you plan to share a file. These portable files are not backups of Li's private data.
+
+The controls reuse existing theme tokens, semantic buttons/labels and 44px targets. Status messages are
+announced, Edit is disabled for built-ins/Auto, and opening a draft focuses its name. Slow imports are
+ignored when a newer import or editor action supersedes them. Keyboard, small-screen and real-browser
+download/import checks remain part of release acceptance, beyond token-contrast and automated tests.
 
 When browser storage is blocked, Li still starts with its default appearance and spoken responses
 off. Theme selection and voice controls work for the current visit even if preferences cannot be

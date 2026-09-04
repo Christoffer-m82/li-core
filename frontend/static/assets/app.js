@@ -236,10 +236,13 @@ function systemTheme() { return matchMedia('(prefers-color-scheme: light)').matc
 function sunTimes(date, latitude, longitude) { const rad = Math.PI / 180; const day = Math.floor((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(date.getFullYear(), 0, 0)) / 86400000); const lngHour = longitude / 15; function eventTime(rise) { const t = day + ((rise ? 6 : 18) - lngHour) / 24; const m = 0.9856 * t - 3.289; let l = m + 1.916 * Math.sin(m * rad) + 0.02 * Math.sin(2 * m * rad) + 282.634; l = (l + 360) % 360; let ra = Math.atan(0.91764 * Math.tan(l * rad)) / rad; ra = ((ra + 360) % 360 + (Math.floor(l / 90) * 90 - Math.floor(ra / 90) * 90)) / 15; const sinDec = 0.39782 * Math.sin(l * rad); const cosDec = Math.cos(Math.asin(sinDec)); const cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(latitude * rad)) / (cosDec * Math.cos(latitude * rad)); if (cosH < -1 || cosH > 1) return null; let h = (rise ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad) / 15; const utc = (h + ra - 0.06571 * t - 6.622 - lngHour + 24) % 24; return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, Math.round(utc * 60))); } return { sunrise: eventTime(true), sunset: eventTime(false) }; }
 const themeLibrary = window.LiThemes.library(preferenceStorage);
 let themeRequest = 0;
+let editingThemeId = null;
+let themeImportRequest = 0;
 function applyTheme(theme, note = '') {
   window.LiThemes.apply(themeLibrary.find(theme), document.documentElement, document.querySelector('meta[name="theme-color"]'));
   $('#theme-status').textContent = note || 'Appearance applies on this device. Content and permissions are unchanged.';
   $$('#theme-library [data-theme-choice]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themeChoice === state.theme)));
+  $('#theme-edit-selected').disabled = !state.theme.startsWith('custom-');
 }
 function activateTheme(choice) {
   const request = ++themeRequest;
@@ -269,13 +272,69 @@ function renderThemeLibrary() {
 }
 function initializeAppearance() {
   renderThemeLibrary();
+  const displayedTheme = () => themeLibrary.find(document.documentElement.dataset.theme);
+  const openEditor = (theme, id = null) => {
+    ++themeImportRequest;
+    editingThemeId = id;
+    $('#theme-transfer-status').textContent = '';
+    for (const field of ['name', 'mode', ...window.LiThemes.colors, 'font', 'radius']) $(`#theme-${field}`).value = theme[field];
+    $('#theme-editor-panel').open = true;
+    $('#theme-editor-heading').textContent = id ? `Edit ${theme.name}` : 'Create another theme';
+    $('#theme-save').textContent = id ? 'Save changes and use theme' : 'Save and use theme';
+    $('#theme-editor-status').textContent = id ? 'Changes replace this custom theme only after you save.' : 'Review these settings, then save as a new theme. Existing themes stay unchanged.';
+    $('#theme-name').focus();
+  };
+  $('#theme-edit-selected').addEventListener('click', () => {
+    if (state.theme.startsWith('custom-')) openEditor(themeLibrary.find(state.theme), state.theme);
+  });
+  $('#theme-copy-selected').addEventListener('click', () => openEditor({ ...displayedTheme(), name: '' }));
+  $('#theme-editor-cancel').addEventListener('click', () => {
+    openEditor({ ...themeLibrary.find('forest'), name: '' });
+    $('#theme-editor-panel').open = false;
+    $('#theme-copy-selected').focus();
+  });
+  $('#theme-export').addEventListener('click', () => {
+    let url;
+    try {
+      const text = window.LiThemes.serialize(displayedTheme());
+      url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      const link = document.createElement('a'); link.href = url; link.download = 'li-appearance.json';
+      document.body.appendChild(link); link.click(); link.remove();
+      $('#theme-transfer-status').textContent = 'Download requested. The file contains appearance settings only. You can import it on another device.';
+    } catch { $('#theme-transfer-status').textContent = 'This browser could not export the appearance. Please try again.'; }
+    finally { if (url) setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  });
+  $('#theme-import').addEventListener('change', async event => {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file) return;
+    const request = ++themeImportRequest;
+    $('#theme-transfer-status').textContent = 'Checking appearance file…';
+    try {
+      if (file.size > window.LiThemes.transferLimit) throw new Error('Choose a Li appearance JSON file no larger than 16 KB.');
+      const text = await file.text();
+      if (request !== themeImportRequest) return;
+      const draft = window.LiThemes.parseTransfer(text);
+      openEditor(draft);
+      $('#theme-transfer-status').textContent = 'Imported into the editor only. Review the settings and press Save to add it.';
+    } catch (error) {
+      if (request === themeImportRequest) $('#theme-transfer-status').textContent = error.message || 'This file could not be read.';
+    }
+  });
+  for (const name of ['input', 'change']) $('#theme-editor').addEventListener(name, () => {
+    ++themeImportRequest;
+    $('#theme-transfer-status').textContent = '';
+  });
   $('#theme-editor').addEventListener('submit', event => {
     event.preventDefault();
+    ++themeImportRequest;
     const draft = {};
     for (const field of ['name', 'mode', ...window.LiThemes.colors, 'font', 'radius']) draft[field] = $(`#theme-${field}`).value;
     try {
-      const theme = themeLibrary.save(draft, `custom-${crypto.randomUUID()}`);
+      const theme = editingThemeId ? themeLibrary.update(draft, editingThemeId) : themeLibrary.save(draft, `custom-${crypto.randomUUID()}`);
       renderThemeLibrary(); activateTheme(theme.id);
+      editingThemeId = theme.id;
+      $('#theme-editor-heading').textContent = `Edit ${theme.name}`;
+      $('#theme-save').textContent = 'Save changes and use theme';
       $('#theme-editor-status').textContent = `Saved "${theme.name}". It is now available in Appearance on this device.`;
     } catch (error) { $('#theme-editor-status').textContent = error.message; }
   });
