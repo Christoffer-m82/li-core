@@ -37,27 +37,35 @@ source before changing the operating layer.
 
 ## No-spending requirement
 
-The owner does not authorize anything that costs money for this project. This restriction takes
-precedence over earlier broad approvals and the autonomous workflow below.
+The owner permits using existing subscriptions, prepaid credits and included/free allowances for
+this project, provided the work requires no new payment or additional charge. This supersedes the
+earlier blanket ban on using paid-for services or consuming prepaid credits. It does not authorize
+new spending, automatic overages or bill-later charges.
 
-- Do not purchase, subscribe, upgrade plans, enable paid features, start trials that can become
-  chargeable, consume paid credits, or incur usage-based fees. This includes AI/provider calls,
-  image generation, hosted CI runners, cloud compute, storage, network egress and external services.
-- Existing credentials, subscriptions, configured services or past approvals are not spending
-  authorization. A free tier, trial, promotional credit or estimated low cost is not proof that
-  an operation cannot incur a charge or automatically exceed a quota.
-- Before triggering potentially billable work, including push/PR/merge workflows that start hosted
-  jobs, verify that it will not incur charges. If zero cost cannot be established, do not run it.
-  Prefer local tests, synthetic fixtures, mocks and verified free alternatives. Continue other
-  safe, no-cost work and report any cost-blocked step honestly.
-- Do not deploy or activate a design that depends on chargeable services. Flag the cost constraint
-  when evaluating designs; do not promise that a cloud-dependent feature can run for free.
+- Continue ordinary in-scope work using access already paid for or included. Do not stop merely
+  because a service has paid plans or because an existing subscription is being used.
+- Do not purchase, subscribe to a new service, upgrade plans, buy credits/top-ups, enable automatic
+  replenishment or paid overages, start chargeable trials, or incur charges outside existing
+  coverage. The absence of a checkout/payment screen does not make usage free of additional charges.
+- Before metered operations, establish that the relevant subscription/credit/allowance covers the
+  intended bounded work and will not spill into automatic billing. Use available read-only usage
+  evidence or reliable owner-provided account information, never expose credentials or change billing
+  controls. An API key or configured service alone does not establish coverage.
+- The owner reports an existing Anthropic subscription. Do not assume that it includes the particular
+  Anthropic API/model usage needed by Li; verify that product's entitlement or prepaid balance before
+  live calls. Apply the same principle to hosted CI, cloud compute/storage/egress and other providers.
+- If an operation requires an additional payment or charge, leave that operation blocked and tell
+  the owner what is required; do not pay on their behalf. If coverage is uncertain, first investigate
+  safely or use local tests, mocks or included alternatives. Continue other safe in-scope work rather
+  than stopping the whole project at a cost-blocked step.
+- Flag metered dependencies in designs. Do not claim a cloud-dependent feature is free, and do not
+  activate it without both verified existing coverage and any separate external-action approval.
 - Do not cancel existing services, delete resources, change billing settings or disrupt the live
   system to enforce this rule without separate exact authorization. This rule does not establish
   that existing services have stopped billing or that the owner's account has no existing costs.
-- Do not treat "keep going" or project-completion approval as an exception. Spending remains
-  prohibited unless the owner explicitly changes this no-spending requirement for a specified
-  action and budget. Never bypass a paid prerequisite or misrepresent a blocked check as passed.
+- Do not treat "keep going" or project-completion approval as permission for additional spending.
+  New payments or charges require an explicit owner change to this rule for a specified action and
+  budget. Never bypass a paid prerequisite or misrepresent a blocked check as passed.
 
 ## Project-limited end-to-end authorization
 
