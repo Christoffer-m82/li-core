@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 try:
     from PIL import Image
 except ImportError:
-    raise unittest.SkipTest("Install requirements-decoder.txt to run decoder tests") from None
+    raise unittest.SkipTest("Run uv sync --locked --extra dev to enable decoder tests") from None
 
 from image_normalize import normalize
 from profile_state import MAX_PHOTO_BYTES, InvalidPhoto

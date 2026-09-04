@@ -4,8 +4,8 @@
 **Date:** 2026-09-04
 **Decider:** Christoffer, after implementation/security review.
 **Release state:** Local service/transport foundations, disabled browser integration, a Google workload-token
-verifier and an unconfigured GCS Blob adapter; no pinned service SDK composition, configured profile service,
-storage resource or deployment.
+verifier, an unconfigured GCS Blob adapter and a locked service dependency graph; no configured profile
+service, storage resource or deployment.
 
 ## Cost gate
 
@@ -186,8 +186,8 @@ release. Offline mode uses CM, not a persisted private image. No real-time push 
 ## Acceptance and rollout gates
 
 1. Implement domain/storage interfaces with synthetic in-memory test doubles and the shared UI avatar.
-   Domain state, transport adapters, BFF client boundary, Google identity/GCS Blob adapters and shared disabled
-   UI are complete; pinned service SDK/resource composition and server composition remain pending.
+   Domain state, transport adapters, BFF client boundary, Google identity/GCS Blob adapters, locked service
+   dependencies and shared disabled UI are complete; resource and server composition remain pending.
 2. Test upload/replace/remove/reload, CM fallback, crop preview, cancellation and sync refresh.
 3. Test denial for anonymous/wrong-owner/wrong-workload identities, foreign origins and stale revisions.
 4. Test oversized/chunked/malformed/animated/bomb images, metadata stripping and bounded decoding.

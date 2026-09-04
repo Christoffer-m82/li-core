@@ -3,7 +3,8 @@
 This is a local-only foundation for the
 [proposed private profile-photo service](../system/OWNER_PROFILE_PHOTO_ARCHITECTURE.md).
 It is not an HTTP service, storage provider or working upload feature.
-The optional decoder uses a pinned Pillow dependency in an isolated local environment.
+Its universal `uv.lock` pins the decoder, Google identity/storage SDKs and development tools in an
+isolated local environment. Installing those dependencies does not configure or call Google Cloud.
 No credentials are loaded, provider calls made or paid resources started.
 Hosted activation still requires verified existing cost coverage and exact external-action approval;
 see the [no-spending rule](../AGENTS.md#no-spending-requirement).
@@ -60,7 +61,7 @@ raw stream. This module is not a server and deliberately supplies no permissive 
 constructor lazily loads google-auth, which verifies the signature, validity window, audience and Google
 issuer before the adapter accepts only the exact audience and a bounded subject identifier. All other claims,
 including email, are discarded. The application independently compares that subject with its configured BFF
-workload allowlist. The SDK is not installed by this foundation, and synthetic tests inject a verifier rather
+workload allowlist. The SDK is locked but remains unconfigured; synthetic tests inject a verifier rather
 than fetching certificates or tokens. See Google's [service-to-service authentication guide](https://docs.cloud.google.com/run/docs/authenticating/service-to-service)
 and [token claim reference](https://docs.cloud.google.com/docs/authentication/token-types).
 
@@ -110,24 +111,18 @@ those boundaries or contain a compromised decoder spawning descendants. Token ve
 server configuration and UI integration stay disabled. Do not replace unsupported limits with an unrestricted
 fallback.
 
-From the repository root, use an existing Python 3.12+ interpreter:
+From `profile-service/`, use uv 0.12.9 and Python 3.12+:
 
 ```text
-python -m unittest discover -s profile-service/tests -v
-python -m compileall -q profile-service
+uv sync --locked --extra dev
+uv run --locked ruff check .
+uv run --locked pytest
+uv run --locked python -m compileall -q .
 ```
 
-The standard-library run skips decoder tests if Pillow is absent; that is not decoder acceptance.
-For the complete local suite on CPython 3.12 Windows x64, create a separate environment:
-
-```text
-python -m venv profile-service/.venv
-profile-service/.venv/Scripts/python -m pip install --only-binary=:all: --require-hashes -r profile-service/requirements-decoder.txt
-profile-service/.venv/Scripts/python -m unittest discover -s profile-service/tests -v
-```
-
-The pinned hashes cover Windows x64 and Linux x64 CPython 3.12 wheels from PyPI. Other platforms need
-reviewed hashes before installation. See [Pillow security guidance](https://pillow.readthedocs.io/en/stable/handbook/security.html)
+The lock records exact distributions and hashes across supported platforms. CI installs it unchanged
+and executes the real decoder boundary on Linux; local Windows runs retain the expected worker-limit
+refusal. See [Pillow security guidance](https://pillow.readthedocs.io/en/stable/handbook/security.html)
 and [12.3.0 release notes](https://pillow.readthedocs.io/en/stable/releasenotes/12.3.0.html).
 
 Tests use synthetic byte fixtures, not photographs. Their fake JPEG markers deliberately do not claim
