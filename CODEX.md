@@ -17,6 +17,7 @@ Then use the operating documents that match the task:
 | Understand components and data flow | [Architecture overview](docs/ARCHITECTURE_OVERVIEW.md) |
 | Review trust and authority boundaries | [Security boundaries](docs/SECURITY_BOUNDARIES.md) |
 | Prepare or review a release | [Deployment workflow](docs/DEPLOYMENT_WORKFLOW.md) |
+| Review the prepared `a864076` staging release | [Staging release record](docs/releases/2026-09-05-a864076-staging.md) |
 | Prepare or review database change | [Migration workflow](docs/MIGRATION_WORKFLOW.md) |
 | See unfinished or externally gated work | [Open milestones](docs/OPEN_MILESTONES.md) |
 | Choose and report validation | [Testing and audit](docs/TESTING_AND_AUDIT.md) |
