@@ -1,0 +1,7 @@
+.gcloudignore
+.git
+.gitignore
+#!include:.gitignore
+
+# Local owner artifacts must never enter a Cloud Build source archive.
+output/

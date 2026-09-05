@@ -229,3 +229,12 @@ def test_appearance_assets_and_creator_are_available_without_external_fonts():
     assert 'id="theme-library"' in html and 'id="theme-editor"' in html
     assert 'id="theme-editor-status" role="status" aria-live="polite"' in html
     assert "fonts.googleapis.com" not in html
+
+
+def test_container_copies_runtime_files_with_final_ownership():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "chown -R" not in dockerfile
+    assert "COPY --from=builder --chown=liweb:liweb /app/.venv /app/.venv" in dockerfile
+    assert "COPY --chown=liweb:liweb frontend/app ./app" in dockerfile
+    assert "COPY --chown=liweb:liweb frontend/static ./static" in dockerfile
