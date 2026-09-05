@@ -80,7 +80,9 @@ The encrypted pre-migration backup passed full authentication and archive-catalo
 restore is still unproven. Complete the restore drill only in an isolated non-production database,
 with the owner entering the encryption passphrase outside chat. Record the source-backup hash,
 restore start/end time, schema version, validation queries, retrieval result, cleanup disposition, and
-RPO/RTO findings without recording personal data or secrets.
+RPO/RTO findings without recording personal data or secrets. Use the fail-closed
+[encrypted restore tool](../memory/backup-tools/README.md) so authenticated archive bytes stream
+directly into the empty target without creating a plaintext dump.
 
 Stable-use acceptance requires an owner-observed period of ordinary use. Record the agreed start and
 end dates, devices used, completed journeys, errors, uncertain outcomes, unexpected duplicates,
