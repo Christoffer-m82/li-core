@@ -72,18 +72,22 @@ Agenda, Top priorities, and Actions for today. Its meetings, email counts, train
 priorities are examples, not owner facts or permission to activate integrations.
 
 Current Home provides chat, specialists, recent conversations, open loops, briefs, artifacts,
-and specialist activity. This appearance change preserves those functions and does not implement
-new Home data sources.
+and specialist activity. A compact **Today at a glance** panel summarizes counts from those four
+existing live sections: recent conversations, open commitments, unread briefs and saved files.
+Each section fails independently; an unavailable source displays an em dash and the freshness line
+states how many sections loaded instead of turning missing data into zero. The panel introduces no
+new Home data source and never infers agenda or priority status from those counts.
 
-Recommended next Home arrangement:
+The conversation/composer remains the primary action, with welcome copy inside its compact header
+rather than a separate presence panel. System agents stay off Home and remain in Specialists and
+Backend/System. Recent conversations and files stay below the main workspace.
 
-1. Greeting and a compact Today at a glance summary, with freshness and unavailable states.
-2. The conversation/composer as the primary action, with welcome copy inside its compact header
-   rather than a separate presence panel. System agents stay off Home and remain in Specialists
-   and Backend/System.
-3. Agenda and up to three owner-selected priorities, drawn only from connected real data.
-4. A needs-attention section for approvals, overdue commitments, and useful unread briefs.
-5. Recent conversations and files below; specialists accessible without occupying most of a phone screen.
+Recommended remaining Home work:
+
+1. Agenda and up to three owner-selected priorities, drawn only from connected real data.
+2. A consolidated needs-attention section for approvals, overdue commitments, and useful unread briefs.
+3. A compact mobile specialist entry that avoids placing the full roster before recent work.
+4. Deployed and physical-device validation of information density and responsive behavior.
 
 Do not infer that every open loop is a top priority, turn missing calendar data into a clear schedule,
 invent inbox counts, or automatically execute a suggested action. Home should distinguish a suggestion,

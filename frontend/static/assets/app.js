@@ -306,12 +306,43 @@ $('#specialist-portrait-dialog').addEventListener('close', () => {
 function renderSpecialists() { const list = $('#specialist-list'); list.replaceChildren(); const sorted = [...state.specialists].sort((a, b) => Number(b.active) - Number(a.active)); sorted.forEach((item) => { const button = document.createElement('button'); button.className = `specialist-card${item.active ? ' active' : ''}`; button.dataset.specialistId = item.id; const avatar = createSpecialistAvatar(item); const copy = document.createElement('span'); const name = document.createElement('strong'); name.textContent = item.name; const role = document.createElement('small'); role.textContent = item.role; copy.append(name, role); const status = document.createElement('span'); status.className = 'specialist-status'; status.textContent = item.status; button.append(avatar, copy, status); button.addEventListener('click', () => openSpecialist(item)); list.appendChild(button); }); $('#specialist-count').textContent = `${sorted.filter((item) => item.active).length} active`; }
 function compactEmpty(host, message) { host.replaceChildren(); const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = message; host.appendChild(empty); }
 function compactRows(host, rows, label, meta) { host.replaceChildren(); rows.slice(0, 3).forEach((item) => { const row = document.createElement('div'); row.className = 'compact-item'; const title = document.createElement('strong'); title.textContent = label(item); const detail = document.createElement('small'); detail.textContent = meta(item); row.append(title, detail); host.appendChild(row); }); }
-async function loadHomeData() { const sources = [
-  ['/api/conversations', '#home-conversations', 'conversations', 'No conversations yet.', (item) => item.title, (item) => new Date(item.updated_at).toLocaleString()],
-  ['/api/open-loops', '#home-open-loops', 'open_loops', 'No open loops.', (item) => item.title || item.summary || String(item.category || 'Open loop').replaceAll('_', ' '), (item) => item.status?.replaceAll('_', ' ') || 'Open'],
-  ['/api/proactive-briefs', '#home-briefs', 'briefs', 'No proactive briefs. Rhythms remain quiet until activated.', (item) => item.title, (item) => item.read_at ? 'Read' : 'Unread'],
-  ['/api/artifacts', '#home-artifacts', 'artifacts', 'No saved artifacts.', (item) => item.safe_filename, (item) => item.retention_state === 'kept' ? 'Kept' : `Expires ${new Date(item.expires_at).toLocaleDateString()}`],
-]; await Promise.all(sources.map(async ([url, selector, key, empty, label, meta]) => { const host = $(selector); try { const response = await fetch(url); if (!response.ok) throw new Error(); const rows = (await response.json())[key] || []; if (!rows.length) compactEmpty(host, empty); else compactRows(host, rows, label, meta); } catch { compactEmpty(host, 'This data is unavailable right now.'); } })); }
+function renderHomeGlance(results) {
+  const values = new Map(results.map((result) => [result.source.metric, result]));
+  for (const [metric, result] of values) {
+    $(metric).textContent = result.available ? String(result.count) : '—';
+  }
+  const loaded = results.filter((result) => result.available).length;
+  $('#home-glance-status').textContent = loaded === results.length
+    ? `All ${loaded} live sections loaded just now.`
+    : `${loaded} of ${results.length} live sections loaded; unavailable data remains unknown.`;
+}
+async function loadHomeData() {
+  const sources = [
+    { url: '/api/conversations', selector: '#home-conversations', key: 'conversations', metric: '#home-glance-conversations', empty: 'No conversations yet.', label: (item) => item.title, meta: (item) => new Date(item.updated_at).toLocaleString(), count: (rows) => rows.length },
+    { url: '/api/open-loops', selector: '#home-open-loops', key: 'open_loops', metric: '#home-glance-open-loops', empty: 'No open loops.', label: (item) => item.commitment_summary || item.title || item.summary || String(item.category || 'Open loop').replaceAll('_', ' '), meta: (item) => item.status?.replaceAll('_', ' ') || 'Open', count: (rows) => rows.length },
+    { url: '/api/proactive-briefs', selector: '#home-briefs', key: 'briefs', metric: '#home-glance-briefs', empty: 'No proactive briefs. Rhythms remain quiet until activated.', label: (item) => item.title, meta: (item) => item.read_at ? 'Read' : 'Unread', count: (rows) => rows.filter((item) => !item.read_at).length },
+    { url: '/api/artifacts', selector: '#home-artifacts', key: 'artifacts', metric: '#home-glance-artifacts', empty: 'No saved artifacts.', label: (item) => item.safe_filename, meta: (item) => item.retention_state === 'kept' ? 'Kept' : `Expires ${new Date(item.expires_at).toLocaleDateString()}`, count: (rows) => rows.length },
+  ];
+  $('#home-glance-status').textContent = 'Loading real activity…';
+  const results = await Promise.all(sources.map(async (source) => {
+    const host = $(source.selector);
+    try {
+      const response = await fetch(source.url);
+      if (!response.ok) throw new Error();
+      const rows = (await response.json())[source.key];
+      if (!Array.isArray(rows)) throw new Error();
+      const count = source.count(rows);
+      if (!Number.isInteger(count) || count < 0) throw new Error();
+      if (!rows.length) compactEmpty(host, source.empty);
+      else compactRows(host, rows, source.label, source.meta);
+      return { source, count, available: true };
+    } catch {
+      compactEmpty(host, 'This data is unavailable right now.');
+      return { source, count: null, available: false };
+    }
+  }));
+  renderHomeGlance(results);
+}
 async function loadSpecialists() { let unavailable = false; try { const response = await fetch('/api/specialists'); if (!response.ok) throw new Error(); state.specialists = (await response.json()).specialists; } catch { state.specialists = []; unavailable = true; } renderSpecialists(); if (unavailable) { $('#specialist-count').textContent = 'Activity unavailable'; $('#specialist-list').textContent = 'Specialist activity could not be loaded. Try again later.'; } }
 function evidencePanel(entry) { const metadata = entry.outcome?.validation?.freshness_evidence; if (!metadata) return null; const panel = document.createElement('aside'); panel.className = 'evidence-panel'; const title = document.createElement('h3'); title.textContent = 'Evidence & freshness'; const facts = document.createElement('dl'); facts.className = 'evidence-facts'; const rows = [['Verification', metadata.verification_passed === true ? 'Passed' : metadata.verification_passed === false ? 'Not passed' : metadata.evidence_required === true ? 'Required · not recorded as performed' : metadata.evidence_required === false ? 'Not required' : 'Not recorded'], ['Freshness', typeof metadata.freshness_status === 'string' ? metadata.freshness_status.replaceAll('_', ' ') : 'Not recorded'], ['Source class', (Array.isArray(metadata.selected_source_class) ? metadata.selected_source_class.join(', ') : Object.keys(metadata.source_class_summary || {}).join(', ')) || 'Not recorded'], ['Citations', Number.isFinite(metadata.evidence_count) ? String(metadata.evidence_count) : 'Not measured']]; rows.forEach(([label, value]) => { const wrap = document.createElement('div'); const dt = document.createElement('dt'); dt.textContent = label; const dd = document.createElement('dd'); dd.textContent = value; wrap.append(dt, dd); facts.appendChild(wrap); }); panel.append(title, facts); return panel; }
 let specialistView;

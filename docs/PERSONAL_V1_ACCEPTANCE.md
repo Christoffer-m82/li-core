@@ -24,7 +24,7 @@ required authorization. Secret entry and physical-device checks may require the 
 | Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | Representative end-to-end journeys with controlled fixtures and an approved live smoke test |
 | Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Complete UI journeys and authorized data-integrity/recovery tests |
 | Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | Synthetic full-stack lifecycle test and operator-verified expiry behavior |
-| Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Implement and validate remaining [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
+| Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance implemented with independent unavailable states; agenda, owner-selected priorities, consolidated attention and compact mobile specialist entry remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
 | Specialists | All registry names/roles, selected portraits, original viewer, recorded interactions, honest unavailable states | Longer-running interaction and accessibility checks; system profiles remain read-only definitions |
 | Themes | Built-ins and custom creation; editing and portable export/import; preserve content and contrast | [Editing and transfer](../frontend/APPEARANCE.md#edit-and-transfer) implemented with local regression tests; deployed and physical-device acceptance remains pending. Automatic cross-device sync needs a storage design |
 | Calendar, Gmail, tasks, research | Read flows; supported writes gated by approval; unavailable providers and stale evidence handled clearly | Provider-specific end-to-end checks; Gmail sending remains deliberately unavailable |
@@ -48,6 +48,13 @@ Permanent frontend tests cover the view announcements, current-page state and ta
 This evidence is local browser validation, not a deployed acceptance result. Android phone/tablet,
 Windows installed-PWA, 200% zoom and screen-reader checks remain open, as do the other external and
 protected checks in the table above.
+
+The later Home glance check used four synthetic successful data sources in the same authenticated
+local Windows Chromium fixture. It displayed 2 recent conversations, 1 open commitment, 1 unread
+brief and 1 saved file above the conversation without introducing a new backend source. Permanent
+tests separately prove that a failed source displays unknown and that the freshness message reports
+partial availability. This is desktop visual and local contract evidence only; responsive automated
+rules do not replace the open Android/tablet/installed-Windows checks.
 
 ## Blueprint implementation evidence — 2026-09-05
 
