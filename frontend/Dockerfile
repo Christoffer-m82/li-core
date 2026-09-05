@@ -18,9 +18,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080
 
 WORKDIR /app
-COPY --from=builder /app/.venv /app/.venv
-COPY frontend/app ./app
-COPY frontend/static ./static
-RUN useradd --create-home --uid 10001 liweb && chown -R liweb:liweb /app
+RUN useradd --create-home --uid 10001 liweb
+COPY --from=builder --chown=liweb:liweb /app/.venv /app/.venv
+COPY --chown=liweb:liweb frontend/app ./app
+COPY --chown=liweb:liweb frontend/static ./static
 USER liweb
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
