@@ -23,10 +23,10 @@ required authorization. Secret entry and physical-device checks may require the 
 | --- | --- | --- |
 | Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | Representative end-to-end journeys with controlled fixtures and an approved live smoke test |
 | Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Complete UI journeys and authorized data-integrity/recovery tests |
-| Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | Synthetic full-stack lifecycle test and operator-verified expiry behavior |
+| Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | A synthetic HTTP-boundary lifecycle now covers the complete journey, owner-scoped not-found behavior, a recoverable storage outage and deletion; operator-verified scheduled expiry remains pending |
 | Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance and phone specialist entry implemented; agenda, owner-selected priorities and consolidated attention remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
 | Specialists | All registry names/roles, selected portraits, original viewer, recorded interactions, honest unavailable states | Longer-running interaction and accessibility checks; system profiles remain read-only definitions |
-| Themes | Built-ins and custom creation; editing and portable export/import; preserve content and contrast | [Editing and transfer](../frontend/APPEARANCE.md#edit-and-transfer) implemented with local regression tests; deployed and physical-device acceptance remains pending. Automatic cross-device sync needs a storage design |
+| Themes | Built-ins and custom creation; editing and portable export/import; preserve content and contrast | [Editing and transfer](../frontend/APPEARANCE.md#edit-and-transfer) is implemented, locally regression-tested and deployed to staging; physical-device acceptance remains pending. Automatic cross-device sync needs a storage design |
 | Calendar, Gmail, tasks, research | Read flows; supported writes gated by approval; unavailable providers and stale evidence handled clearly | Provider-specific end-to-end checks; Gmail sending remains deliberately unavailable |
 | Proactivity | Owner-approved schedule, grounded brief, quiet hours, duplicate prevention, delivery and stand-down | Exact per-rhythm activation approval plus coordinated database/scheduler verification; external notification delivery needs a design |
 | Voice | Transcript correctness, cancel, interruption, permission denial, unavailable service, spoken response stop | Physical Android phone/tablet and Windows browser checks; server speech remains unconfigured |
@@ -65,12 +65,32 @@ overflow. This remains local responsive evidence, not actual 200% browser zoom o
 
 ## Blueprint implementation evidence — 2026-09-05
 
-The six packages in the [Li OS improvement blueprint](LI_OS_IMPROVEMENT_BLUEPRINT.md) are implemented
-and locally verified on `codex/li-os-improvement-blueprint`. The dated
-[acceptance record](LI_OS_IMPROVEMENT_ACCEPTANCE.md) maps R1–R14 to permanent tests, records the full
-local test matrix and migration rehearsal, and distinguishes local implementation from remaining
-deployment, external-database, live-provider, restore, physical-device and stable-use evidence.
-Those remaining rows stay open; local green tests are not relabelled as deployed or device acceptance.
+The six packages in the [Li OS improvement blueprint](LI_OS_IMPROVEMENT_BLUEPRINT.md) are implemented,
+merged and locally verified. The dated [acceptance record](LI_OS_IMPROVEMENT_ACCEPTANCE.md) maps
+R1–R18 to permanent tests and records the full local test matrix and migration rehearsal. The later
+[staging release record](releases/2026-09-05-a864076-staging.md) establishes migrations 037–039 and
+deployment separately. Live-provider, restore, physical-device and stable-use evidence remains open;
+local green tests and a healthy deployment are not relabelled as device acceptance.
+
+## Staging release evidence — 2026-09-05
+
+The reviewed backend and web images were deployed to staging, migrations 037 through 039 were applied
+in order, and the final database schema is 0.39. A pre-migration logical backup was encrypted locally,
+authenticated in full, and accepted by `pg_restore --list`; this validates backup integrity and
+catalogue readability, not restoration. Both services are Ready on their recorded immutable image
+digests, rollback revisions remain available, and all 12 pull-request and post-merge checks passed.
+See the [release record](releases/2026-09-05-a864076-staging.md) for the bounded evidence and remaining
+operator acceptance.
+
+## Post-release acceptance progress — 2026-09-05
+
+The backend file regression `test_saved_file_lifecycle_is_private_recoverable_and_owner_scoped`
+passes the complete synthetic HTTP journey in one test: a temporary upload leaves no record or
+object, explicit Save creates a kept artifact, the owner library lists it, download returns the exact
+bytes with private no-store headers, an unknown or other-owner identifier is concealed as not found,
+a simulated storage outage returns unavailable and then recovers, and deletion removes the object
+before hiding the metadata tombstone. This closes the synthetic lifecycle portion of the Files row.
+The deployed retention schedule and real expiry behavior remain external operator evidence.
 
 ## Earlier baseline — 2026-09-04
 
@@ -83,9 +103,8 @@ Those remaining rows stay open; local green tests are not relabelled as deployed
   disabled and the remaining rhythms preview-only. Native gateway and market quotes were unconfigured.
 - Backup restoration and physical-device acceptance have not been demonstrated in this task.
 - The first local reliability fix prevents blocked browser storage from aborting startup or breaking
-  voice controls. Two regression tests failed before the fix and passed after it; all 34 JavaScript
-  tests passed before adding a third save-failure regression check. The final JavaScript suite has
-  35 passing tests. This new fix is not yet committed or deployed.
+  voice controls. Two regression tests failed before the fix and passed after it; later suites expanded
+  this coverage. The fix is merged and included in the staging release recorded above.
 
 Run checks from [Testing and audit](TESTING_AND_AUDIT.md). Attach dated evidence when closing a row;
 never infer external state from a repository commit or mark a skipped check as passed.

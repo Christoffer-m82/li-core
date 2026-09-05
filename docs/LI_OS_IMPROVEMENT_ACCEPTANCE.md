@@ -26,11 +26,11 @@ into the acceptance scenario rather than replaced.
 | Package | Finding disposition and implemented guarantee | Local validation | State and remaining evidence |
 | --- | --- | --- | --- |
 | 1. Response safety | Reproduced. Invalid final output is never returned as accepted raw text; rejected attribution cannot leak action proposals; bounded repair retains evidence restrictions and mandatory context; current-world evidence policy runs for equivalent English and Swedish requests. | R1–R4 and R11; backend suite | **Locally verified.** Live-provider behavior remains unverified. |
-| 2. Context privacy and continuity | Reproduced. Conversation messages retain explicit privacy metadata; specialist context is selected as whole, relevant, permitted messages; temporary uploads stay private to Li unless the specialist is explicitly permitted; legacy/missing privacy metadata fails closed; memory domains use exact identifiers; complete requests reserve output and mandatory-instruction capacity. | R5, R6 and R10; migrations 037–038 history rehearsal; backend suite | **Locally verified.** Migration 037 is prepared but not applied to any external database. |
-| 3. Recoverable turns and actions | Reproduced. Clients supply a stable turn identity and reuse it on retry; durable turns replay completed responses, reject payload mismatch, expose in-progress/uncertain states, and do not blindly retry an uncertain effect; provider write failures resolve to explicit reconciliation-required uncertainty. | R8–R9; migration rehearsal including replay rejection; frontend and gateway retry tests | **Locally verified.** Migration 038 is prepared but not applied externally. Exactly-once behavior is not claimed for providers without reconciliation or idempotency support. |
+| 2. Context privacy and continuity | Reproduced. Conversation messages retain explicit privacy metadata; specialist context is selected as whole, relevant, permitted messages; temporary uploads stay private to Li unless the specialist is explicitly permitted; legacy/missing privacy metadata fails closed; memory domains use exact identifiers; complete requests reserve output and mandatory-instruction capacity. | R5, R6 and R10; migrations 037–038 history rehearsal; backend suite | **Locally verified and released to staging.** Migration 037 was later applied and validated in the linked release record; live-provider behavior remains unverified. |
+| 3. Recoverable turns and actions | Reproduced. Clients supply a stable turn identity and reuse it on retry; durable turns replay completed responses, reject payload mismatch, expose in-progress/uncertain states, and do not blindly retry an uncertain effect; provider write failures resolve to explicit reconciliation-required uncertainty. | R8–R9; migration rehearsal including replay rejection; frontend and gateway retry tests | **Locally verified and released to staging.** Migration 038 was later applied and validated. Exactly-once behavior is not claimed for providers without reconciliation or idempotency support. |
 | 4. Coherent delegation | Reproduced. Explicit requests and exclusions remain deterministic; quoted examples do not route; permitted recent context resolves English/Swedish follow-ups; relevance scoring replaces registry-order selection; simple stable questions stay with Li while current/high-risk questions still receive evidence governance; specialist packets carry objective, focused question, facts, evidence needs and success criteria. | R3, R7 and R11; bilingual/routing suites | **Locally verified.** Natural-language coverage remains bounded by tests and does not claim universal semantic understanding. |
 | 5. Evaluation and observability | Reproduced. Provider calls record stage, status, elapsed time, token usage, stop reason and structured-output status without routine message content; incomplete generations fail closed; turn diagnostics expose privacy-minimized stage traces; the voice evaluator records provider metadata and preserves incomplete-run truth. | R13; benchmark-manifest validation; backend suite | **Locally verified for synthetic evaluation.** Live-model quality comparison is deliberately unrun because covered metered entitlement was not established. |
-| 6. Personal-use journeys | Revised from “finish everything” to evidence-backed local completion. Chat and Specialist Workspace retries reuse stable identities; offline launch displays the public shell without caching private/auth/API responses; sign-in/photo failures remain honest; existing chat/history, files, themes, CM fallback, specialist conversations and proactive controls remain covered. | R10–R14; frontend Python and browser suites; gateway/profile suites | **Locally verified only.** Deployment, migrations, provider smoke tests, Android phone/tablet checks, Windows installed-app checks, restore drill and stable-use observation remain pending protected/operator evidence. |
+| 6. Personal-use journeys | Revised from “finish everything” to evidence-backed local completion. Chat and Specialist Workspace retries reuse stable identities; offline launch displays the public shell without caching private/auth/API responses; sign-in/photo failures remain honest; existing chat/history, files, themes, CM fallback, specialist conversations and proactive controls remain covered. | R10–R14; frontend Python and browser suites; gateway/profile suites | **Locally verified and released to staging.** Authenticated owner journeys, live-provider checks, Android phone/tablet checks, Windows installed-app checks, restore drill and stable-use observation remain pending. |
 
 ## Validation record
 
@@ -65,7 +65,8 @@ localhost, and removed after the rehearsal. No Supabase or other external databa
   authority, or action authority.
 - The service worker may cache only the public application shell and approved static assets; private,
   authentication, mutation, cross-origin, and query-bearing requests remain network-only.
-- The three new migrations are immutable additions and were not applied outside disposable rehearsals.
+- The three new migrations are immutable additions. They were later applied in order to staging and
+  validated at schema 0.39 in the linked release record.
 
 ## Phase 2 correction record
 
@@ -77,15 +78,16 @@ localhost, and removed after the rehearsal. No Supabase or other external databa
 
 | Package | Disposition and correction | Acceptance evidence | Residual limitation |
 | --- | --- | --- | --- |
-| A. Disclosure restrictions and memory truth | **Reproduced and corrected.** Assistant messages now derive disclosure from every used source instead of inheriting the current request's recipients; automatic memory captures retain source privacy; specialist memory packets carry provenance; Theo and the database boundary reject promotion of inferred content to confirmed truth. | R15; conversation, memory-capture and Theo regressions; migration 039 database rehearsal | Migration 039 is not applied externally. Existing records are not reclassified by this change. |
+| A. Disclosure restrictions and memory truth | **Reproduced and corrected.** Assistant messages now derive disclosure from every used source instead of inheriting the current request's recipients; automatic memory captures retain source privacy; specialist memory packets carry provenance; Theo and the database boundary reject promotion of inferred content to confirmed truth. | R15; conversation, memory-capture and Theo regressions; migration 039 database rehearsal | Migration 039 was later applied to staging. Existing records are not reclassified by this change. |
 | B. Response safety and bilingual intent | **Reproduced and corrected.** Current-world evidence requirements are enforced before a direct or specialist fallback; invalid attribution cannot preserve actions; failed evidence repair is deterministic; English and Swedish negation, references, quotations and unsupported-verification claims receive matching outcomes. | R1–R4, R7, R11 and R16; orchestration and bilingual routing regressions | Deterministic tests do not establish universal natural-language understanding or live-model quality. |
-| C. Durable recovery and retry | **Reproduced and corrected.** Migration 039 adds fenced attempts, monotonic action-prepared/provider-dispatched/provider-completed progress, access-time replay expiry and safe resume after a stored message. Read-only failure is not mislabelled as an external effect; an unobserved dispatch remains uncertain. Home and Workspace retain only a request fingerprint plus turn ID across refresh and issue a new ID for an edited envelope. | R8–R9, R14 and R17; actual fresh-database duplicate/conflict/lease/stale-worker rehearsal; provider-idempotency and browser retry tests | Provider operations without supported idempotency/reconciliation still remain uncertain rather than being repeated. Migration 039 is not applied externally. |
+| C. Durable recovery and retry | **Reproduced and corrected.** Migration 039 adds fenced attempts, monotonic action-prepared/provider-dispatched/provider-completed progress, access-time replay expiry and safe resume after a stored message. Read-only failure is not mislabelled as an external effect; an unobserved dispatch remains uncertain. Home and Workspace retain only a request fingerprint plus turn ID across refresh and issue a new ID for an edited envelope. | R8–R9, R14 and R17; actual fresh-database duplicate/conflict/lease/stale-worker rehearsal; provider-idempotency and browser retry tests | Provider operations without supported idempotency/reconciliation still remain uncertain rather than being repeated. Migration 039 was later applied to staging. |
 | D. Usable continuity and evaluation | **Reproduced and corrected.** The runtime prompt is compacted through a reviewed derived contract; complete estimates include schema and output reserve; conversation selection preserves whole relevant corrections under load; each specialist receives a distinct role-specific question and success constraints; the benchmark runner executes behavior paths rather than only checking test names; diagnostics contain decisions and counts, not content. | R6, R13 and R18; executable benchmark; request-budget, relevance and specialist-packet tests | Subjective live-model comparison remains unrun because covered metered entitlement was not established. |
 
 **Layer status:** implemented locally, locally tested, merged through PR #44 as commit `084d31a`, and
-verified by all 12 post-merge CI checks on 2026-09-05. External migration, deployment, live-provider
-behavior, physical Android/Windows devices, restore drills and stable-use observation are not
-established by this record unless a later release record supplies that evidence.
+verified by all 12 post-merge CI checks on 2026-09-05. The later
+[staging release record](releases/2026-09-05-a864076-staging.md) establishes external migrations and
+deployment. Live-provider behavior, physical Android/Windows devices, restore drills and stable-use
+observation remain unestablished.
 
 ### Phase 2 validation record
 
@@ -102,14 +104,12 @@ established by this record unless a later release record supplies that evidence.
 | NOT RUN | Live-model/provider comparison | Covered metered entitlement was not established; deterministic results do not prove subjective quality |
 | NOT RUN | External migration, deployment and physical devices | Separately protected/operator evidence; local repository state cannot prove these layers |
 
-## Remaining release work
+## Remaining acceptance work
 
-This change set closes the six packages at the **local implementation** level. It does not establish a
-deployed release or “100% complete” product. The next protected/operator stages are:
+This change set closes the six packages at the **local implementation** level. The linked staging
+release subsequently completed the database migration and deployment stages. It does not establish a
+“100% complete” product. The remaining protected or owner-operated stages are:
 
-1. Review and authorize external application of migrations 037 through 039 using the
-   [migration workflow](MIGRATION_WORKFLOW.md).
-2. Review and authorize deployment using the [deployment workflow](DEPLOYMENT_WORKFLOW.md).
-3. Run controlled live provider checks only after coverage is established without additional charge.
-4. Complete the Android phone/tablet and Windows installed-app checklist, an authorized restore drill,
+1. Run controlled live provider checks only after coverage is established without additional charge.
+2. Complete the Android phone/tablet and Windows installed-app checklist, an authorized restore drill,
    and the stable-use observation required by [personal-use acceptance](PERSONAL_V1_ACCEPTANCE.md).

@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.artifacts import StoredObject, safe_filename
+from app.artifacts import ArtifactStorageError, StoredObject, safe_filename
 from app.auth import require_api_token, require_owner_api_token
 from app.main import _requested_text_artifact, app
 
@@ -83,6 +83,136 @@ def test_explicit_save_persists_upload_as_kept(monkeypatch):
     assert response.status_code == 200
     assert response.json()["retained"] is True
     assert observed["keep"] is True
+
+
+def test_saved_file_lifecycle_is_private_recoverable_and_owner_scoped(monkeypatch):
+    """Exercise the complete synthetic file journey through the HTTP boundary."""
+    artifact_id = uuid4()
+    owner_id = uuid4()
+    current_owner_id = owner_id
+    records = {}
+
+    class LifecycleStore:
+        def __init__(self):
+            self.objects = {}
+            self.fail_download = False
+
+        def put(self, **kwargs):
+            object_name = (
+                f"owners/{kwargs['owner_id']}/artifacts/{kwargs['artifact_id']}/"
+                f"{kwargs['filename']}"
+            )
+            self.objects[object_name] = kwargs["contents"]
+            return StoredObject(object_name, len(kwargs["contents"]), 1)
+
+        def get(self, object_name):
+            if self.fail_download:
+                raise ArtifactStorageError("synthetic provider outage")
+            return self.objects[object_name]
+
+        def delete(self, object_name):
+            self.objects.pop(object_name, None)
+
+    store = LifecycleStore()
+
+    def reserve(**kwargs):
+        assert kwargs["source"] == "upload"
+        record = {
+            "artifact_id": artifact_id,
+            "owner_user_id": owner_id,
+            "safe_filename": kwargs["filename"],
+            "content_type": kwargs["content_type"],
+            "size_bytes": kwargs["size_bytes"],
+            "source": kwargs["source"],
+            "storage_object": None,
+            "retention_state": "pending",
+            "expires_at": None,
+        }
+        records[str(artifact_id)] = record
+        return record
+
+    def finalize(value, object_name, generation, keep):
+        record = records[value]
+        record.update(
+            storage_object=object_name,
+            storage_generation=generation,
+            retention_state="kept" if keep else "expiring",
+        )
+        return True
+
+    def listed():
+        return [
+            record for record in records.values()
+            if record["owner_user_id"] == current_owner_id
+            and record["retention_state"] in {"kept", "expiring"}
+        ]
+
+    def get_record(value):
+        record = records.get(value)
+        if (
+            not record
+            or record["owner_user_id"] != current_owner_id
+            or record["retention_state"] == "deleted"
+        ):
+            return None
+        return record
+
+    def change(value, action):
+        record = get_record(value)
+        if not record:
+            return None
+        record["retention_state"] = "deleted" if action == "delete" else "kept"
+        return record
+
+    monkeypatch.setattr("app.main._artifact_store", lambda: store)
+    monkeypatch.setattr("app.main.reserve_artifact", reserve)
+    monkeypatch.setattr("app.main.finalize_artifact", finalize)
+    monkeypatch.setattr("app.main.list_artifacts", listed)
+    monkeypatch.setattr("app.main.get_artifact", get_record)
+    monkeypatch.setattr("app.main.change_artifact", change)
+
+    api = client()
+
+    temporary = api.post("/artifacts/uploads", json=payload())
+    assert temporary.status_code == 200
+    assert temporary.json()["retained"] is False
+    assert records == {} and store.objects == {}
+
+    saved = api.post("/artifacts/uploads", json=payload(save=True))
+    assert saved.status_code == 200
+    assert saved.json()["artifact_id"] == str(artifact_id)
+    assert saved.json()["retained"] is True
+
+    library = api.get("/artifacts")
+    assert library.status_code == 200
+    assert [item["artifact_id"] for item in library.json()["artifacts"]] == [str(artifact_id)]
+
+    download = api.get(f"/artifacts/{artifact_id}")
+    assert download.status_code == 200
+    assert download.content == b"synthetic notes"
+    assert download.headers["cache-control"] == "no-store"
+    assert download.headers["content-disposition"] == 'attachment; filename="notes.txt"'
+
+    # Owner scoping conceals another owner's identifier as not found.
+    foreign_artifact_id = uuid4()
+    records[str(foreign_artifact_id)] = {
+        **records[str(artifact_id)],
+        "artifact_id": foreign_artifact_id,
+        "owner_user_id": uuid4(),
+    }
+    assert api.get(f"/artifacts/{foreign_artifact_id}").status_code == 404
+
+    store.fail_download = True
+    assert api.get(f"/artifacts/{artifact_id}").status_code == 503
+    store.fail_download = False
+    assert api.get(f"/artifacts/{artifact_id}").content == b"synthetic notes"
+
+    removed = api.post(f"/artifacts/{artifact_id}/retention", json={"action": "delete"})
+    assert removed.status_code == 200
+    assert removed.json()["state"] == "deleted"
+    assert store.objects == {}
+    assert api.get(f"/artifacts/{artifact_id}").status_code == 404
+    assert api.get("/artifacts").json()["artifacts"] == []
 
 
 def test_generated_artifact_uses_default_expiry_and_can_be_deleted(monkeypatch):
