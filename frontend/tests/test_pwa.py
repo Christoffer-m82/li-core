@@ -56,7 +56,9 @@ def test_system_agent_profiles_preserve_registry_roles_and_specialist_separation
 
 def test_home_welcome_is_inside_chat_header_without_standalone_banner():
     html = client.get("/").text
-    home = html.split('data-view-panel="home">', 1)[1].split('</section>', 1)[0]
+    home = html.split('data-view-panel="home">', 1)[1].split(
+        '<section class="view" data-view-panel="inbox">', 1
+    )[0]
     heading = home.split('class="conversation-heading">', 1)[1].split('id="messages"', 1)[0]
     assert 'home-orb-stage' not in home
     assert 'System agents' not in home
@@ -69,6 +71,24 @@ def test_home_welcome_is_inside_chat_header_without_standalone_banner():
         assert home.count(text) == 1
     for control in ('li-state-label', 'voice-output-toggle', 'stop-speaking'):
         assert f'id="{control}"' in heading
+
+
+def test_home_has_truthful_compact_glance_before_the_conversation():
+    html = client.get("/").text
+    home = html.split('data-view-panel="home">', 1)[1].split(
+        '<section class="view" data-view-panel="inbox">', 1
+    )[0]
+    assert home.index('id="home-glance"') < home.index('id="conversation-panel"')
+    assert 'aria-labelledby="home-glance-title"' in home
+    for element_id in (
+        "home-glance-conversations",
+        "home-glance-open-loops",
+        "home-glance-briefs",
+        "home-glance-artifacts",
+        "home-glance-status",
+    ):
+        assert f'id="{element_id}"' in home
+    assert 'id="home-glance-status" class="muted" role="status" aria-live="polite"' in home
 
 
 def png_dimensions(path: Path) -> tuple[int, int]:
@@ -160,7 +180,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v17" in service_worker
+    assert "li-shell-v18" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():

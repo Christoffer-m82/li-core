@@ -82,9 +82,10 @@ localhost, and removed after the rehearsal. No Supabase or other external databa
 | C. Durable recovery and retry | **Reproduced and corrected.** Migration 039 adds fenced attempts, monotonic action-prepared/provider-dispatched/provider-completed progress, access-time replay expiry and safe resume after a stored message. Read-only failure is not mislabelled as an external effect; an unobserved dispatch remains uncertain. Home and Workspace retain only a request fingerprint plus turn ID across refresh and issue a new ID for an edited envelope. | R8–R9, R14 and R17; actual fresh-database duplicate/conflict/lease/stale-worker rehearsal; provider-idempotency and browser retry tests | Provider operations without supported idempotency/reconciliation still remain uncertain rather than being repeated. Migration 039 is not applied externally. |
 | D. Usable continuity and evaluation | **Reproduced and corrected.** The runtime prompt is compacted through a reviewed derived contract; complete estimates include schema and output reserve; conversation selection preserves whole relevant corrections under load; each specialist receives a distinct role-specific question and success constraints; the benchmark runner executes behavior paths rather than only checking test names; diagnostics contain decisions and counts, not content. | R6, R13 and R18; executable benchmark; request-budget, relevance and specialist-packet tests | Subjective live-model comparison remains unrun because covered metered entitlement was not established. |
 
-**Layer status:** implemented locally and locally tested. CI, merge, external migration, deployment,
-live-provider behavior, physical Android/Windows devices, restore drills and stable-use observation are
-not established by this local record unless a later release record supplies that evidence.
+**Layer status:** implemented locally, locally tested, merged through PR #44 as commit `084d31a`, and
+verified by all 12 post-merge CI checks on 2026-09-05. External migration, deployment, live-provider
+behavior, physical Android/Windows devices, restore drills and stable-use observation are not
+established by this record unless a later release record supplies that evidence.
 
 ### Phase 2 validation record
 

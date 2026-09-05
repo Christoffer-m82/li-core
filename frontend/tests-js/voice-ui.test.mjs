@@ -60,7 +60,8 @@ class FakeElement {
 }
 
 function loadApp({ geolocation, storageBlocked = false, storageWriteFails = false,
-  chatResponses = [], sessionValues = new Map(), uuidValues = ['test-id'] } = {}) {
+  chatResponses = [], endpointResponses = {}, sessionValues = new Map(),
+  uuidValues = ['test-id'] } = {}) {
   const elements = new Map();
   const navItems = ['home', 'inbox', 'agents', 'history', 'backend', 'settings']
     .map((view) => { const item = new FakeElement(); item.dataset.view = view; return item; });
@@ -118,6 +119,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   const clearTimeout = (id) => timers.delete(id);
   const fetch = async (url, options = {}) => {
     requests.push({ url, options });
+    if (Object.hasOwn(endpointResponses, url)) return endpointResponses[url];
     if (url === '/api/session') return { ok: false, status: 401, json: async () => ({}) };
     if (url === '/api/chat') {
       if (chatResponses.length) return chatResponses.shift();
@@ -185,6 +187,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     openSpecialistPortrait: vm.runInNewContext('openSpecialistPortrait', context),
     systemAgents: vm.runInNewContext('SYSTEM_AGENTS', context),
     setView: vm.runInNewContext('setView', context),
+    loadHomeData: vm.runInNewContext('loadHomeData', context),
     sendMessage: vm.runInNewContext('sendMessage', context),
     document,
     elements,
@@ -482,6 +485,25 @@ test('portrait dialog uses originals, ignores stale image events, and closes on 
   assert.equal(app.requests.length, initialRequests);
   app.setView('home');
   assert.equal(get('dialog').open, false);
+});
+
+test('Home glance counts only real loaded data and leaves unavailable data unknown', async () => {
+  const ok = (payload) => ({ ok: true, status: 200, json: async () => payload });
+  const app = loadApp({ endpointResponses: {
+    '/api/conversations': ok({ conversations: [{ title: 'One' }, { title: 'Two' }] }),
+    '/api/open-loops': ok({ open_loops: [{ commitment_summary: 'One' }] }),
+    '/api/proactive-briefs': ok({ briefs: [{ title: 'Read', read_at: 'date' }, { title: 'New' }] }),
+    '/api/artifacts': { ok: false, status: 503, json: async () => ({}) },
+  } });
+
+  await app.loadHomeData();
+
+  assert.equal(app.elements.get('#home-glance-conversations').textContent, '2');
+  assert.equal(app.elements.get('#home-glance-open-loops').textContent, '1');
+  assert.equal(app.elements.get('#home-glance-briefs').textContent, '1');
+  assert.equal(app.elements.get('#home-glance-artifacts').textContent, '—');
+  assert.match(app.elements.get('#home-glance-status').textContent, /3 of 4 live sections loaded/);
+  assert.match(app.elements.get('#home-glance-status').textContent, /unavailable data remains unknown/);
 });
 
 test('view changes update descriptive copy and expose the current navigation item', async () => {
