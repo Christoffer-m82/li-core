@@ -185,7 +185,18 @@ def evaluate_memory_proposal(
 
     try:
         raw_result = json.loads(_extract_json_object(response_text))
-        return TheoReviewDecision.model_validate(raw_result)
+        decision = TheoReviewDecision.model_validate(raw_result)
+        proposed_class = str(proposal.get("proposed_class") or "")
+        proposed_truth = str(proposal.get("proposed_truth_status") or "")
+        if (
+            decision.decision == "approve"
+            and (proposed_class == "inference" or proposed_truth == "inferred")
+            and decision.final_truth_status not in {None, "inferred"}
+        ):
+            raise TheoRuntimeError(
+                "Theo cannot promote an unconfirmed inference to confirmed truth."
+            )
+        return decision
     except (json.JSONDecodeError, ValidationError) as exc:
         raise TheoRuntimeError("Theo returned an invalid or unsafe decision.") from exc
 

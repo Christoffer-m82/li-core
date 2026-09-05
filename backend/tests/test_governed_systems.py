@@ -105,6 +105,31 @@ def test_long_context_keeps_latest_shared_correction_as_whole_messages():
     assert "old " not in selected
 
 
+def test_long_context_keeps_older_task_relevant_correction_and_excludes_private_noise():
+    messages = [
+        ConversationContextMessage(
+            role="user", content="Correction: the vendor budget is 900 kronor",
+            allowed_specialists=("nora",),
+        ),
+        ConversationContextMessage(
+            role="user", content="Private unrelated health detail " + ("x" * 5000),
+            private_to_li=True, allowed_specialists=("nora",),
+        ),
+        *[
+            ConversationContextMessage(
+                role="assistant", content=f"Recent unrelated topic {index} " + ("y" * 800),
+                allowed_specialists=("nora",),
+            ) for index in range(4)
+        ],
+    ]
+    selected = specialist_conversation_context(
+        messages, "nora", character_budget=180,
+        query="Compare the vendor choices within my 900 kronor budget",
+    )
+    assert "vendor budget is 900 kronor" in selected
+    assert "health detail" not in selected
+
+
 def test_malformed_history_privacy_metadata_fails_closed():
     message = conversation_context_message({
         "role": "user", "content": "Sensitive", "privacy_metadata": {

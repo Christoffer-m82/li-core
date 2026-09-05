@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.li_runtime import talk_to_li, talk_to_li_with_outcome
 
 
@@ -29,6 +31,86 @@ def test_direct_route_does_not_call_specialist(monkeypatch) -> None:
         "app.li_runtime.generate_claude_text", lambda **kwargs: "A direct answer."
     )
     assert talk_to_li("What is compound interest?") == "A direct answer."
+
+
+@pytest.mark.parametrize("message", ["What is the weather today?", "Vad är vädret idag?"])
+def test_direct_current_question_fails_closed_when_evidence_is_unavailable(
+    monkeypatch, message,
+) -> None:
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.generate_claude_text",
+        lambda **kwargs: json.dumps({
+            "final_response": "It is sunny and 22 degrees now.",
+            "used_specialist_keys": [],
+            "action_intents": [],
+        }),
+    )
+
+    outcome = talk_to_li_with_outcome(message)
+
+    assert "22" not in outcome.response
+    assert not outcome.action_intents
+    assert "verify" in outcome.response.lower() or "verifiera" in outcome.response.lower()
+
+
+@pytest.mark.parametrize(
+    "message", ["What is the weather today without Milo?", "Vad är vädret idag utan Milo?"],
+)
+def test_current_evidence_gate_survives_specialist_exclusion(monkeypatch, message) -> None:
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.generate_claude_text",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("Blocked current facts must not reach an unverified direct model path")
+        ),
+    )
+
+    outcome = talk_to_li_with_outcome(message)
+
+    assert outcome.action_intents == []
+    assert outcome.decision_trace["validation_path"] == "direct_evidence_blocked"
+    assert "verify" in outcome.response.lower() or "verifiera" in outcome.response.lower()
+
+
+@pytest.mark.parametrize(
+    "message,response",
+    [
+        ("They moved the deadline again.", "Again? What changed this time?"),
+        ("Nu har de flyttat deadline igen.", "Igen? Vad har ändrats?"),
+    ],
+)
+def test_incidental_freshness_word_does_not_block_general_conversation(
+    monkeypatch, message, response,
+) -> None:
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: response)
+
+    outcome = talk_to_li_with_outcome(message)
+
+    assert outcome.response == response
+    assert outcome.decision_trace["turn_evidence_required"] is False
+
+
+def test_direct_response_cannot_invent_specialist_attribution_or_actions(monkeypatch) -> None:
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.generate_claude_text",
+        lambda **kwargs: json.dumps({
+            "final_response": "Nora says to do it.",
+            "used_specialist_keys": ["nora"],
+            "action_intents": [{
+                "action_type": "task.create",
+                "summary": "Do it",
+                "payload": {"title": "Synthetic task", "notes": "", "due_at": None},
+            }],
+        }),
+    )
+
+    outcome = talk_to_li_with_outcome("Hello")
+
+    assert "Nora says" not in outcome.response
+    assert outcome.action_intents == []
 
 
 def test_nora_gets_bounded_context_and_li_synthesizes(monkeypatch) -> None:
@@ -169,6 +251,38 @@ def test_private_or_undisclosed_conversation_is_never_shared_with_specialist(
     assert "UNDISCLOSED-RELATIONSHIP" not in packet.conversation_context
 
 
+def test_current_message_recipient_scope_blocks_a_different_specialist(monkeypatch) -> None:
+    from app.governed_systems import ConversationContextMessage
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("A specialist outside the current disclosure scope must not run")
+        ),
+    )
+    monkeypatch.setattr(
+        "app.li_runtime.generate_claude_text",
+        lambda **kwargs: json.dumps({
+            "final_response": "I kept this with Li.",
+            "used_specialist_keys": [],
+            "action_intents": [],
+        }),
+    )
+
+    outcome = talk_to_li_with_outcome(
+        "Ask Marco for a training plan.",
+        current_message=ConversationContextMessage(
+            role="user", content="Ask Marco for a training plan.",
+            allowed_specialists=("nora",),
+        ),
+    )
+
+    assert outcome.response == "I kept this with Li."
+    assert outcome.response_allowed_specialists == []
+    assert outcome.decision_trace["route_category"] == "li_only_disclosure_scope"
+
+
 def test_rejected_specialist_attribution_cannot_propose_an_action(monkeypatch) -> None:
     """R1: a rejected synthesis is not an authority-bearing partial success."""
     from app.specialist_runtime import SpecialistConsultation, SpecialistResult
@@ -275,6 +389,11 @@ def test_li_synthesizes_multiple_specialists(monkeypatch) -> None:
 
     def fake_consult(specialists, request):
         assert specialists == ["victor", "milo"]
+        assert set(request) == {"victor", "milo"}
+        assert request["victor"].specialist_question != request["milo"].specialist_question
+        assert "Business, Commercial & CCO Adviser" in request["victor"].specialist_question
+        assert "Travel, Leisure & Experiences Adviser" in request["milo"].specialist_question
+        assert all(item.success_criteria for item in request.values())
         return SpecialistConsultation(results={
             name: SpecialistResult(
                 recommendation=f"{name} view", confidence=0.7, sources_needed=True

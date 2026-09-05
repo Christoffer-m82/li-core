@@ -112,9 +112,41 @@ def test_permitted_recent_context_resolves_bilingual_specialist_reference(messag
     assert decision.route_category == "resolved_specialist_reference"
 
 
+@pytest.mark.parametrize(
+    "message",
+    ["Do not ask her again.", "Fråga inte henne igen.", "Be henne inte igen."],
+)
+def test_negated_pronoun_reference_does_not_route(message: str) -> None:
+    decision = route_specialists(
+        message,
+        conversation_context="assistant: Nora reviewed the supplied sources.",
+    )
+    assert decision.specialists == []
+
+
+def test_user_supplied_name_in_history_is_not_a_trusted_pronoun_reference() -> None:
+    decision = route_specialists(
+        "Ask her again about it.",
+        conversation_context="user: Nora should compare these options.",
+    )
+    assert decision.specialists == []
+
+
 def test_specialist_name_inside_quoted_example_does_not_route() -> None:
     decision = route_specialists('Translate the example "Ask Nora to compare these" into Swedish.')
     assert decision.specialists == []
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Explain “Ask Nora to compare these options.”",
+        "Explain ‘Ask Nora to compare these options.’",
+        "Explain this example:\n```Ask Nora to compare these options.```",
+    ],
+)
+def test_specialist_name_inside_unicode_or_multiline_quote_does_not_route(message: str) -> None:
+    assert route_specialists(message).specialists == []
 
 
 def test_task_packet_carries_objective_question_evidence_and_success_criteria(monkeypatch) -> None:
@@ -310,6 +342,19 @@ def test_unsafe_or_unsupported_specialist_output_is_rejected(monkeypatch, recomm
     )
     with pytest.raises(SpecialistRuntimeError):
         delegate_to_specialist("sofia", SpecialistRequest(current_user_message="Assess this."))
+
+
+def test_swedish_unsupported_verification_claim_is_rejected(monkeypatch) -> None:
+    payload = {
+        "recommendation": "Jag har verifierat detta live och rekommenderar A.",
+        "findings": [], "confidence": 0.7, "key_assumptions": [],
+        "sources_needed": False, "follow_up_questions": [], "research_request": None,
+    }
+    monkeypatch.setattr(
+        "app.specialist_runtime.generate_claude_text", lambda **kwargs: json.dumps(payload)
+    )
+    with pytest.raises(SpecialistRuntimeError, match="unsupported verification"):
+        delegate_to_specialist("nora", SpecialistRequest(current_user_message="Bedöm detta."))
 
 
 def test_specialist_prompt_preserves_strict_result_field_types(monkeypatch) -> None:

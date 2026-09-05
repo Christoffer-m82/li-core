@@ -3,6 +3,20 @@ const preferenceStorage = {
   getItem(key) { try { return localStorage.getItem(key); } catch { return null; } },
   setItem(key, value) { localStorage.setItem(key, value); },
 };
+const retryStorage = typeof sessionStorage === 'undefined' ? null : sessionStorage;
+function retryFingerprint(value) {
+  let hash = 2166136261;
+  for (const char of JSON.stringify(value)) {
+    hash ^= char.codePointAt(0); hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+function storedRetry(key, fingerprint) {
+  try { const value = JSON.parse(retryStorage?.getItem(key) || 'null'); return value?.fingerprint === fingerprint ? value : null; }
+  catch { return null; }
+}
+function saveRetry(key, value) { try { retryStorage?.setItem(key, JSON.stringify(value)); } catch { /* Retry remains available for this visit. */ } }
+function clearRetry(key) { try { retryStorage?.removeItem(key); } catch { /* Expired metadata is harmless. */ } }
 function savePreference(key, value) {
   try { preferenceStorage.setItem(key, value); } catch { /* Controls still work for this visit. */ }
 }
@@ -90,10 +104,15 @@ async function loadSession() { try { const response = await fetch('/api/session'
 
 async function sendMessage(message) {
   if (state.sending) return;
-  const turn = state.pendingTurn?.message === message
+  const retryKey = 'li-home-pending-turn-v1';
+  const fingerprint = retryFingerprint({message, conversationId: state.conversationId,
+    temporaryUploadContext: state.temporaryUploadContext});
+  const recovered = storedRetry(retryKey, fingerprint);
+  const turn = state.pendingTurn?.fingerprint === fingerprint
     ? state.pendingTurn
-    : { message, turnId: crypto.randomUUID(), rendered: false };
+    : { message, fingerprint, turnId: recovered?.turnId || crypto.randomUUID(), rendered: false };
   state.pendingTurn = turn;
+  saveRetry(retryKey, {turnId: turn.turnId, fingerprint});
   state.sending = true;
   if (!turn.rendered) {
     addMessage('user', message);
@@ -122,6 +141,7 @@ async function sendMessage(message) {
     }
     const data = await response.json();
     state.pendingTurn = null;
+    clearRetry(retryKey);
     state.temporaryUploadContext = null;
     $('#attachment-tray').replaceChildren();
     state.conversationId = data.conversation_id;

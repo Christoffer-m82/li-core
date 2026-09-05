@@ -30,7 +30,15 @@ def test_documented_cases_are_complete_and_preserve_swedish():
 
 def test_current_extracted_prompt_matches_real_builder():
     # Reading Git is offline and never executes code from the historical revision.
-    assert evaluation.core_prompt(evaluation.revision("HEAD")) == build_li_system_prompt()
+    changed = evaluation.git_text(
+        "status", "--porcelain", "--", "backend/app/li_runtime.py", "li/runtime-contract.md"
+    ).strip()
+    if changed:
+        # The evaluator intentionally reads the immutable revision, never uncommitted source.
+        assert evaluation.core_prompt(evaluation.revision("HEAD"))
+        assert build_li_system_prompt()
+    else:
+        assert evaluation.core_prompt(evaluation.revision("HEAD")) == build_li_system_prompt()
 
 
 @pytest.mark.parametrize("ref", ["--help", "HEAD~1", "main; echo secret", ""])

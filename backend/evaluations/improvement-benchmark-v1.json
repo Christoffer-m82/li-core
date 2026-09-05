@@ -3,6 +3,8 @@
   "fixture_policy": "synthetic_only",
   "content_logging": false,
   "live_provider_required": false,
+  "behavior_runner": "backend/evaluations/run_improvement_benchmark.py",
+  "coverage": "Executable synthetic full-turn and boundary behavior; not subjective live-model quality",
   "scenarios": [
     {"id": "R1", "dimension": "response_safety", "tests": ["tests/test_li_orchestration.py::test_rejected_specialist_attribution_cannot_propose_an_action"]},
     {"id": "R2", "dimension": "evidence_fallback", "tests": ["tests/test_li_orchestration.py::test_synthesis_fallback_preserves_task_context_and_evidence_limit"]},
@@ -17,6 +19,10 @@
     {"id": "R11", "dimension": "capability_and_safety", "tests": ["tests/test_li_conversation_voice.py::test_immediate_safety_guidance_survives_style_request"]},
     {"id": "R12", "dimension": "proactivity_controls", "tests": ["tests/test_governed_proactivity.py::test_brief_ranks_value_suppresses_noise_deduplicates_and_caps_items", "tests/test_governed_proactivity.py::test_disabled_and_unapproved_rhythm_cannot_execute"]},
     {"id": "R13", "dimension": "evaluation_integrity", "tests": ["tests/test_voice_evaluation.py::test_failure_redacts_exceptions_and_preserves_partial_run", "tests/test_complete_request_budget.py::test_incomplete_provider_response_is_rejected_and_traced"]},
-    {"id": "R14", "dimension": "recoverable_ui", "tests": ["../frontend/tests-js/service-worker.test.mjs", "../frontend/tests-js/profile-photo.test.mjs", "../frontend/tests-js/workspace.test.mjs"]}
+    {"id": "R14", "dimension": "recoverable_ui", "tests": ["../frontend/tests-js/service-worker.test.mjs", "../frontend/tests-js/profile-photo.test.mjs", "../frontend/tests-js/workspace.test.mjs"]},
+    {"id": "R15", "dimension": "disclosure_lineage", "tests": ["tests/test_conversation_history.py::test_workspace_history_preserves_disclosure_metadata_for_runtime", "tests/test_memory_capture.py::test_automatic_explicit_memory_preserves_source_privacy", "tests/test_li_orchestration.py::test_current_message_recipient_scope_blocks_a_different_specialist"]},
+    {"id": "R16", "dimension": "bilingual_response_safety", "tests": ["tests/test_specialist_runtime.py::test_negated_pronoun_reference_does_not_route", "tests/test_li_orchestration.py::test_direct_current_question_fails_closed_when_evidence_is_unavailable", "tests/test_li_orchestration.py::test_current_evidence_gate_survives_specialist_exclusion"]},
+    {"id": "R17", "dimension": "fenced_turn_recovery", "tests": ["tests/test_recoverable_turns.py::test_phase_2_recovery_migration_fences_attempts_and_enforces_truth_pairing", "tests/test_recoverable_turns.py::test_retry_after_saved_message_reuses_conversation_without_duplicate_user_write", "tests/test_recoverable_turns.py::test_read_only_provider_failure_does_not_make_turn_effect_uncertain", "tests/test_recoverable_turns.py::test_known_provider_completion_is_persisted_before_later_model_failure", "tests/test_action_intents.py::test_provider_reports_no_effect_as_failed_and_safe_to_retry", "tests/test_google_gmail.py::test_existing_draft_is_reused_by_stable_message_id"]},
+    {"id": "R18", "dimension": "complete_request_budget", "tests": ["tests/test_complete_request_budget.py::test_structured_schema_and_output_reserve_are_included_in_budget", "tests/test_complete_request_budget.py::test_compact_authoritative_prompt_leaves_room_for_normal_continuity_and_output", "tests/test_li_orchestration.py::test_li_synthesizes_multiple_specialists"]}
   ]
 }

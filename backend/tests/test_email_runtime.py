@@ -208,6 +208,7 @@ def test_li_chat_executes_typed_email_action_and_passes_validated_result(monkeyp
         trusted_runtime_context=None,
         conversation_context=None,
         research_provider=None,
+        **kwargs,
     ):
         assert "Trusted Li email executor result" in trusted_runtime_context
         assert '"status":"completed"' in trusted_runtime_context
