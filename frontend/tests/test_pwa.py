@@ -91,6 +91,15 @@ def test_home_has_truthful_compact_glance_before_the_conversation():
     assert 'id="home-glance-status" class="muted" role="status" aria-live="polite"' in home
 
 
+def test_home_specialist_roster_has_a_compact_phone_entry_without_losing_the_directory():
+    html = client.get("/").text
+    css = (ROOT / "static" / "assets" / "app.css").read_text(encoding="utf-8")
+    assert 'id="home-specialists-all" class="text-button home-specialists-all"' in html
+    assert 'data-view="agents">View all specialists' in html
+    assert ".specialist-list .specialist-card:nth-child(n+4){display:none}" in css
+    assert ".home-specialists-all{display:inline-flex}" in css
+
+
 def png_dimensions(path: Path) -> tuple[int, int]:
     data = path.read_bytes()
     assert data[:8] == b"\x89PNG\r\n\x1a\n"
@@ -180,7 +189,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v18" in service_worker
+    assert "li-shell-v19" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():

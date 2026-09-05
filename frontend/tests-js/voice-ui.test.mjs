@@ -185,6 +185,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     downloads, revoked, localStorage, navItems,
     createSpecialistAvatar: vm.runInNewContext('createSpecialistAvatar', context),
     openSpecialistPortrait: vm.runInNewContext('openSpecialistPortrait', context),
+    renderSpecialists: vm.runInNewContext('renderSpecialists', context),
     systemAgents: vm.runInNewContext('SYSTEM_AGENTS', context),
     setView: vm.runInNewContext('setView', context),
     loadHomeData: vm.runInNewContext('loadHomeData', context),
@@ -193,6 +194,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     elements,
     requests,
     setConversation(value) { vm.runInNewContext(`state.conversationId = ${JSON.stringify(value)}`, context); },
+    setSpecialists(value) { vm.runInNewContext(`state.specialists = ${JSON.stringify(value)}`, context); },
     setTemporaryUpload(value) { vm.runInNewContext(`state.temporaryUploadContext = ${JSON.stringify(value)}`, context); },
     async dispatchWindow(name, event = {}) {
       await windowEvents.get(name)?.(event);
@@ -504,6 +506,23 @@ test('Home glance counts only real loaded data and leaves unavailable data unkno
   assert.equal(app.elements.get('#home-glance-artifacts').textContent, '—');
   assert.match(app.elements.get('#home-glance-status').textContent, /3 of 4 live sections loaded/);
   assert.match(app.elements.get('#home-glance-status').textContent, /unavailable data remains unknown/);
+});
+
+test('Home specialist entry keeps the active-first roster and exposes the full count', () => {
+  const app = loadApp();
+  app.setSpecialists([
+    { id: 'sofia', name: 'Sofia', role: 'Health', status: 'Available', active: false },
+    { id: 'marco', name: 'Marco', role: 'Fitness', status: 'Working', active: true },
+    { id: 'elena', name: 'Elena', role: 'Nutrition', status: 'Available', active: false },
+    { id: 'nora', name: 'Nora', role: 'Research', status: 'Available', active: false },
+  ]);
+
+  app.renderSpecialists();
+
+  const cards = app.elements.get('#specialist-list').children;
+  assert.equal(cards.length, 4);
+  assert.equal(cards[0].dataset.specialistId, 'marco');
+  assert.equal(app.elements.get('#home-specialists-all').textContent, 'View all 4 specialists');
 });
 
 test('view changes update descriptive copy and expose the current navigation item', async () => {
