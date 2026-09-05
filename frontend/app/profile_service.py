@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app.backend import cloud_run_identity_token
+from app.backend import BackendUnavailable, cloud_run_identity_token
 from app.config import Settings
 
 MAX_PROFILE_SERVICE_RESPONSE_BYTES = 520 * 1024
@@ -139,7 +139,7 @@ async def request_profile_service(
                 response_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     except ProfileServiceUnavailable:
         raise
-    except (httpx.HTTPError, OSError, ValueError):
+    except (BackendUnavailable, httpx.HTTPError, OSError, ValueError):
         raise ProfileServiceUnavailable("Private profile service is unavailable.") from None
 
     expected_type = "image/jpeg" if path.endswith("/image") and response_status == 200 else "application/json"

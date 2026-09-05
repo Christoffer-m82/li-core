@@ -3,6 +3,7 @@ import asyncio
 import httpx
 import pytest
 
+from app.backend import BackendUnavailable
 from app.config import Settings
 from app.profile_service import (
     MAX_PROFILE_SERVICE_RESPONSE_BYTES,
@@ -150,3 +151,12 @@ def test_invalid_identity_and_unsupported_operation_fail_before_network(monkeypa
     with pytest.raises(ValueError):
         asyncio.run(request_profile_service(configured(), "DELETE", "/v1/profile", revision="bad value"))
     assert Client.calls == []
+
+
+def test_missing_workload_identity_uses_profile_service_boundary(monkeypatch):
+    def missing_identity(_audience):
+        raise BackendUnavailable("synthetic credential detail must not escape")
+
+    monkeypatch.setattr("app.profile_service.cloud_run_identity_token", missing_identity)
+    with pytest.raises(ProfileServiceUnavailable, match="Private profile service is unavailable"):
+        asyncio.run(request_profile_service(configured(), "GET", "/v1/profile"))
