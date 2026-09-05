@@ -30,7 +30,7 @@ required authorization. Secret entry and physical-device checks may require the 
 | Calendar, Gmail, tasks, research | Read flows; supported writes gated by approval; unavailable providers and stale evidence handled clearly | Provider-specific end-to-end checks; Gmail sending remains deliberately unavailable |
 | Proactivity | Owner-approved schedule, grounded brief, quiet hours, duplicate prevention, delivery and stand-down | Exact per-rhythm activation approval plus coordinated database/scheduler verification; external notification delivery needs a design |
 | Voice | Transcript correctness, cancel, interruption, permission denial, unavailable service, spoken response stop | Physical Android phone/tablet and Windows browser checks; server speech remains unconfigured |
-| Installation | Install, launch, sign-in expiry, update, offline explanation, keyboard/touch navigation | Physical-device checklist; native Android and gateway completion tracked separately |
+| Installation | Install, launch, sign-in expiry, update, offline explanation, keyboard/touch navigation | Complete the [physical-device and owner checklist](PERSONAL_V1_DEVICE_ACCEPTANCE.md); native Android and gateway completion remains tracked separately |
 | Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | Authorized restore drill and dated evidence; see [known risks](KNOWN_RISKS.md) |
 | Release stability | All agreed journeys pass, no unresolved critical findings, normal use observation and rollback available | A stable-use observation period; no unsupported claim of 100% |
 
@@ -91,6 +91,13 @@ bytes with private no-store headers, an unknown or other-owner identifier is con
 a simulated storage outage returns unavailable and then recovers, and deletion removes the object
 before hiding the metadata tombstone. This closes the synthetic lifecycle portion of the Files row.
 The deployed retention schedule and real expiry behavior remain external operator evidence.
+
+Read-only external inventory on 2026-09-05 found the daily artifact-retention scheduler enabled and
+its latest six scheduled executions successful. This proves that the job ran, not that a particular
+artifact reached expiry and was deleted. The five proactive rhythm jobs remained paused. The live
+backend configuration contained the required variable references for Anthropic, artifact storage,
+Brave research, Calendar and Gmail; no value was read. Configuration presence does not prove provider
+entitlement, correctness, successful calls, or owner-journey acceptance.
 
 ## Earlier baseline — 2026-09-04
 
