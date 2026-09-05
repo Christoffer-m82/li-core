@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -98,6 +98,70 @@ class ContextAssembly(BaseModel):
     omitted_classes: tuple[str, ...]
     estimated_tokens: int
     budget: int
+
+
+class ConversationContextMessage(BaseModel):
+    """One bounded conversation record with disclosure metadata kept intact."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=10_000)
+    private_to_li: bool = False
+    allowed_specialists: tuple[str, ...] = Field(default=(), max_length=12)
+
+
+_SPECIALIST_KEY = re.compile(r"^[a-z][a-z0-9_-]{1,63}$")
+
+
+def conversation_context_message(row: Mapping[str, object]) -> ConversationContextMessage:
+    """Convert a database row while failing closed on malformed privacy metadata."""
+
+    metadata = row.get("privacy_metadata", {})
+    if not isinstance(metadata, dict):
+        return ConversationContextMessage(
+            role=str(row["role"]), content=str(row["content"]), private_to_li=True,
+        )
+    private_to_li = metadata.get("private_to_li", False)
+    allowed = metadata.get("allowed_specialists", ())
+    if not isinstance(private_to_li, bool) or not isinstance(allowed, (list, tuple)):
+        return ConversationContextMessage(
+            role=str(row["role"]), content=str(row["content"]), private_to_li=True,
+        )
+    specialist_keys = tuple(dict.fromkeys(
+        value for value in allowed
+        if isinstance(value, str) and _SPECIALIST_KEY.fullmatch(value)
+    ))
+    if len(specialist_keys) != len(allowed):
+        return ConversationContextMessage(
+            role=str(row["role"]), content=str(row["content"]), private_to_li=True,
+        )
+    return ConversationContextMessage(
+        role=str(row["role"]), content=str(row["content"]),
+        private_to_li=private_to_li, allowed_specialists=specialist_keys,
+    )
+
+
+def specialist_conversation_context(
+    messages: list[ConversationContextMessage], specialist: str, *, character_budget: int = 6000,
+) -> str | None:
+    """Render only explicitly disclosed whole messages for one specialist."""
+
+    if character_budget <= 0:
+        raise ValueError("specialist conversation budget must be positive")
+    selected: list[str] = []
+    used = 0
+    for message in reversed(messages):
+        if message.private_to_li or specialist not in message.allowed_specialists:
+            continue
+        rendered = f"{message.role}: {message.content}"
+        cost = len(rendered) + (1 if selected else 0)
+        if cost > character_budget:
+            continue
+        if used + cost > character_budget:
+            break
+        selected.append(rendered)
+        used += cost
+    return "\n".join(reversed(selected)) or None
 
 
 DEFAULT_CONTEXT_BUDGETS = {

@@ -59,7 +59,8 @@ class FakeElement {
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
 }
 
-function loadApp({ geolocation, storageBlocked = false, storageWriteFails = false } = {}) {
+function loadApp({ geolocation, storageBlocked = false, storageWriteFails = false,
+  chatResponses = [] } = {}) {
   const elements = new Map();
   const getElement = (selector) => {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
@@ -109,6 +110,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     requests.push({ url, options });
     if (url === '/api/session') return { ok: false, status: 401, json: async () => ({}) };
     if (url === '/api/chat') {
+      if (chatResponses.length) return chatResponses.shift();
       return {
         ok: true,
         status: 200,
@@ -171,6 +173,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     openSpecialistPortrait: vm.runInNewContext('openSpecialistPortrait', context),
     systemAgents: vm.runInNewContext('SYSTEM_AGENTS', context),
     setView: vm.runInNewContext('setView', context),
+    sendMessage: vm.runInNewContext('sendMessage', context),
     document,
     elements,
     requests,
@@ -332,10 +335,33 @@ test('microphone interaction sends one visible transcript through normal chat', 
   assert.equal(chatRequests.length, 1);
   assert.deepEqual(JSON.parse(chatRequests[0].options.body), {
     message: 'check tomorrow calendar',
+    turn_id: 'test-id',
     conversation_id: null,
     temporary_upload_context: null,
   });
   assert.equal('audio' in JSON.parse(chatRequests[0].options.body), false);
+});
+
+test('failed main-chat retry reuses the turn and does not duplicate the owner bubble', async () => {
+  const app = loadApp({ chatResponses: [
+    { ok: false, status: 503, json: async () => ({ detail: { message: 'Try safely.' } }) },
+    { ok: true, status: 200, json: async () => ({
+      conversation_id: 'conversation-1', response: 'Recovered.', artifacts: [],
+      action_intents: [], turn_state: 'completed_replay',
+    }) },
+  ] });
+
+  await app.sendMessage('Please add this once.');
+  await app.sendMessage('Please add this once.');
+
+  const requests = app.requests.filter((request) => request.url === '/api/chat');
+  assert.equal(requests.length, 2);
+  assert.equal(JSON.parse(requests[0].options.body).turn_id, 'test-id');
+  assert.equal(JSON.parse(requests[1].options.body).turn_id, 'test-id');
+  assert.equal(
+    app.elements.get('#messages').children.filter((entry) => entry.className === 'message user').length,
+    1,
+  );
 });
 
 test('cancel after transcription prevents the pending chat request', async () => {

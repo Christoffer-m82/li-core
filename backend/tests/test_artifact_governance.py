@@ -195,6 +195,19 @@ def test_retention_worker_migration_is_least_privilege():
     assert owner_grant < set_role < function_revoke < function_grant < reset_role < owner_revoke
 
 
+def test_retention_worker_expires_bounded_chat_replay_content():
+    from pathlib import Path
+
+    job = (Path(__file__).parents[1] / "app" / "retention_job.py").read_text(
+        encoding="utf-8"
+    )
+    migration = (Path(__file__).parents[2] / "memory" / "migrations" /
+                 "038_recoverable_turns_and_actions.sql").read_text(encoding="utf-8")
+    assert "li_api.expire_chat_replay_responses(%s)" in job
+    assert "TO li_artifact_retention" in migration
+    assert "li_memory_api','li_api.expire_chat_replay_responses" in migration
+
+
 def test_artifact_reservation_ambiguity_fix_is_qualified_and_owner_scoped():
     from pathlib import Path
     sql = (Path(__file__).parents[2] / "memory" / "migrations" /

@@ -35,8 +35,11 @@ def test_temporary_upload_context_is_used_once_but_not_saved_in_history(monkeypa
                         lambda **kwargs: saved.append(kwargs) or "message-id")
     monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs: None)
 
-    def fake_talk(user_message: str, *, temporary_upload_context=None, **kwargs) -> str:
+    def fake_talk(user_message: str, *, temporary_upload_context=None,
+                  temporary_upload_allowed_specialists=None, **kwargs) -> str:
         assert temporary_upload_context == "File: notes.txt\nuntrusted contents"
+        assert temporary_upload_allowed_specialists == set()
+        assert kwargs["temporary_upload_private_to_li"] is False
         return "Analysed without retaining the file."
 
     monkeypatch.setattr("app.main.talk_to_li", fake_talk)
@@ -54,6 +57,31 @@ def test_temporary_upload_context_is_used_once_but_not_saved_in_history(monkeypa
     assert [item["content"] for item in saved] == [
         "Analyse this file", "Analysed without retaining the file."]
     assert all("untrusted contents" not in item["content"] for item in saved)
+
+
+def test_private_to_li_upload_overrides_specialist_allowlist(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs: None)
+
+    def fake_talk(user_message: str, **kwargs) -> str:
+        assert kwargs["temporary_upload_allowed_specialists"] == set()
+        assert kwargs["temporary_upload_private_to_li"] is True
+        return "Kept private to Li."
+
+    monkeypatch.setattr("app.main.talk_to_li", fake_talk)
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        with TestClient(app) as client:
+            response = client.post("/li/chat", json={
+                "message": "Keep this private.",
+                "temporary_upload_context": "private synthetic upload",
+                "privacy_metadata": {
+                    "private_to_li": True,
+                    "allowed_specialists": ["nora"],
+                },
+            })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
 
 
 def test_li_chat_defers_ordinary_capture_until_after_answer(monkeypatch) -> None:

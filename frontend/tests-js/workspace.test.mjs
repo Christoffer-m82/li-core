@@ -17,7 +17,10 @@ const content = el => [el.textContent, ...el.children.map(content)].join(' ');
 function setup(fetch = async () => reply({messages:[]}), options = {}) {
   const all = [], root = new Element();
   const document = { querySelector: () => root, createElement(tag) { const el = new Element(); el.tag = tag; all.push(el); return el; } };
-  const context = { FormData: class { append() {} } }; vm.runInNewContext(source, context);
+  let turn = 0;
+  const context = { FormData: class { append() {} },
+    crypto: { randomUUID: () => `00000000-0000-0000-0000-${String(++turn).padStart(12,'0')}` } };
+  vm.runInNewContext(source, context);
   const api = context.LiWorkspace, view = api.create({document, fetch, ...options});
   return { api, view, root, get: id => all.find(e => e.id === id),
     status: () => all.find(e => e.className === 'workspace-status').textContent,
@@ -51,8 +54,23 @@ test('new workspace sends exact message with selected recipient and uses returne
   const body = JSON.parse(calls[0][1].body);
   assert.equal(body.workspace_specialist,'nora'); assert.equal(body.workspace_recipient,'specialist');
   assert.equal(body.message,'Hello'); assert.equal(body.conversation_id,null);
+  assert.ok(validIdForTest(body.turn_id));
   assert.equal(app.get('workspace-input').value,''); assert.match(content(app.log()),/Reply/);
   assert.match(app.status(),/saved/);
+});
+
+const validIdForTest = value => typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+
+test('failed workspace retry reuses the same stable turn identity', async () => {
+  const ids=[]; let succeed=false;
+  const app=setup(async (url,options) => {
+    if(url==='/api/chat') { ids.push(JSON.parse(options.body).turn_id); return succeed
+      ? reply({conversation_id:id,response:'Recovered',conversation_history_error:'not saved'}) : {ok:false}; }
+    return reply({interactions:[]});
+  });
+  await app.view.open(agent,[]); app.get('workspace-input').value='Retry me'; await app.send();
+  succeed=true; await app.send();
+  assert.equal(ids.length,2); assert.equal(ids[0],ids[1]);
 });
 test('failed send preserves draft and suppresses duplicate concurrent submissions', async () => {
   let finish, requests=0; const app = setup(() => {requests++; return new Promise(resolve => {finish=resolve;});});

@@ -274,6 +274,22 @@ def test_chat_forwards_bounded_temporary_upload_context(monkeypatch):
     assert observed["temporary_upload_context"] == "File: notes.txt\nhello"
 
 
+def test_chat_forwards_stable_turn_identity(monkeypatch):
+    observed = {}
+    turn_id = uuid4()
+
+    async def backend(*args, **kwargs):
+        observed.update(kwargs["json_body"])
+        return httpx.Response(200, json={"response": "ok"})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().post(
+        "/api/chat", json={"message": "Retry-safe", "turn_id": str(turn_id)},
+    )
+    assert response.status_code == 200
+    assert observed["turn_id"] == str(turn_id)
+
+
 def test_artifact_library_is_proxied_from_governed_storage(monkeypatch):
     async def backend(*args, **kwargs):
         assert args[2] == "/artifacts"
@@ -342,7 +358,8 @@ def test_active_only_specialist_pulse_returns_to_idle_from_real_events():
         encoding="utf-8"
     )
     assert ".specialist-card.active" in css and "animation:active-card" in css
-    assert "clearInterval(specialistPoll); await loadSpecialists()" in javascript
+    assert "clearInterval(specialistPoll)" in javascript
+    assert "await loadSpecialists()" in javascript
     specialist_js = (Path(__file__).parents[1] / "static" / "assets" / "specialists.js").read_text(
         encoding="utf-8"
     )

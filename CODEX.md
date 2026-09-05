@@ -20,6 +20,7 @@ Then use the operating documents that match the task:
 | Prepare or review database change | [Migration workflow](docs/MIGRATION_WORKFLOW.md) |
 | See unfinished or externally gated work | [Open milestones](docs/OPEN_MILESTONES.md) |
 | Choose and report validation | [Testing and audit](docs/TESTING_AND_AUDIT.md) |
+| Implement or verify the six improvement packages | [Improvement blueprint](docs/LI_OS_IMPROVEMENT_BLUEPRINT.md) and [acceptance record](docs/LI_OS_IMPROVEMENT_ACCEPTANCE.md) |
 | Find an existing decision | [Decision index](docs/DECISIONS.md) |
 | Create or revise specialist portraits | [Portrait standard](system/specialist-portrait-standard.md) and [assignment record](system/specialist-portrait-assignments.md) |
 | Review evidence-backed repository risks | [Known risks](docs/KNOWN_RISKS.md) |
@@ -39,7 +40,8 @@ state, or Supabase state solely from code, templates, documentation, or a commit
 
 ## Standard handoff
 
-Before requesting a commit, provide:
+Before committing under the current repository authorization, or before requesting a commit when
+that authorization does not apply, review and provide:
 
 - a concise outcome summary;
 - the complete diff or an explicit path to it;
@@ -47,4 +49,4 @@ Before requesting a commit, provide:
 - skipped checks and why;
 - security or migration review findings;
 - residual risks; and
-- an explicit statement that no commit has been created.
+- the resulting commit status.

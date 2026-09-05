@@ -25,6 +25,7 @@
     onActions = () => {}, onActivity = () => {}, confirmDiscard = () => true }) {
     let agent = null, entries = [], messages = [], conversationId = null, version = 0;
     let sending = false, uploading = false, ready = false, attachment = null, pendingSend = null, pendingBottom = false;
+    let pendingTurnId = null;
     const root = document.querySelector('#specialist-live');
     const node = (tag, content = '', className = '') => {
       const el = document.createElement(tag); el.textContent = content; el.className = className; return el;
@@ -58,7 +59,7 @@
       [input, recipient, file, remove, cases, fresh].forEach(el => { el.disabled = !agent || sending || uploading; });
       send.textContent = sending ? 'Waiting for Li and specialist…' : 'Send';
     }
-    function resetDraft() { input.value = ''; attachment = null; file.value = ''; files.replaceChildren(); remove.hidden = true; }
+    function resetDraft() { input.value = ''; attachment = null; pendingTurnId = null; file.value = ''; files.replaceChildren(); remove.hidden = true; }
     function choices() {
       const option = (value, title) => { const el = node('option', title); el.value = value; return el; };
       cases.replaceChildren(option('', 'New conversation'));
@@ -144,11 +145,12 @@
       if (!message || !ready || sending || uploading) return;
       if (isBusy()) { status.textContent = 'Wait for your current Li request to finish before sending here.'; return; }
       const token = version, operation = {}; pendingSend = operation;
+      pendingTurnId ||= crypto.randomUUID();
       let received = false;
       sending = true; controls(); status.textContent = 'Sending in the shared conversation…';
       try {
         const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, conversation_id: conversationId, workspace_specialist: agent.id,
+          body: JSON.stringify({ message, turn_id: pendingTurnId, conversation_id: conversationId, workspace_specialist: agent.id,
             workspace_recipient: recipient.value, temporary_upload_context: attachment }) });
         if (!response.ok) throw new Error(); const data = await response.json();
         if (token !== version) return;

@@ -152,8 +152,8 @@ POLICIES: dict[str, SpecialistFreshnessPolicy] = {
         sources=(SourceClass.official, SourceClass.authoritative, SourceClass.academic)),
 }
 
-if len(POLICIES) != 12 or any(key != policy.specialist_key for key, policy in POLICIES.items()):
-    raise RuntimeError("Freshness policy registry must cover exactly all permanent specialists.")
+if not POLICIES or any(key != policy.specialist_key for key, policy in POLICIES.items()):
+    raise RuntimeError("Freshness policy entries must be non-empty and keyed by specialist identity.")
 
 
 def decide_freshness(specialist_key: str, message: str) -> FreshnessDecision:

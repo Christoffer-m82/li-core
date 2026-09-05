@@ -42,6 +42,13 @@ def test_real_system_prompt_includes_bilingual_voice_under_existing_authority():
     _assert_voice_and_boundaries(li_runtime.build_li_system_prompt())
 
 
+def test_immediate_safety_guidance_survives_style_request():
+    system = li_runtime.build_li_system_prompt()
+    assert "Urgent safety needs take priority over conversational pacing." in system
+    assert "## 5. Determine Urgency" in system
+    assert "possible medical emergency" in system
+
+
 @pytest.mark.parametrize(
     ("history", "message", "response"),
     [

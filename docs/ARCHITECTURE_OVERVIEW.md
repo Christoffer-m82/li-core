@@ -62,6 +62,12 @@ The repository separates these concerns:
   authority in `backend/app/database.py`.
 - Provider capabilities are held by the backend and exposed through Li-owned policy boundaries;
   specialists do not receive raw provider credentials.
+- Browser and Native Gateway chat contracts can carry a stable owner-supplied turn identifier.
+  Migration 038 prepares owner/payload-bound claim, replay, uncertainty, and replay-content-expiry
+  functions; repository presence does not prove that this migration is applied externally.
+- Migration 037 prepares conversation privacy metadata in the history API. The backend preserves those
+  labels and selects whole permitted messages and explicitly disclosed temporary uploads for each
+  specialist, while Li retains the private full-conversation role defined by the Constitution.
 - The retention job uses a dedicated database capability and object role. See
   [artifact-retention identities](../deployment/cloud-run/artifact-retention.md#identities-and-least-privilege).
 - Governed native capabilities are catalogued in

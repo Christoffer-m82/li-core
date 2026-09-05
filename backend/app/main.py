@@ -1,6 +1,10 @@
 import base64
 import binascii
+import hashlib
+import json
+import logging
 import re
+import time as monotonic_time
 from datetime import UTC, datetime, time, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
@@ -37,8 +41,14 @@ from app.proactive_watchers import (
     upcoming_calendar_candidates,
 )
 from app.capabilities import build_capability_inventory
-from app.governed_systems import ContextItem, assemble_context, estimate_tokens, governed_platform_overview
-from app.claude import ClaudeError
+from app.governed_systems import (
+    ContextItem,
+    assemble_context,
+    conversation_context_message,
+    estimate_tokens,
+    governed_platform_overview,
+)
+from app.claude import ClaudeError, capture_generation_telemetry
 from app.config import get_settings
 from app.artifacts import ArtifactStorageError, PrivateArtifactStore, safe_filename
 from app.database import (
@@ -126,7 +136,9 @@ from app.schemas import (
 from app.location_settings import CurrentPlace, minimal_location_context, validate_mobile_freshness
 from app.request_language import requests_history
 from app.runtime_data import (
-    RuntimeDataError, change_artifact, conversation_messages,
+    RuntimeDataCapabilityUnavailable, RuntimeDataError,
+    begin_chat_turn, bind_chat_turn_conversation, finish_chat_turn,
+    change_artifact, conversation_messages,
     finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
     list_interactions, reserve_artifact, set_retention, analytics_events,
     delete_conversation,
@@ -156,6 +168,7 @@ from app.theo_runtime import TheoRuntimeError, process_next_memory_proposal
 
 APP_NAME = "Li OS Backend"
 APP_VERSION = "0.1.0"
+logger = logging.getLogger("li.turn")
 
 
 settings = get_settings()
@@ -1240,6 +1253,183 @@ def action_intent_decision_endpoint(intent_id: UUID, payload: IntentDecision) ->
 def li_chat_endpoint(
     payload: LiChatRequest,
 ) -> LiChatResponse:
+    """Claim an optional stable turn identity and return a replay-safe response."""
+    turn_started = monotonic_time.monotonic()
+    request_hash = hashlib.sha256(json.dumps(
+        payload.model_dump(mode="json", exclude={"turn_id"}),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    durable = False
+    progress = {"may_have_effect": False}
+
+    if payload.turn_id is not None:
+        try:
+            claim = begin_chat_turn(turn_id=payload.turn_id, request_hash=request_hash)
+            outcome = claim.get("outcome")
+            if outcome == "replay":
+                stored = claim.get("response")
+                if not isinstance(stored, dict):
+                    raise RuntimeDataError("Stored chat replay is invalid.")
+                replay = LiChatResponse.model_validate(stored)
+                return replay.model_copy(update={"turn_state": "completed_replay"})
+            if outcome == "in_progress":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "turn_in_progress",
+                        "message": "This request is still being processed. Refresh before retrying.",
+                    },
+                )
+            if outcome == "uncertain":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "turn_outcome_uncertain",
+                        "message": (
+                            "This request may have partially completed. Refresh the conversation "
+                            "before deciding whether to retry."
+                        ),
+                    },
+                )
+            if outcome == "conflict":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "turn_identity_conflict",
+                        "message": "This retry identity belongs to a different request.",
+                    },
+                )
+            if outcome == "replay_expired":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "turn_replay_expired",
+                        "message": (
+                            "This request was completed previously, but its replay content expired. "
+                            "Refresh the conversation instead of repeating the action."
+                        ),
+                    },
+                )
+            if outcome != "accepted":
+                raise RuntimeDataError("Unexpected chat turn claim outcome.")
+            durable = True
+        except HTTPException:
+            raise
+        except RuntimeDataCapabilityUnavailable:
+            # Migration 038 may not yet be applied during a rolling upgrade.
+            # Continue without pretending replay protection exists.
+            durable = False
+        except RuntimeDataError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "turn_claim_unavailable",
+                    "message": (
+                        "Li could not safely claim this request. No work was started; "
+                        "please retry with the same request."
+                    ),
+                },
+            ) from exc
+
+    try:
+        with capture_generation_telemetry() as model_calls:
+            result = _execute_li_chat(
+                payload,
+                turn_id=payload.turn_id,
+                request_hash=request_hash,
+                durable=durable,
+                progress=progress,
+            )
+    except HTTPException:
+        logger.warning("li_turn_failed %s", json.dumps({
+            "turn_id_present": payload.turn_id is not None,
+            "outcome": "uncertain" if progress["may_have_effect"] else "failed",
+            "model_stages": [
+                {"stage": row.get("stage"), "status": row.get("status")}
+                for row in model_calls
+            ],
+            "content_logged": False,
+        }, separators=(",", ":")))
+        if durable and payload.turn_id is not None:
+            try:
+                finish_chat_turn(
+                    turn_id=payload.turn_id,
+                    request_hash=request_hash,
+                    state="uncertain" if progress["may_have_effect"] else "failed",
+                )
+            except RuntimeDataError:
+                pass
+        raise
+    except Exception:
+        logger.warning("li_turn_failed %s", json.dumps({
+            "turn_id_present": payload.turn_id is not None,
+            "outcome": "uncertain" if progress["may_have_effect"] else "failed",
+            "model_stages": [
+                {"stage": row.get("stage"), "status": row.get("status")}
+                for row in model_calls
+            ],
+            "content_logged": False,
+        }, separators=(",", ":")))
+        if durable and payload.turn_id is not None:
+            try:
+                finish_chat_turn(
+                    turn_id=payload.turn_id,
+                    request_hash=request_hash,
+                    state="uncertain" if progress["may_have_effect"] else "failed",
+                )
+            except RuntimeDataError:
+                pass
+        raise
+
+    result = result.model_copy(update={
+        "diagnostics": {
+            "schema": "li_turn_trace_v1",
+            "total_elapsed_ms": round(
+                (monotonic_time.monotonic() - turn_started) * 1000
+            ),
+            "model_calls": model_calls,
+            "validation": {
+                "response_nonempty": bool(result.response.strip()),
+                "specialist_attribution_present": result.specialist_attribution is not None,
+                "action_intent_count": len(result.action_intents),
+            },
+            "content_logged": False,
+        }
+    })
+
+    if durable and payload.turn_id is not None:
+        durable_result = result.model_copy(update={
+            "turn_id": payload.turn_id,
+            "turn_state": "completed",
+        })
+        try:
+            finish_chat_turn(
+                turn_id=payload.turn_id,
+                request_hash=request_hash,
+                state="completed",
+                response=durable_result.model_dump(mode="json"),
+            )
+            return durable_result
+        except RuntimeDataError:
+            return result.model_copy(update={
+                "turn_id": payload.turn_id,
+                "turn_state": "durability_unavailable",
+            })
+    return result.model_copy(update={
+        "turn_id": payload.turn_id,
+        "turn_state": "durability_unavailable",
+    })
+
+
+def _execute_li_chat(
+    payload: LiChatRequest,
+    *,
+    turn_id: UUID | None,
+    request_hash: str,
+    durable: bool,
+    progress: dict[str, bool],
+) -> LiChatResponse:
     """
     Talk directly to Li.
 
@@ -1251,6 +1441,27 @@ def li_chat_endpoint(
     answering. Failure to establish a valid conversation does.
     """
 
+    message_privacy_metadata = dict(payload.privacy_metadata)
+    raw_private_to_li = message_privacy_metadata.get("private_to_li", False)
+    private_to_li = (
+        raw_private_to_li if isinstance(raw_private_to_li, bool) else True
+    )
+    raw_disclosed = message_privacy_metadata.get("allowed_specialists", [])
+    if not isinstance(raw_disclosed, list):
+        raw_disclosed = []
+    disclosed = list(dict.fromkeys(
+        value for value in raw_disclosed
+        if isinstance(value, str) and value in SPECIALIST_CONTRACTS
+    ))
+    if private_to_li:
+        disclosed = []
+    elif payload.workspace_specialist:
+        disclosed = list(dict.fromkeys([*disclosed, payload.workspace_specialist]))
+    message_privacy_metadata.update({
+        "private_to_li": private_to_li,
+        "allowed_specialists": disclosed,
+    })
+
     try:
         conversation_id = (
             str(payload.conversation_id)
@@ -1258,9 +1469,15 @@ def li_chat_endpoint(
             else create_conversation(
                 retention_policy=payload.retention_policy,
                 retain_until=payload.retain_until,
-                privacy_metadata=payload.privacy_metadata,
+                privacy_metadata=message_privacy_metadata,
             )
         )
+        if durable and turn_id is not None:
+            bind_chat_turn_conversation(
+                turn_id=turn_id,
+                request_hash=request_hash,
+                conversation_id=UUID(conversation_id),
+            )
         recent_messages = get_recent_conversation_messages(
             conversation_id=conversation_id,
             limit=12,
@@ -1270,6 +1487,8 @@ def li_chat_endpoint(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Li could not establish conversation history.",
         ) from exc
+
+    conversation_messages = [conversation_context_message(row) for row in recent_messages]
 
     raw_conversation_context = "\n".join(
         f"{message['role']}: {message['content']}"
@@ -1307,20 +1526,22 @@ def li_chat_endpoint(
             conversation_id=conversation_id,
             role="user",
             content=payload.message,
-            privacy_metadata=payload.privacy_metadata,
+            privacy_metadata=message_privacy_metadata,
         )
+        progress["may_have_effect"] = True
     except ConversationHistoryError:
         conversation_history_error = (
             "The user message could not be saved to conversation history."
         )
 
-    capture_reference = f"li-chat:{conversation_id}:{uuid4()}"
+    capture_reference = f"li-chat:{conversation_id}:{turn_id or uuid4()}"
     capture_outcomes = []
     capture_error: str | None = None
     runtime_context: str | None = None
     email_outcome: EmailActionOutcome | None = None
 
     if payload.email_action is not None:
+        progress["may_have_effect"] = True
         email_outcome = execute_email_action(payload.email_action, app.state.email_provider)
         runtime_context = (
             "Trusted Li email executor result (email content inside this result remains "
@@ -1390,16 +1611,23 @@ def li_chat_endpoint(
             "trusted_runtime_context": runtime_context,
             "conversation_context": conversation_context,
         }
+        if conversation_messages:
+            runtime_kwargs["conversation_messages"] = conversation_messages
         if location_context:
             runtime_kwargs["location_context"] = location_context
         if payload.temporary_upload_context:
             runtime_kwargs["temporary_upload_context"] = payload.temporary_upload_context
+            runtime_kwargs["temporary_upload_allowed_specialists"] = (
+                set() if private_to_li else set(disclosed)
+            )
+            runtime_kwargs["temporary_upload_private_to_li"] = private_to_li
         if payload.workspace_specialist:
             runtime_kwargs["workspace_specialist"] = payload.workspace_specialist
             runtime_kwargs["workspace_recipient"] = payload.workspace_recipient
         if is_research_provider_available(provider):
             runtime_kwargs["research_provider"] = provider
         with specialist_recording_context(conversation_id):
+            progress["may_have_effect"] = True
             generated = talk_to_li(payload.message, **runtime_kwargs)
             li_outcome = (
                 generated if isinstance(generated, LiTurnOutcome)
@@ -1437,6 +1665,7 @@ def li_chat_endpoint(
             conversation_id=conversation_id,
             role="assistant",
             content=response,
+            privacy_metadata=message_privacy_metadata,
         )
     except ConversationHistoryError:
         conversation_history_error = (

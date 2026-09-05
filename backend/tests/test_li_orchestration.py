@@ -1,6 +1,6 @@
 import json
 
-from app.li_runtime import talk_to_li
+from app.li_runtime import talk_to_li, talk_to_li_with_outcome
 
 
 def _memory(*, private_to_li: bool = False) -> dict[str, object]:
@@ -32,6 +32,8 @@ def test_direct_route_does_not_call_specialist(monkeypatch) -> None:
 
 
 def test_nora_gets_bounded_context_and_li_synthesizes(monkeypatch) -> None:
+    from app.governed_systems import ConversationContextMessage
+
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(
         "app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [_memory()]
@@ -58,14 +60,17 @@ def test_nora_gets_bounded_context_and_li_synthesizes(monkeypatch) -> None:
 
     monkeypatch.setattr("app.specialist_runtime.generate_claude_text", fake_generate)
     monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
-    history = "x" * 7000
+    history = "x" * 5500
     response = talk_to_li(
         "Ask Nora to recommend the best option for my priorities.",
         conversation_context=history,
+        conversation_messages=[ConversationContextMessage(
+            role="user", content=history, allowed_specialists=("nora",),
+        )],
     )
 
     specialist_packet = json.loads(str(calls[0]["user_message"]))
-    assert len(specialist_packet["conversation_context"]) == 6000
+    assert len(specialist_packet["conversation_context"]) == 5506
     assert specialist_packet["canonical_memory"][0]["value"] == "I prefer reversible decisions."
     assert response == "I would choose the reversible option."
 
@@ -92,6 +97,174 @@ def test_private_memory_is_never_shared_with_nora(monkeypatch) -> None:
     monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: "My answer.")
     talk_to_li("Ask Nora to recommend the best option for my priorities.")
     assert observed["request"].canonical_memory == []
+
+
+def test_corrected_memory_is_disclosed_only_to_permitted_specialist(monkeypatch) -> None:
+    from app.specialist_runtime import SpecialistConsultation, SpecialistResult
+
+    corrected = _memory()
+    corrected["value_text"] = "I now prefer option B."
+    monkeypatch.setattr(
+        "app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [corrected],
+    )
+    observed = {}
+
+    def consult(_specialists, request):
+        observed["memory"] = request.canonical_memory
+        return SpecialistConsultation(results={
+            "nora": SpecialistResult(
+                recommendation="Use the current confirmed preference.", confidence=0.8,
+                sources_needed=False,
+            ),
+        })
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: "Use B.")
+    talk_to_li("Ask Nora to compare these for my preferences.")
+    assert [item.value for item in observed["memory"]] == ["I now prefer option B."]
+    assert all(item.truth_status == "confirmed" for item in observed["memory"])
+
+
+def test_private_or_undisclosed_conversation_is_never_shared_with_specialist(
+    monkeypatch,
+) -> None:
+    """R5: privacy survives the history channel, not only canonical memory."""
+    from app.governed_systems import ConversationContextMessage
+    from app.specialist_runtime import SpecialistConsultation, SpecialistResult
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    observed = {}
+
+    def consult(names, request):
+        observed["request"] = request
+        return SpecialistConsultation(results={
+            "nora": SpecialistResult(
+                recommendation="Use the supplied task only.", confidence=0.7,
+                sources_needed=False,
+            ),
+        })
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: "Li answer")
+    talk_to_li(
+        "Ask Nora to compare these options.",
+        conversation_context="user: PRIVATE-BUDGET\nuser: UNDICLOSED-RELATIONSHIP",
+        conversation_messages=[
+            ConversationContextMessage(
+                role="user", content="PRIVATE-BUDGET", private_to_li=True,
+                allowed_specialists=("nora",),
+            ),
+            ConversationContextMessage(
+                role="user", content="UNDISCLOSED-RELATIONSHIP",
+            ),
+            ConversationContextMessage(
+                role="user", content="OPTION-A-COST", allowed_specialists=("nora",),
+            ),
+        ],
+    )
+
+    packet = observed["request"]
+    assert packet.conversation_context == "user: OPTION-A-COST"
+    assert "PRIVATE-BUDGET" not in packet.conversation_context
+    assert "UNDISCLOSED-RELATIONSHIP" not in packet.conversation_context
+
+
+def test_rejected_specialist_attribution_cannot_propose_an_action(monkeypatch) -> None:
+    """R1: a rejected synthesis is not an authority-bearing partial success."""
+    from app.specialist_runtime import SpecialistConsultation, SpecialistResult
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *a, **k: SpecialistConsultation(results={
+            "nora": SpecialistResult(
+                recommendation="Compare the options.", confidence=0.7, sources_needed=False,
+            ),
+        }),
+    )
+    calls = []
+
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return json.dumps({
+                "final_response": "I used an agent that was never consulted.",
+                "used_specialist_keys": ["unknown_agent"],
+                "action_intents": [{
+                    "action_type": "task.create", "summary": "Unsafe leftover proposal",
+                    "payload": {"title": "Should not survive", "notes": "", "due_at": None},
+                }],
+            })
+        return "I couldn't safely use that specialist response, so no action was proposed."
+
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
+    outcome = talk_to_li_with_outcome("Ask Nora to compare these options.")
+
+    assert outcome.action_intents == []
+    assert outcome.used_interaction_ids == []
+    assert "no action was proposed" in outcome.response
+    assert "RECENT CONVERSATION HISTORY" not in calls[1]["system"]
+
+
+def test_synthesis_fallback_preserves_task_context_and_evidence_limit(monkeypatch) -> None:
+    """R2: recovery keeps current-world and conversation constraints."""
+    from app.specialist_runtime import SpecialistConsultation
+
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *a, **k: SpecialistConsultation(),
+    )
+    calls = []
+
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        return "A response generated without a specialist."
+
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", fake_generate)
+    # A configured specialist path whose current evidence cannot be obtained is constructed
+    # by the runtime before synthesis. Force invalid structured output to exercise recovery.
+    from app.specialist_runtime import SpecialistResult
+
+    monkeypatch.setattr(
+        "app.li_runtime.consult_specialists",
+        lambda *a, **k: SpecialistConsultation(results={
+            "james": SpecialistResult(
+                recommendation="Cannot verify the current state. Do not guess.",
+                confidence=0.0, sources_needed=True,
+            ),
+        }),
+    )
+    responses = iter([
+        "{malformed structured response",
+        "I couldn't verify the current mortgage rate, so I won't guess.",
+    ])
+    monkeypatch.setattr(
+        "app.li_runtime.generate_claude_text",
+        lambda **kwargs: calls.append(kwargs) or next(responses),
+    )
+
+    outcome = talk_to_li_with_outcome(
+        "What is today's mortgage rate?", conversation_context="user: My budget is private."
+    )
+
+    assert "won't guess" in outcome.response
+    assert "RECENT CONVERSATION HISTORY" in calls[-1]["system"]
+    assert "My budget is private." in calls[-1]["system"]
+    assert "REQUIRED EVIDENCE LIMIT" in calls[-1]["system"]
+
+
+def test_malformed_direct_structured_output_is_not_returned_raw(monkeypatch) -> None:
+    """R4: broken structured output never becomes user-facing prose."""
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "app.li_runtime.generate_claude_text", lambda **kwargs: '{"final_response": "unfinished"'
+    )
+
+    response = talk_to_li("What is compound interest?")
+
+    assert "final_response" not in response
+    assert "couldn't safely complete" in response
 
 
 def test_li_synthesizes_multiple_specialists(monkeypatch) -> None:

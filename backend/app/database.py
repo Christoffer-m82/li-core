@@ -781,7 +781,7 @@ def get_recent_conversation_messages(
         with _connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
-                    """SELECT message_id, role, content, created_at
+                    """SELECT message_id, role, content, privacy_metadata, created_at
                     FROM li_api.get_recent_conversation_messages(%s, %s);""",
                     (conversation_id, limit),
                 )

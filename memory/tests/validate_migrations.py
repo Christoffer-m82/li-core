@@ -51,6 +51,8 @@ MIGRATION_ORDER = tuple(
             (34, "authenticated_native_gateway"),
             (35, "governed_li_native_systems"),
             (36, "owner_model_registry_configuration"),
+            (37, "conversation_context_privacy"),
+            (38, "recoverable_turns_and_actions"),
         )
     ]
 )
@@ -64,7 +66,7 @@ DELEGATED_CAPABILITY_ROLES = (
     "li_memory_function_owner",
     "li_memory_owner_confirmation",
 )
-EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 37)}
+EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 39)}
 
 
 def psql(
@@ -180,10 +182,62 @@ def validate_result() -> None:
         "private deletion capability was restored": (
             "SELECT to_regprocedure('li_api.delete_private_conversation(uuid)') IS NOT NULL;"
         ),
+        "conversation context returns privacy metadata": (
+            "SELECT pg_get_function_result("
+            "'li_api.get_recent_conversation_messages(uuid,integer)'::regprocedure) "
+            "LIKE '%privacy_metadata jsonb%';"
+        ),
+        "chat turn lifecycle is installed": (
+            "SELECT to_regprocedure('li_api.begin_chat_turn(uuid,text)') IS NOT NULL "
+            "AND to_regprocedure('li_api.finish_chat_turn(uuid,text,text,jsonb)') IS NOT NULL "
+            "AND to_regprocedure('li_api.expire_chat_replay_responses(integer)') IS NOT NULL;"
+        ),
+        "uncertain action state is enforced": (
+            "SELECT pg_get_constraintdef(oid) LIKE '%uncertain%' FROM pg_constraint "
+            "WHERE conname='action_intents_state_check_v038';"
+        ),
     }
     for label, sql in checks.items():
         if scalar(sql) != "t":
             raise RuntimeError(f"Database invariant failed: {label}")
+
+    synthetic_conversation = "00000000-0000-0000-0000-000000000038"
+    synthetic_turn = "00000000-0000-0000-0000-000000000039"
+    psql(
+        "--command",
+        "INSERT INTO li_conversation.conversations(id,owner_user_id) "
+        f"SELECT '{synthetic_conversation}',id FROM li_memory.users "
+        "WHERE user_key='christoffer'; "
+        "INSERT INTO li_runtime_data.chat_turns("
+        "id,owner_user_id,conversation_id,request_hash,state,response,finished_at,"
+        "response_expires_at) "
+        f"SELECT '{synthetic_turn}',id,'{synthetic_conversation}',repeat('a',64),"
+        "'completed','{}',NOW(),NOW()-INTERVAL '1 second' FROM li_memory.users "
+        "WHERE user_key='christoffer';",
+        user="supabase_admin",
+    )
+    expired_replay = psql(
+        "--tuples-only", "--no-align", "--command",
+        "SET SESSION AUTHORIZATION li_retention_runtime; "
+        "SELECT li_api.expire_chat_replay_responses(10);",
+        capture=True, user="supabase_admin",
+    )
+    if expired_replay.stdout.strip().splitlines()[-1] != "1":
+        raise RuntimeError("Retention worker did not expire one synthetic replay response")
+    if scalar(
+        "SELECT state='replay_expired' AND response IS NULL "
+        f"FROM li_runtime_data.chat_turns WHERE id='{synthetic_turn}';"
+    ) != "t":
+        raise RuntimeError("Expired replay did not retain a content-free idempotency tombstone")
+    psql(
+        "--command",
+        f"DELETE FROM li_conversation.conversations WHERE id='{synthetic_conversation}';",
+        user="supabase_admin",
+    )
+    if scalar(
+        f"SELECT count(*) FROM li_runtime_data.chat_turns WHERE id='{synthetic_turn}';"
+    ) != "0":
+        raise RuntimeError("Conversation deletion did not cascade to its chat turns")
 
     allowed = psql(
         "--command",
@@ -220,11 +274,11 @@ def validate_result() -> None:
     )
     if (
         replay.returncode == 0
-        or "schema version 0.36 is already claimed" not in replay.stderr.lower()
+        or "schema version 0.38 is already claimed" not in replay.stderr.lower()
     ):
         raise RuntimeError("Latest migration did not fail closed on replay")
 
-    if scalar("SELECT count(*) FROM li_memory.schema_versions;") != "36":
+    if scalar("SELECT count(*) FROM li_memory.schema_versions;") != "38":
         raise RuntimeError("Replay attempt changed schema-version history")
 
 

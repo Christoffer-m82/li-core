@@ -13,6 +13,7 @@ from app.specialist_runtime import (
     consult_specialists,
     delegate_to_nora,
     delegate_to_specialist,
+    memory_allowed_for_specialist,
     nora_needs_canonical_memory,
     route_specialist,
     route_specialists,
@@ -30,6 +31,15 @@ from app.specialist_runtime import (
 )
 def test_simple_requests_stay_with_li(message: str) -> None:
     assert route_specialist(message).route == "direct"
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["What is today's mortgage rate?", "Vad är dagens bolåneränta?"],
+)
+def test_current_mortgage_question_reaches_the_evidence_governed_specialist(message: str) -> None:
+    """R3: a simple prefix cannot bypass current-world verification."""
+    assert route_specialists(message).specialists == ["james"]
 
 
 def test_explicit_nora_request_delegates() -> None:
@@ -61,7 +71,7 @@ def test_complex_cross_domain_request_routes_multiple_specialists() -> None:
         "Compare the commercial trade-offs and travel experience of three cities for our "
         "next executive offsite, including hotel options and partnership opportunities."
     )
-    assert route_specialists(message).specialists == ["victor", "milo"]
+    assert route_specialists(message).specialists == ["milo", "victor"]
 
 
 def test_fixed_registry_drives_profiles() -> None:
@@ -89,9 +99,62 @@ def test_cross_domain_routing_is_bounded() -> None:
     assert decision.group_mode == "multi"
 
 
+@pytest.mark.parametrize(
+    "message",
+    ["Ask her again about the evidence.", "Fråga henne igen om evidensen."],
+)
+def test_permitted_recent_context_resolves_bilingual_specialist_reference(message: str) -> None:
+    decision = route_specialists(
+        message,
+        conversation_context="user: Compare these options\nassistant: Nora reviewed the sources.",
+    )
+    assert decision.specialists == ["nora"]
+    assert decision.route_category == "resolved_specialist_reference"
+
+
+def test_specialist_name_inside_quoted_example_does_not_route() -> None:
+    decision = route_specialists('Translate the example "Ask Nora to compare these" into Swedish.')
+    assert decision.specialists == []
+
+
+def test_task_packet_carries_objective_question_evidence_and_success_criteria(monkeypatch) -> None:
+    observed = {}
+    payload = {
+        "recommendation": "Use the documented criteria.", "findings": [],
+        "confidence": 0.8, "key_assumptions": [], "sources_needed": False,
+        "follow_up_questions": [], "research_request": None,
+    }
+
+    def generate(**kwargs):
+        observed.update(json.loads(kwargs["user_message"]))
+        return json.dumps(payload)
+
+    monkeypatch.setattr("app.specialist_runtime.generate_claude_text", generate)
+    delegate_to_specialist("nora", SpecialistRequest(
+        current_user_message="Compare A and B.",
+        objective="Help Li compare two options.",
+        specialist_question="Assess the evidence quality only.",
+        evidence_requirements=["Use supplied evidence only."],
+        success_criteria=["Identify the stronger source base."],
+    ))
+    assert observed["objective"] == "Help Li compare two options."
+    assert observed["specialist_question"] == "Assess the evidence quality only."
+    assert observed["evidence_requirements"] == ["Use supplied evidence only."]
+    assert observed["success_criteria"] == ["Identify the stronger source base."]
+
+
 def test_memory_is_only_needed_for_personalized_task() -> None:
     assert not nora_needs_canonical_memory("Research and compare these vendors.")
     assert nora_needs_canonical_memory("Recommend the best option for my priorities.")
+
+
+def test_memory_domains_use_exact_registry_boundaries() -> None:
+    assert memory_allowed_for_specialist("sofia", "health", user_message="my health")
+    assert not memory_allowed_for_specialist("sofia", "health insurance", user_message="my health")
+    assert not memory_allowed_for_specialist("nora", "preferences", user_message="Compare A and B")
+    assert memory_allowed_for_specialist(
+        "nora", "preferences", user_message="Compare A and B for my priorities"
+    )
 
 
 def test_delegate_to_nora_validates_structured_output(monkeypatch) -> None:
