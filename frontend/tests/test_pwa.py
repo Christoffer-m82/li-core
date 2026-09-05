@@ -81,9 +81,40 @@ def png_dimensions(path: Path) -> tuple[int, int]:
 def test_home_chat_can_shrink_and_preserves_touch_targets():
     css = (ROOT / "static/assets/app.css").read_text(encoding="utf-8")
     assert '.conversation-panel{grid-template-columns:minmax(0,1fr)}' in css
-    assert '.composer textarea{min-width:0}' in css
+    assert '.composer textarea{min-width:0;min-height:44px}' in css
     assert '.composer button{flex:0 0 44px;width:44px;height:44px}' in css
     assert '.voice-output-controls .icon-button{width:44px;height:44px}' in css
+
+
+def test_primary_views_announce_context_and_preserve_touch_targets():
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    css = (ROOT / "static/assets/app.css").read_text(encoding="utf-8")
+    javascript = (ROOT / "static/assets/app.js").read_text(encoding="utf-8")
+
+    assert html.count('data-view="home" aria-current="page"') == 2
+    assert 'button.setAttribute(\'aria-current\', current ? \'page\' : \'false\')' in javascript
+    for context in (
+        "Review private proactive briefs and useful suggestions from Li.",
+        "See specialist roles, measured activity, and recommendations.",
+        "Work with Li and this specialist, or review recorded evidence.",
+        "Manage appearance, devices, profile, voice, and privacy.",
+    ):
+        assert context in javascript
+
+    for rule in (
+        ".account-button{width:44px;height:44px",
+        ".text-button{min-height:44px",
+        ".secondary-button,.primary-button{min-height:44px",
+        ".settings-panel select{min-height:44px}",
+        ".analytics-toolbar select,.relevance-panel select{min-height:44px",
+        ".backend-toolbar input,.backend-toolbar select{min-width:0;min-height:44px",
+        ".place-setting input{width:100%;min-height:44px",
+    ):
+        assert rule in css
+
+    privacy_css = (ROOT / "static/assets/privacy.css").read_text(encoding="utf-8")
+    assert ".chat-attachment a { display: inline-flex; align-items: center; min-height: 44px; }" in privacy_css
+    assert ".chat-attachment button, .attachment-tray button { min-height: 44px;" in privacy_css
 
 
 def test_appearance_edit_transfer_controls_are_labelled_and_present():
@@ -129,7 +160,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v16" in service_worker
+    assert "li-shell-v17" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():

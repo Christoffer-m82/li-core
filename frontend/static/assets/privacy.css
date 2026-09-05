@@ -2,8 +2,9 @@
 .conversation-row { display: flex; align-items: center; gap: 10px; }
 .conversation-row .conversation-choice { flex: 1; text-align: left; }
 .text-button.danger { color: #d86b76; flex: 0 0 auto; }
-.chat-attachment button, .attachment-tray button { margin-left: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); padding: 4px 8px; cursor: pointer; }
-#artifact-retention { display: block; margin: 12px 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--text); }
+.chat-attachment a { display: inline-flex; align-items: center; min-height: 44px; }
+.chat-attachment button, .attachment-tray button { min-height: 44px; margin-left: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); padding: 4px 8px; cursor: pointer; }
+#artifact-retention { display: block; min-height: 44px; margin: 12px 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--text); }
 #privacy-status { display: block; margin-top: 10px; }
 .artifact-library { margin-top: 16px; text-align: left; }
 .artifact-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }

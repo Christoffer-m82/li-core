@@ -45,7 +45,35 @@ const profilePhoto = window.LiProfilePhoto.create({ document, fetch, URL, FormDa
 profilePhoto.register($('#account-button'));
 
 function greeting() { const hour = new Date().getHours(); const salutation = `Good ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}`; return state.displayName ? `${salutation}, ${state.displayName.split(/\s+/)[0]}` : salutation; }
-function setView(view) { closeSpecialistPortrait(); $$('.view').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view)); $$('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view)); $('#page-title').textContent = { home: greeting(), inbox: 'Li Briefs', agents: 'Agent Status & Analytics', backend: 'Backend Overview', history: 'Conversation history', settings: 'Settings', specialist: 'Specialist activity', 'system-agent': 'System agent profile' }[view]; if (view === 'home') setTimeout(() => $('#message-input').focus(), 100); if (view === 'inbox') loadProactiveBriefs(); if (view === 'agents') loadAgentAnalytics(); if (view === 'backend') { loadCapabilities(); loadFreshnessPolicies(); loadProviderCoverage(); loadGovernedWorkStatus(); } if (view === 'history') loadConversations(); if (view === 'settings') { loadPrivacy(); loadPlace(); profilePhoto.load(); } }
+const VIEW_COPY = Object.freeze({
+  home: { title: greeting, context: 'Talk with Li, continue recent work, or open a specialist.' },
+  inbox: { title: 'Li Briefs', context: 'Review private proactive briefs and useful suggestions from Li.' },
+  agents: { title: 'Agent Status & Analytics', context: 'See specialist roles, measured activity, and recommendations.' },
+  backend: { title: 'Backend Overview', context: 'Review Li’s read-only capabilities, permissions, and freshness.' },
+  history: { title: 'Conversation history', context: 'Revisit private conversations and saved files.' },
+  settings: { title: 'Settings', context: 'Manage appearance, devices, profile, voice, and privacy.' },
+  specialist: { title: 'Specialist activity', context: 'Work with Li and this specialist, or review recorded evidence.' },
+  'system-agent': { title: 'System agent profile', context: 'Review this system role’s responsibilities and boundaries.' },
+});
+function setView(view) {
+  closeSpecialistPortrait();
+  $$('.view').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view));
+  const navigationView = ['specialist', 'system-agent'].includes(view) ? 'agents' : view;
+  $$('.nav-item').forEach((button) => {
+    const current = button.dataset.view === navigationView;
+    button.classList.toggle('active', current);
+    button.setAttribute('aria-current', current ? 'page' : 'false');
+  });
+  const copy = VIEW_COPY[view] || VIEW_COPY.home;
+  $('#page-title').textContent = typeof copy.title === 'function' ? copy.title() : copy.title;
+  $('#page-context').textContent = copy.context;
+  if (view === 'home') setTimeout(() => $('#message-input').focus(), 100);
+  if (view === 'inbox') loadProactiveBriefs();
+  if (view === 'agents') loadAgentAnalytics();
+  if (view === 'backend') { loadCapabilities(); loadFreshnessPolicies(); loadProviderCoverage(); loadGovernedWorkStatus(); }
+  if (view === 'history') loadConversations();
+  if (view === 'settings') { loadPrivacy(); loadPlace(); profilePhoto.load(); }
+}
 
 function updateConnectivity() { const offline = navigator.onLine === false; $('#offline-status')?.classList.toggle('hidden', !offline); if (offline) $('#connection-label').textContent = 'Offline · private data unavailable'; }
 

@@ -62,6 +62,8 @@ class FakeElement {
 function loadApp({ geolocation, storageBlocked = false, storageWriteFails = false,
   chatResponses = [], sessionValues = new Map(), uuidValues = ['test-id'] } = {}) {
   const elements = new Map();
+  const navItems = ['home', 'inbox', 'agents', 'history', 'backend', 'settings']
+    .map((view) => { const item = new FakeElement(); item.dataset.view = view; return item; });
   const getElement = (selector) => {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
     return elements.get(selector);
@@ -90,7 +92,8 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     createTextNode: (text) => ({ textContent: text }),
     documentElement: new FakeElement(),
     querySelector: getElement,
-    querySelectorAll: (selector) => selector === '.li-orb' ? [getElement('#li-orb')] : [],
+    querySelectorAll: (selector) => selector === '.li-orb' ? [getElement('#li-orb')]
+      : selector === '.nav-item' ? navItems : [],
   };
   const localStorage = {
     values: new Map(),
@@ -177,7 +180,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   return {
     themes: window.LiThemes,
     themeLibrary: vm.runInNewContext('themeLibrary', context),
-    downloads, revoked, localStorage,
+    downloads, revoked, localStorage, navItems,
     createSpecialistAvatar: vm.runInNewContext('createSpecialistAvatar', context),
     openSpecialistPortrait: vm.runInNewContext('openSpecialistPortrait', context),
     systemAgents: vm.runInNewContext('SYSTEM_AGENTS', context),
@@ -479,6 +482,25 @@ test('portrait dialog uses originals, ignores stale image events, and closes on 
   assert.equal(app.requests.length, initialRequests);
   app.setView('home');
   assert.equal(get('dialog').open, false);
+});
+
+test('view changes update descriptive copy and expose the current navigation item', async () => {
+  const app = loadApp();
+  await app.settle();
+  app.setView('settings');
+  assert.equal(app.elements.get('#page-title').textContent, 'Settings');
+  assert.equal(
+    app.elements.get('#page-context').textContent,
+    'Manage appearance, devices, profile, voice, and privacy.',
+  );
+  for (const item of app.navItems) {
+    assert.equal(item.getAttribute('aria-current'), item.dataset.view === 'settings' ? 'page' : 'false');
+  }
+  app.setView('specialist');
+  assert.equal(
+    app.navItems.find((item) => item.dataset.view === 'agents').getAttribute('aria-current'),
+    'page',
+  );
 });
 
 test('install prompt is offered once and reports accepted installation', async () => {

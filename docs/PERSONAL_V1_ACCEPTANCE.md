@@ -34,6 +34,21 @@ required authorization. Secret entry and physical-device checks may require the 
 | Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | Authorized restore drill and dated evidence; see [known risks](KNOWN_RISKS.md) |
 | Release stability | All agreed journeys pass, no unresolved critical findings, normal use observation and rollback available | A stable-use observation period; no unsupported claim of 100% |
 
+## Local browser accessibility evidence — 2026-09-05
+
+An authenticated local Windows Chromium check used synthetic specialist activity and no production
+personal data. Home, Specialists, Backend and Settings exposed the correct current navigation item
+and view-specific heading description. Every visible enabled button, link, input, select, textarea
+and summary in those checked views measured at least 44 by 44 CSS pixels after the accessibility
+corrections. The Specialist Workspace, History and Statistics views also met that target; the large
+portrait dialog focused Close on opening, closed with Escape and returned focus to its portrait
+button. Built-in Dark, Light and Forest appearances applied their validated text-on-accent tokens.
+
+Permanent frontend tests cover the view announcements, current-page state and target-size rules.
+This evidence is local browser validation, not a deployed acceptance result. Android phone/tablet,
+Windows installed-PWA, 200% zoom and screen-reader checks remain open, as do the other external and
+protected checks in the table above.
+
 ## Blueprint implementation evidence — 2026-09-05
 
 The six packages in the [Li OS improvement blueprint](LI_OS_IMPROVEMENT_BLUEPRINT.md) are implemented
