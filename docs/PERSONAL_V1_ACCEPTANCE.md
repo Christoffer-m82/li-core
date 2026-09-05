@@ -56,6 +56,13 @@ tests separately prove that a failed source displays unknown and that the freshn
 partial availability. This is desktop visual and local contract evidence only; responsive automated
 rules do not replace the open Android/tablet/installed-Windows checks.
 
+After the compact specialist entry was added, a synthetic authenticated system-Chrome review rendered
+Home at 390 × 844, 800 × 1280 and 1440 × 900 CSS pixels, plus a 720 × 900 narrow-reflow proxy. The
+phone and narrow cases showed exactly three active-first cards, retained all 12 in the document and
+exposed a 44-pixel **View all 12 specialists** control that opened the full Specialists view. Tablet
+and desktop showed all 12 without the redundant control. None of the four cases had horizontal page
+overflow. This remains local responsive evidence, not actual 200% browser zoom or physical-device proof.
+
 ## Blueprint implementation evidence — 2026-09-05
 
 The six packages in the [Li OS improvement blueprint](LI_OS_IMPROVEMENT_BLUEPRINT.md) are implemented

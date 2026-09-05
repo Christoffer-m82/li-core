@@ -97,7 +97,8 @@ def test_home_specialist_roster_has_a_compact_phone_entry_without_losing_the_dir
     assert 'id="home-specialists-all" class="text-button home-specialists-all"' in html
     assert 'data-view="agents">View all specialists' in html
     assert ".specialist-list .specialist-card:nth-child(n+4){display:none}" in css
-    assert ".home-specialists-all{display:inline-flex}" in css
+    assert "#home-specialists-all{display:none;margin-top:12px}" in css
+    assert "#home-specialists-all{display:inline-flex}" in css
 
 
 def png_dimensions(path: Path) -> tuple[int, int]:
@@ -189,7 +190,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v19" in service_worker
+    assert "li-shell-v20" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():
