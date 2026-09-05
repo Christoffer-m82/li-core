@@ -12,6 +12,7 @@ from app.action_intents import (
     persist_proposals,
 )
 from app.li_runtime import build_li_system_prompt
+from app.task_runtime import TaskActionOutcome
 
 
 NOW = datetime.now(UTC)
@@ -205,6 +206,45 @@ def test_provider_failure_resolves_uncertain_and_requires_reconciliation(monkeyp
     assert transitions[-1]["execution_status"] == "uncertain"
     assert "provider detail" not in json.dumps(transitions[-1]["result"])
     assert "Check its current state" in transitions[-1]["result"]["message"]
+
+
+def test_provider_reports_no_effect_as_failed_and_safe_to_retry(monkeypatch):
+    intent_id, request_id = uuid4(), uuid4()
+    payload = {"action": "task.create", "title": "Follow up", "notes": None,
+               "due_at": None, "timezone": None, "idempotency_key": f"intent:{intent_id}"}
+    payload_hash = __import__("hashlib").sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    transitions = []
+
+    def resolve(**values):
+        transitions.append(values)
+        if len(transitions) == 1:
+            return {"outcome": "execute", "intent": public(intent_id, request_id),
+                    "payload": payload, "payload_hash": payload_hash,
+                    "request_id": request_id, "action_type": "task.create",
+                    "specialist_interaction_ids": []}
+        return {"outcome": "resolved", "intent": public(intent_id, request_id, "failed", {
+            "status": "failed", "action": "task.create", "message": "safe retry",
+        })}
+
+    monkeypatch.setattr("app.action_intents.resolve_action_intent", resolve)
+    monkeypatch.setattr(
+        "app.action_intents.execute_task_action",
+        lambda *args, **kwargs: TaskActionOutcome(
+            status="approval_required", action="task.create",
+            message="Provider was not called.",
+        ),
+    )
+    result = decide_intent(
+        intent_id, IntentDecision(decision="approve"),
+        calendar_provider=object(), task_provider=TaskProvider(), email_provider=object(),
+    )
+
+    assert result.approval_state == "failed"
+    assert transitions[-1]["execution_status"] == "failed"
+    assert transitions[-1]["result"]["status"] == "failed"
+    assert "safe to retry" in transitions[-1]["result"]["message"]
 
 
 def test_policy_rejection_finishes_failed_before_provider_boundary(monkeypatch):

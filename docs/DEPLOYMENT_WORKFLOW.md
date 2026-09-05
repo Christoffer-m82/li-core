@@ -37,10 +37,11 @@ operator, planned time, user impact, rollback target, and links to approval evid
 - Complete the boundary review in [Security boundaries](SECURITY_BOUNDARIES.md).
 - For schema-dependent code, complete [Migration workflow](MIGRATION_WORKFLOW.md) and verify the
   required schema version in the target database before application rollout.
-- The `codex/li-os-improvement-blueprint` backend requires migrations 037 and 038 before rollout.
+- The Phase 2 backend requires migrations 037 through 039 before rollout.
   Migration 038 is forward-compatible with the preceding backend; deploying the new action-recovery
   code against schema 0.37 can leave an uncertain provider write without its required durable state.
-  This ordering note does not authorize either external operation.
+  Migration 039 adds the attempt token and progress functions used by the completed recovery path.
+  This ordering note does not authorize any external operation.
 - Build from the repository root using the component Dockerfile and retain the immutable digest.
 - Inspect rendered configuration without exposing values. Reject unresolved placeholders,
   unauthenticated backend access, wildcard production CORS, unpinned rollout inputs where pinning is

@@ -47,6 +47,26 @@ def test_apply_memory_correction(monkeypatch) -> None:
     assert outcomes[0].memory_id == "new-id"
     assert recorded["memory_id"] == "old-id"
     assert recorded["new_value"] == "Prefers purple notebooks"
+    assert recorded["source_private_to_li"] is False
+
+
+def test_private_correction_source_restricts_replacement_memory(monkeypatch) -> None:
+    monkeypatch.setattr("app.memory_capture.recall_memory", lambda **kwargs: [_memory()])
+    recorded = {}
+    monkeypatch.setattr(
+        "app.memory_capture.correct_explicit_memory",
+        lambda **kwargs: recorded.update(kwargs)
+        or {"memory_id": "new-id", "outcome": "created_replacement"},
+    )
+    analysis = MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+        action="correct_explicit", memory_class="explicit_preference",
+        domain="preferences", value="Private corrected value", sensitivity="low",
+        target_query="old value",
+    )])
+
+    apply_memory_capture(analysis, source_private_to_li=True)
+
+    assert recorded["source_private_to_li"] is True
 
 
 def test_memory_change_retries_with_content_word_target(monkeypatch) -> None:
@@ -269,3 +289,26 @@ def test_memory_change_rejects_sensitive_target(
 
     with pytest.raises(MemoryCaptureError, match="Theo review"):
         apply_memory_capture(analysis)
+
+
+def test_automatic_explicit_memory_preserves_source_privacy(monkeypatch) -> None:
+    recorded = {}
+    monkeypatch.setattr(
+        "app.memory_capture.store_explicit_memory",
+        lambda **kwargs: recorded.update(kwargs) or "memory-private",
+    )
+    analysis = MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+        action="store_explicit",
+        memory_class="explicit_preference",
+        domain="preferences",
+        value="I prefer quiet rooms.",
+        sensitivity="personal",
+    )])
+
+    apply_memory_capture(
+        analysis,
+        source_reference="synthetic-private-chat",
+        source_private_to_li=True,
+    )
+
+    assert recorded["private_to_li"] is True

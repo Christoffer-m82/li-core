@@ -74,6 +74,27 @@ def finish_chat_turn(*, turn_id: UUID, request_hash: str, state: str,
     return dict(next(iter(rows[0].values())))
 
 
+def mark_chat_turn_progress(*, turn_id: UUID, request_hash: str, attempt_token: UUID,
+                            stage: str) -> dict[str, object]:
+    rows = _call("mark_chat_turn_progress", (turn_id, request_hash, attempt_token, stage))
+    if not rows:
+        raise RuntimeDataError("Chat turn progress update returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
+def finish_chat_turn_attempt(*, turn_id: UUID, request_hash: str, attempt_token: UUID,
+                             state: str,
+                             response: dict[str, object] | None = None) -> dict[str, object]:
+    rows = _call(
+        "finish_chat_turn_attempt",
+        (turn_id, request_hash, attempt_token, state,
+         Jsonb(response) if response is not None else None),
+    )
+    if not rows:
+        raise RuntimeDataError("Chat turn attempt completion returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
 def get_privacy_settings() -> dict[str, object]:
     rows = _call("get_privacy_settings")
     if not rows:

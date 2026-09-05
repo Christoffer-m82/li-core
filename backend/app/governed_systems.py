@@ -143,25 +143,74 @@ def conversation_context_message(row: Mapping[str, object]) -> ConversationConte
 
 def specialist_conversation_context(
     messages: list[ConversationContextMessage], specialist: str, *, character_budget: int = 6000,
+    query: str | None = None,
 ) -> str | None:
-    """Render only explicitly disclosed whole messages for one specialist."""
+    """Render relevant, explicitly disclosed whole messages for one specialist."""
+
+    return _bounded_conversation_context(
+        messages, character_budget=character_budget, query=query, specialist=specialist,
+    )
+
+
+def li_conversation_context(
+    messages: list[ConversationContextMessage], query: str, *, character_budget: int = 16_000,
+) -> str | None:
+    """Keep whole, task-relevant recent messages for Li within a bounded request."""
+
+    return _bounded_conversation_context(
+        messages, character_budget=character_budget, query=query, specialist=None,
+    )
+
+
+_CONTEXT_WORD = re.compile(r"[^\W_]{3,}", re.UNICODE)
+_CORRECTION = re.compile(
+    r"\b(?:correction|corrected|actually|update|changed|instead|rättelse|korrigering|"
+    r"egentligen|uppdatering|ändrat|istället)\b", re.I,
+)
+_CONTEXT_STOPWORDS = {
+    "and", "are", "but", "for", "from", "have", "that", "the", "this", "with",
+    "att", "det", "den", "som", "och", "för", "har", "med", "till",
+}
+
+
+def _bounded_conversation_context(
+    messages: list[ConversationContextMessage], *, character_budget: int,
+    query: str | None, specialist: str | None,
+) -> str | None:
+    """Rank permitted messages, then restore chronology without splitting a message."""
 
     if character_budget <= 0:
-        raise ValueError("specialist conversation budget must be positive")
-    selected: list[str] = []
-    used = 0
-    for message in reversed(messages):
-        if message.private_to_li or specialist not in message.allowed_specialists:
+        raise ValueError("conversation budget must be positive")
+    query_terms = {
+        word.casefold() for word in _CONTEXT_WORD.findall(query or "")
+        if word.casefold() not in _CONTEXT_STOPWORDS
+    }
+    candidates: list[tuple[float, int, str]] = []
+    message_count = max(1, len(messages))
+    for index, message in enumerate(messages):
+        if specialist is not None and (
+            message.private_to_li or specialist not in message.allowed_specialists
+        ):
             continue
         rendered = f"{message.role}: {message.content}"
-        cost = len(rendered) + (1 if selected else 0)
+        content_terms = {word.casefold() for word in _CONTEXT_WORD.findall(message.content)}
+        overlap = len(query_terms & content_terms) / max(1, len(query_terms))
+        relevance = (index + 1) / message_count * 0.35 + min(overlap * 2.0, 0.55)
+        if _CORRECTION.search(message.content):
+            relevance += 1.0
+        candidates.append((relevance, index, rendered))
+
+    chosen: list[tuple[int, str]] = []
+    used = 0
+    for _, index, rendered in sorted(candidates, key=lambda item: (-item[0], -item[1])):
+        cost = len(rendered) + (1 if chosen else 0)
         if cost > character_budget:
             continue
         if used + cost > character_budget:
-            break
-        selected.append(rendered)
+            continue
+        chosen.append((index, rendered))
         used += cost
-    return "\n".join(reversed(selected)) or None
+    return "\n".join(rendered for _, rendered in sorted(chosen)) or None
 
 
 DEFAULT_CONTEXT_BUDGETS = {

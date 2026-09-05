@@ -399,6 +399,7 @@ def apply_memory_capture(
     analysis: MemoryCaptureAnalysis,
     *,
     source_reference: str | None = None,
+    source_private_to_li: bool = False,
 ) -> list[MemoryCaptureOutcome]:
     """
     Apply a previously analyzed capture decision.
@@ -465,6 +466,7 @@ def apply_memory_capture(
                     new_domain=candidate.domain,
                     new_title=candidate.title,
                     source_reference=source_reference,
+                    source_private_to_li=source_private_to_li,
                 )
             except MemoryCorrectionError as exc:
                 raise MemoryCaptureError("Automatic memory correction failed.") from exc
@@ -496,7 +498,7 @@ def apply_memory_capture(
                     value=candidate.value,
                     title=candidate.title,
                     sensitivity=candidate.sensitivity,
-                    private_to_li=False,
+                    private_to_li=source_private_to_li,
                     source_reference=source_reference,
                 )
 

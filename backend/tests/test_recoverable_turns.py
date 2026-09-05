@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.auth import require_api_token
 from app.main import app
 from app.memory_capture import MemoryCaptureAnalysis
+from app.li_runtime import LiRuntimeError
 from app.runtime_data import RuntimeDataCapabilityUnavailable, RuntimeDataError
 from app.schemas import LiChatRequest, LiChatResponse
 
@@ -38,6 +39,25 @@ def test_recoverable_turn_migration_binds_owner_payload_and_truthful_states():
     assert "expire_chat_replay_responses" in sql
     assert "ON CONFLICT(id) DO NOTHING" in sql
     assert "Schema version 0.38 is already claimed" in sql
+    assert "ON CONFLICT(version) DO NOTHING" not in sql
+
+
+def test_phase_2_recovery_migration_fences_attempts_and_enforces_truth_pairing():
+    sql = (ROOT / "memory" / "migrations" /
+           "039_phase_2_truth_and_turn_recovery.sql").read_text(encoding="utf-8")
+    assert "attempt_token UUID" in sql
+    assert "external_effect_started BOOLEAN NOT NULL DEFAULT FALSE" in sql
+    assert "external_effect_state TEXT NOT NULL DEFAULT 'none'" in sql
+    assert "'action_prepared','provider_dispatched','provider_completed','provider_no_effect'" in sql
+    assert "CREATE FUNCTION li_api.mark_chat_turn_progress" in sql
+    assert "CREATE FUNCTION li_api.finish_chat_turn_attempt" in sql
+    assert "t.attempt_token IS DISTINCT FROM p_attempt_token" in sql
+    assert "t.response_expires_at<=v_now" in sql
+    assert "t.external_effect_state IN ('none','prepared','no_effect')" in sql
+    assert "Inference proposals must retain inferred truth status" in sql
+    assert "li_api.correct_explicit_memory(UUID,TEXT,TEXT,TEXT,TEXT,BOOLEAN)" in sql
+    assert "SET private_to_li=TRUE" in sql
+    assert "Schema version 0.39 is already claimed" in sql
     assert "ON CONFLICT(version) DO NOTHING" not in sql
 
 
@@ -207,3 +227,163 @@ def test_completed_turn_is_bound_and_recorded_once(monkeypatch):
     assert response.status_code == 200
     assert response.json()["turn_state"] == "completed"
     assert len(finished) == 1 and finished[0]["state"] == "completed"
+
+
+def test_model_failure_after_message_save_is_failed_not_effect_uncertain(monkeypatch):
+    turn_id, conversation_id = uuid4(), uuid4()
+    finished = []
+    monkeypatch.setattr("app.main.begin_chat_turn", lambda **kwargs: {"outcome": "accepted"})
+    monkeypatch.setattr("app.main.create_conversation", lambda **kwargs: str(conversation_id))
+    monkeypatch.setattr("app.main.bind_chat_turn_conversation", lambda **kwargs: kwargs)
+    monkeypatch.setattr("app.main.get_recent_conversation_messages", lambda **kwargs: [])
+    monkeypatch.setattr("app.main.append_conversation_message", lambda **kwargs: "message")
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs: MemoryCaptureAnalysis())
+    monkeypatch.setattr(
+        "app.main.talk_to_li",
+        lambda *args, **kwargs: (_ for _ in ()).throw(LiRuntimeError("synthetic model failure")),
+    )
+    monkeypatch.setattr("app.main.finish_chat_turn", lambda **kwargs: finished.append(kwargs) or {})
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        response = TestClient(app).post("/li/chat", json={
+            "message": "Synthetic request", "turn_id": str(turn_id),
+        })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 503
+    assert len(finished) == 1 and finished[0]["state"] == "failed"
+
+
+def test_retry_after_saved_message_reuses_conversation_without_duplicate_user_write(monkeypatch):
+    turn_id, conversation_id, attempt_token = uuid4(), uuid4(), uuid4()
+    appended = []
+    progress = []
+    finished = []
+    monkeypatch.setattr("app.main.begin_chat_turn", lambda **kwargs: {
+        "outcome": "accepted", "conversation_id": str(conversation_id),
+        "attempt_token": str(attempt_token), "progress_stage": "message_saved",
+    })
+    monkeypatch.setattr("app.main.bind_chat_turn_conversation", lambda **kwargs: (_ for _ in ()).throw(
+        AssertionError("an already-bound retry must not rebind")
+    ))
+    monkeypatch.setattr("app.main.get_recent_conversation_messages", lambda **kwargs: [])
+    monkeypatch.setattr("app.main.append_conversation_message", lambda **kwargs: appended.append(kwargs))
+    monkeypatch.setattr("app.main.mark_chat_turn_progress", lambda **kwargs: progress.append(kwargs) or {})
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs: MemoryCaptureAnalysis())
+    monkeypatch.setattr("app.main.talk_to_li", lambda *args, **kwargs: "Recovered safely.")
+    monkeypatch.setattr("app.main.finish_chat_turn_attempt", lambda **kwargs: finished.append(kwargs) or {})
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        response = TestClient(app).post("/li/chat", json={
+            "message": "Synthetic request", "turn_id": str(turn_id),
+        })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert not [item for item in appended if item["role"] == "user"]
+    assert len([item for item in appended if item["role"] == "assistant"]) == 1
+    assert [item["stage"] for item in progress] == ["model_started", "response_ready"]
+    assert len(finished) == 1 and finished[0]["attempt_token"] == attempt_token
+    diagnostics = response.json()["diagnostics"]
+    assert diagnostics["recovery"]["resumed_stage"] == "response_ready"
+    assert "Synthetic request" not in str(diagnostics)
+
+
+def test_read_only_provider_failure_does_not_make_turn_effect_uncertain(monkeypatch):
+    turn_id, conversation_id, attempt_token = uuid4(), uuid4(), uuid4()
+    stages, finished = [], []
+
+    class Provider:
+        def search_messages(self, request):
+            raise RuntimeError("synthetic read failure")
+
+    monkeypatch.setattr("app.main.begin_chat_turn", lambda **kwargs: {
+        "outcome": "accepted", "attempt_token": str(attempt_token),
+        "progress_stage": "accepted",
+    })
+    monkeypatch.setattr("app.main.create_conversation", lambda **kwargs: str(conversation_id))
+    monkeypatch.setattr("app.main.bind_chat_turn_conversation", lambda **kwargs: kwargs)
+    monkeypatch.setattr("app.main.get_recent_conversation_messages", lambda **kwargs: [])
+    monkeypatch.setattr("app.main.append_conversation_message", lambda **kwargs: "message")
+    monkeypatch.setattr("app.main.mark_chat_turn_progress",
+                        lambda **kwargs: stages.append(kwargs["stage"]) or {})
+    monkeypatch.setattr("app.main.analyze_memory_capture",
+                        lambda *args, **kwargs: MemoryCaptureAnalysis())
+    monkeypatch.setattr(
+        "app.main.talk_to_li",
+        lambda *args, **kwargs: (_ for _ in ()).throw(LiRuntimeError("synthetic model failure")),
+    )
+    monkeypatch.setattr("app.main.finish_chat_turn_attempt",
+                        lambda **kwargs: finished.append(kwargs) or {})
+    previous = app.state.email_provider
+    app.state.email_provider = Provider()
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        response = TestClient(app).post("/li/chat", json={
+            "message": "Find a message", "turn_id": str(turn_id),
+            "email_action": {"request": {"action": "email.search", "query": "synthetic"}},
+        })
+    finally:
+        app.state.email_provider = previous
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert stages == ["conversation_bound", "message_saved", "model_started"]
+    assert finished[-1]["state"] == "failed"
+
+
+def test_known_provider_completion_is_persisted_before_later_model_failure(monkeypatch):
+    turn_id, conversation_id, attempt_token = uuid4(), uuid4(), uuid4()
+    stages, finished = [], []
+
+    class Provider:
+        def create_draft(self, request):
+            return {
+                "draft_id": "draft-1", "message_id": "message-1", "thread_id": None,
+                "recipients": request.recipients, "cc": [], "bcc": [],
+                "subject": request.subject, "body": request.body,
+            }
+
+    monkeypatch.setattr("app.main.begin_chat_turn", lambda **kwargs: {
+        "outcome": "accepted", "attempt_token": str(attempt_token),
+        "progress_stage": "accepted",
+    })
+    monkeypatch.setattr("app.main.create_conversation", lambda **kwargs: str(conversation_id))
+    monkeypatch.setattr("app.main.bind_chat_turn_conversation", lambda **kwargs: kwargs)
+    monkeypatch.setattr("app.main.get_recent_conversation_messages", lambda **kwargs: [])
+    monkeypatch.setattr("app.main.append_conversation_message", lambda **kwargs: "message")
+    monkeypatch.setattr("app.main.mark_chat_turn_progress",
+                        lambda **kwargs: stages.append(kwargs["stage"]) or {})
+    monkeypatch.setattr("app.main.analyze_memory_capture",
+                        lambda *args, **kwargs: MemoryCaptureAnalysis())
+    monkeypatch.setattr(
+        "app.main.talk_to_li",
+        lambda *args, **kwargs: (_ for _ in ()).throw(LiRuntimeError("synthetic model failure")),
+    )
+    monkeypatch.setattr("app.main.finish_chat_turn_attempt",
+                        lambda **kwargs: finished.append(kwargs) or {})
+    previous = app.state.email_provider
+    app.state.email_provider = Provider()
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        response = TestClient(app).post("/li/chat", json={
+            "message": "Create the approved draft", "turn_id": str(turn_id),
+            "email_action": {
+                "approved": True,
+                "request": {
+                    "action": "email.create_draft", "recipients": ["owner@example.com"],
+                    "subject": "Synthetic", "body": "Synthetic body",
+                    "idempotency_key": "synthetic-draft",
+                },
+            },
+        })
+    finally:
+        app.state.email_provider = previous
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert stages == [
+        "conversation_bound", "message_saved", "action_prepared", "provider_dispatched",
+        "provider_completed", "model_started",
+    ]
+    assert finished[-1]["state"] == "uncertain"

@@ -18,7 +18,8 @@ function setup(fetch = async () => reply({messages:[]}), options = {}) {
   const all = [], root = new Element();
   const document = { querySelector: () => root, createElement(tag) { const el = new Element(); el.tag = tag; all.push(el); return el; } };
   let turn = 0;
-  const context = { FormData: class { append() {} },
+  const sessionStorage = options.sessionStorage || {data:new Map(),getItem(k){return this.data.get(k)||null;},setItem(k,v){this.data.set(k,v);},removeItem(k){this.data.delete(k);}};
+  const context = { FormData: class { append() {} }, sessionStorage,
     crypto: { randomUUID: () => `00000000-0000-0000-0000-${String(++turn).padStart(12,'0')}` } };
   vm.runInNewContext(source, context);
   const api = context.LiWorkspace, view = api.create({document, fetch, ...options});
@@ -70,6 +71,27 @@ test('failed workspace retry reuses the same stable turn identity', async () => 
   });
   await app.view.open(agent,[]); app.get('workspace-input').value='Retry me'; await app.send();
   succeed=true; await app.send();
+  assert.equal(ids.length,2); assert.equal(ids[0],ids[1]);
+});
+test('editing a failed workspace request creates a new turn identity', async () => {
+  const ids=[]; const app=setup(async (url,options) => {
+    if(url==='/api/chat') { ids.push(JSON.parse(options.body).turn_id); return {ok:false}; }
+    return reply({interactions:[]});
+  });
+  await app.view.open(agent,[]); app.get('workspace-input').value='First request'; await app.send();
+  app.get('workspace-input').value='Edited request'; await app.send();
+  assert.equal(ids.length,2); assert.notEqual(ids[0],ids[1]);
+});
+test('a retyped unchanged request recovers its turn identity after page reload', async () => {
+  const storage={data:new Map(),getItem(k){return this.data.get(k)||null;},setItem(k,v){this.data.set(k,v);},removeItem(k){this.data.delete(k);}};
+  const ids=[]; const fetch=async (url,options) => {
+    if(url==='/api/chat') { ids.push(JSON.parse(options.body).turn_id); return {ok:false}; }
+    return reply({interactions:[]});
+  };
+  let app=setup(fetch,{sessionStorage:storage}); await app.view.open(agent,[]);
+  app.get('workspace-input').value='Retry after refresh'; await app.send();
+  app=setup(fetch,{sessionStorage:storage}); await app.view.open(agent,[]);
+  app.get('workspace-input').value='Retry after refresh'; await app.send();
   assert.equal(ids.length,2); assert.equal(ids[0],ids[1]);
 });
 test('failed send preserves draft and suppresses duplicate concurrent submissions', async () => {

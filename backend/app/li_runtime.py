@@ -30,6 +30,7 @@ from app.specialist_runtime import (
     SpecialistRuntimeError,
     consult_specialists,
     delegate_to_nora,
+    evidence_relevant_specialists,
     memory_allowed_for_specialist,
     route_specialists,
     specialist_needs_canonical_memory,
@@ -58,11 +59,7 @@ def specialist_recording_context(conversation_id: str):
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NORA_RESEARCH_EVALUATION_MAX_TOKENS = 4096
 
-LI_SYSTEM_FILES = (
-    REPO_ROOT / "CONSTITUTION.md",
-    REPO_ROOT / "li" / "identity.md",
-    REPO_ROOT / "li" / "operating-rules.md",
-)
+LI_SYSTEM_FILES = (REPO_ROOT / "li" / "runtime-contract.md",)
 
 
 MEMORY_SEARCH_STOPWORDS = {
@@ -127,6 +124,28 @@ class LiTurnOutcome(BaseModel):
     request_id: str | None = None
     used_interaction_ids: list[str] = Field(default_factory=list)
     action_intents: list[ActionIntentProposal] = Field(default_factory=list)
+    response_private_to_li: bool = False
+    response_allowed_specialists: list[str] = Field(default_factory=list)
+    decision_trace: dict[str, object] = Field(default_factory=dict)
+
+
+def _response_disclosure(
+    *,
+    messages: list[ConversationContextMessage],
+    memories: list[dict[str, object]],
+    upload_private_to_li: bool,
+    candidate_specialists: list[str],
+) -> tuple[bool, list[str]]:
+    """Conservatively preserve disclosure limits of every source Li used."""
+
+    private = upload_private_to_li or any(message.private_to_li for message in messages)
+    private = private or any(bool(memory.get("private_to_li")) for memory in memories)
+    if private:
+        return True, []
+    allowed = set(candidate_specialists)
+    for message in messages:
+        allowed.intersection_update(message.allowed_specialists)
+    return False, [key for key in candidate_specialists if key in allowed]
 
 
 def _parse_specialist_synthesis(value: str) -> SpecialistSynthesis:
@@ -213,6 +232,15 @@ def build_li_system_prompt() -> str:
             f"===== {relative_path} =====\n{content}"
         )
 
+    identity = _read_required_file(REPO_ROOT / "li" / "identity.md")
+    voice = identity.split("### Your Voice\n", 1)[1].split("\n---", 1)[0]
+    sections.append("### Your Voice\n" + voice)
+    operating = _read_required_file(REPO_ROOT / "li" / "operating-rules.md")
+    urgency = operating.split("## 5. Determine Urgency\n", 1)[1].split(
+        "\n## 6. Determine Stakes", 1
+    )[0]
+    sections.append("## 5. Determine Urgency\n" + urgency)
+
     runtime_rules = """
 ===== RUNTIME RULES =====
 
@@ -259,6 +287,9 @@ information, do not blindly insist that an older memory is still true.
 
 You are an early Li OS runtime. Additional tools, specialist agents,
 and orchestration capabilities will be connected separately.
+
+This is not a mandatory answer template for every turn. In ordinary conversation,
+respond to the moment rather than mechanically walking through the runtime rules.
 """.strip()
 
     sections.append(runtime_rules)
@@ -428,6 +459,7 @@ def talk_to_li_with_outcome(
     workspace_specialist: str | None = None,
     workspace_recipient: str = "group",
     conversation_messages: list[ConversationContextMessage] | None = None,
+    current_message: ConversationContextMessage | None = None,
     temporary_upload_allowed_specialists: set[str] | None = None,
     temporary_upload_private_to_li: bool = False,
 ) -> LiTurnOutcome:
@@ -501,6 +533,62 @@ def talk_to_li_with_outcome(
             "The specialist's recorded recommendation is displayed separately. "
             "All existing safety, evidence, minimum-context and action-confirmation rules still apply.",
         ])
+    if current_message is not None and current_message.private_to_li:
+        routing = RoutingDecision(
+            route_category="li_only_private",
+            route_reason="The current message is private to Li and cannot be delegated.",
+        )
+    elif current_message is not None and current_message.allowed_specialists:
+        permitted = set(current_message.allowed_specialists)
+        selected = [key for key in routing.specialists if key in permitted]
+        if selected != routing.specialists:
+            routing = routing.model_copy(update={
+                "specialists": selected,
+                "group_mode": "solo" if len(selected) <= 1 else "multi",
+                "route_category": (
+                    routing.route_category if selected else "li_only_disclosure_scope"
+                ),
+                "route_reason": (
+                    routing.route_reason if selected
+                    else "The current message does not permit disclosure to the routed specialist."
+                ),
+            })
+    decision_trace: dict[str, object] = {
+        "route_category": routing.route_category,
+        "selection_mode": routing.selection_mode,
+        "specialist_count": len(routing.specialists),
+        "conversation_messages_considered": len(conversation_messages or []),
+        "memory_records_considered": len(memories),
+        "temporary_upload_present": bool(temporary_upload_context),
+        "validation_path": "pending",
+    }
+    turn_evidence_requirements = [
+        decision
+        for key in evidence_relevant_specialists(user_message)
+        if (decision := decide_freshness(key, user_message)).evidence_required
+    ]
+    decision_trace["turn_evidence_required"] = bool(turn_evidence_requirements)
+    if not routing.specialists and turn_evidence_requirements:
+        source_messages = [*(conversation_messages or [])]
+        if current_message is not None:
+            source_messages.append(current_message)
+        response_private, response_allowed = _response_disclosure(
+            messages=source_messages,
+            memories=memories,
+            upload_private_to_li=temporary_upload_private_to_li,
+            candidate_specialists=[],
+        )
+        return LiTurnOutcome(
+            response=_safe_generation_failure(user_message, evidence_blocked=True),
+            response_private_to_li=response_private,
+            response_allowed_specialists=response_allowed,
+            decision_trace={
+                **decision_trace,
+                "required_evidence_count": len(turn_evidence_requirements),
+                "evidence_blocked": True,
+                "validation_path": "direct_evidence_blocked",
+            },
+        )
     interaction_ids: dict[str, str] = {}
     freshness_metadata: dict[str, dict[str, object]] = {}
     request_id: str = str(uuid4())
@@ -509,7 +597,9 @@ def talk_to_li_with_outcome(
         specialist_requests: dict[str, SpecialistRequest] = {}
         for specialist in routing.specialists:
             disclosed_conversation = (
-                specialist_conversation_context(conversation_messages, specialist)
+                specialist_conversation_context(
+                    conversation_messages, specialist, query=user_message,
+                )
                 if conversation_messages is not None
                 else bounded_conversation if workspace_specialist == specialist else None
             )
@@ -533,23 +623,31 @@ def talk_to_li_with_outcome(
                     if not value:
                         continue
                     specialist_memories.append(SpecialistMemoryContext(
+                        memory_class=str(memory.get("memory_class") or "") or None,
                         domain=str(memory["domain"]),
                         title=str(memory["title"]) if memory.get("title") else None,
                         value=str(value), truth_status=str(memory["truth_status"]),
+                        temporal_status=str(memory.get("temporal_status") or "") or None,
+                        sensitivity=str(memory.get("sensitivity") or "") or None,
                         confidence=float(memory["confidence"]),
+                        confirmed_by_user=bool(memory.get("confirmed_by_user")),
+                        source_reference=(str(memory["source_reference"])
+                                          if memory.get("source_reference") else None),
                     ))
                     if len(specialist_memories) >= 4:
                         break
             decision = decide_freshness(specialist, user_message)
             policy = POLICIES[specialist]
             profile = SPECIALIST_PROFILES[specialist]
+            contract_constraints = list(profile.constraints[:3])
             packet_fields = {
                 "current_user_message": user_message,
                 "objective": f"Help Li answer the owner's current request: {user_message[:850]}",
                 "specialist_question": (
-                    f"As {profile.name}, assess only the parts within your registered "
-                    f"{profile.role} remit. Identify the most useful conclusion, assumptions, "
-                    "uncertainty, and what Li should preserve in the final answer."
+                    f"Within your {profile.role} remit, answer this concrete question for Li: "
+                    f"what does your specialist purpose—{profile.purpose}—change about the "
+                    f"best response to this request? Focus on the decision, risk, or next step "
+                    "where your expertise adds unique value; state assumptions and uncertainty."
                 ),
                 "shared_facts": [location_context] if location_context else [],
                 "evidence_requirements": ([
@@ -562,6 +660,7 @@ def talk_to_li_with_outcome(
                     "Stay within the registered specialist contract and supplied context.",
                     "Give Li a concise recommendation with assumptions and uncertainty.",
                     "Do not propose or imply direct tool use or completed actions.",
+                    *[f"Respect specialist constraint: {value}" for value in contract_constraints],
                 ],
                 "conversation_context": specialist_conversation,
                 "canonical_memory": specialist_memories,
@@ -904,14 +1003,46 @@ def talk_to_li_with_outcome(
     )
 
     if not routing.specialists or not consultation.results:
+        source_messages = [*(conversation_messages or [])]
+        if current_message is not None:
+            source_messages.append(current_message)
+        response_private, response_allowed = _response_disclosure(
+            messages=source_messages,
+            memories=memories,
+            upload_private_to_li=temporary_upload_private_to_li,
+            candidate_specialists=[],
+        )
         try:
             direct = _parse_specialist_synthesis(generated)
         except (ValidationError, ValueError):
-            return LiTurnOutcome(response=_safe_unstructured_response(generated, user_message))
+            response = _safe_unstructured_response(generated, user_message)
+            named_attribution = any(
+                re.search(rf"\b{re.escape(profile.name)}\b", response, re.I)
+                for profile in SPECIALIST_PROFILES.values()
+            )
+            return LiTurnOutcome(
+                response=_safe_generation_failure(user_message) if named_attribution else response,
+                response_private_to_li=response_private,
+                response_allowed_specialists=response_allowed,
+                decision_trace={**decision_trace, "validation_path": (
+                    "rejected_unstructured_attribution" if named_attribution
+                    else "direct_unstructured"
+                )},
+            )
+        if direct.used_specialist_keys:
+            return LiTurnOutcome(
+                response=_safe_generation_failure(user_message),
+                response_private_to_li=response_private,
+                response_allowed_specialists=response_allowed,
+                decision_trace={**decision_trace, "validation_path": "rejected_direct_attribution"},
+            )
         return LiTurnOutcome(
             response=direct.final_response,
             request_id=request_id if direct.action_intents else None,
             action_intents=direct.action_intents,
+            response_private_to_li=response_private,
+            response_allowed_specialists=response_allowed,
+            decision_trace={**decision_trace, "validation_path": "direct_structured"},
         )
 
     synthesis: SpecialistSynthesis | None = None
@@ -954,6 +1085,11 @@ def talk_to_li_with_outcome(
         final_response = synthesis.final_response
         action_intents = synthesis.action_intents
 
+    if evidence_blocked:
+        final_response = _safe_generation_failure(user_message, evidence_blocked=True)
+        used_keys = []
+        action_intents = []
+
     measured_ids = [interaction_ids[key] for key in consultation.results if key in interaction_ids]
     used_ids = [interaction_ids[key] for key in used_keys if key in interaction_ids]
     if request_id and measured_ids:
@@ -963,11 +1099,30 @@ def talk_to_li_with_outcome(
             # A final answer remains available, but analytics stays unknown rather than guessed.
             used_ids = []
 
+    source_messages = [*(conversation_messages or [])]
+    if current_message is not None:
+        source_messages.append(current_message)
+    response_private, response_allowed = _response_disclosure(
+        messages=source_messages,
+        memories=memories,
+        upload_private_to_li=temporary_upload_private_to_li,
+        candidate_specialists=used_keys,
+    )
     return LiTurnOutcome(
         response=final_response,
         request_id=request_id if measured_ids else None,
         used_interaction_ids=used_ids,
         action_intents=action_intents,
+        response_private_to_li=response_private,
+        response_allowed_specialists=response_allowed,
+        decision_trace={
+            **decision_trace,
+            "required_evidence_count": sum(
+                bool(value.get("evidence_required")) for value in freshness_metadata.values()
+            ),
+            "evidence_blocked": evidence_blocked,
+            "validation_path": "synthesis" if synthesis is not None else "synthesis_repair",
+        },
     )
 
 

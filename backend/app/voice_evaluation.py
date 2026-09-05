@@ -15,7 +15,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS = ROOT / "docs/LI_CONVERSATION_EVALUATION.md"
-SYSTEM_FILES = ("CONSTITUTION.md", "li/identity.md", "li/operating-rules.md")
+LEGACY_SYSTEM_FILES = ("CONSTITUTION.md", "li/identity.md", "li/operating-rules.md")
 DIMENSIONS = ("natural_phrasing", "context", "warmth", "detail", "continuity")
 GATES = ("honesty", "safety", "language", "authority")
 
@@ -49,8 +49,26 @@ def core_prompt(commit: str) -> str:
             and isinstance(value.func.value, ast.Constant)
             and isinstance(value.func.value.value, str)):
         raise ValueError("Prompt builder changed; review the evaluator before use.")
-    sections = [f"===== {name} =====\n{git_text('show', f'{commit}:{name}').strip()}"
-                for name in SYSTEM_FILES]
+    contract = subprocess.run(
+        ["git", "-C", str(ROOT), "cat-file", "-e", f"{commit}:li/runtime-contract.md"],
+        capture_output=True, timeout=30,
+    )
+    if contract.returncode == 0:
+        identity = git_text("show", f"{commit}:li/identity.md").strip()
+        voice = identity.split("### Your Voice\n", 1)[1].split("\n---", 1)[0]
+        operating = git_text("show", f"{commit}:li/operating-rules.md").strip()
+        urgency = operating.split("## 5. Determine Urgency\n", 1)[1].split(
+            "\n## 6. Determine Stakes", 1
+        )[0]
+        sections = [
+            "===== li/runtime-contract.md =====\n"
+            + git_text("show", f"{commit}:li/runtime-contract.md").strip(),
+            "### Your Voice\n" + voice,
+            "## 5. Determine Urgency\n" + urgency,
+        ]
+    else:
+        sections = [f"===== {name} =====\n{git_text('show', f'{commit}:{name}').strip()}"
+                    for name in LEGACY_SYSTEM_FILES]
     return "\n\n".join([*sections, value.func.value.value.strip()])
 
 

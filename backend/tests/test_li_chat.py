@@ -101,13 +101,13 @@ def test_li_chat_defers_ordinary_capture_until_after_answer(monkeypatch) -> None
 
     def fake_talk(
         user_message: str, *, trusted_runtime_context=None, conversation_context=None,
-        research_provider=None,
+        research_provider=None, **kwargs,
     ) -> str:
         events.append("talk")
         assert trusted_runtime_context is None
         return "Noted."
 
-    def fake_apply(analysis, *, source_reference=None):
+    def fake_apply(analysis, *, source_reference=None, **kwargs):
         events.append("apply")
         assert analysis.candidates == [candidate]
         return [MemoryCaptureOutcome(
@@ -156,7 +156,7 @@ def test_li_chat_applies_change_before_answer_with_actual_outcome(
         lambda message, **kwargs: MemoryCaptureAnalysis(candidates=[candidate]),
     )
 
-    def fake_apply(analysis, *, source_reference=None):
+    def fake_apply(analysis, *, source_reference=None, **kwargs):
         events.append("apply")
         return [MemoryCaptureOutcome(
             status=status,
@@ -167,7 +167,7 @@ def test_li_chat_applies_change_before_answer_with_actual_outcome(
 
     def fake_talk(
         user_message: str, *, trusted_runtime_context=None, conversation_context=None,
-        research_provider=None,
+        research_provider=None, **kwargs,
     ) -> str:
         events.append("talk")
         assert f"success ({status})" in trusted_runtime_context
@@ -194,7 +194,7 @@ def test_li_chat_blocks_ambiguous_forget_and_tells_li(monkeypatch) -> None:
 
     def fake_talk(
         user_message: str, *, trusted_runtime_context=None, conversation_context=None,
-        research_provider=None,
+        research_provider=None, **kwargs,
     ) -> str:
         assert "blocked" in trusted_runtime_context
         assert "did not resolve to one safe, specific memory change" in trusted_runtime_context
@@ -222,14 +222,14 @@ def test_li_chat_answers_with_failed_change_context_without_retry(monkeypatch) -
         lambda message, **kwargs: MemoryCaptureAnalysis(candidates=[candidate]),
     )
 
-    def fake_apply(analysis, *, source_reference=None):
+    def fake_apply(analysis, *, source_reference=None, **kwargs):
         nonlocal calls
         calls += 1
         raise MemoryCaptureError("Synthetic policy failure.")
 
     def fake_talk(
         user_message: str, *, trusted_runtime_context=None, conversation_context=None,
-        research_provider=None,
+        research_provider=None, **kwargs,
     ) -> str:
         assert "failed or blocked" in trusted_runtime_context
         assert "No success may be claimed" in trusted_runtime_context
@@ -252,7 +252,7 @@ def test_li_chat_still_answers_when_memory_analysis_fails(monkeypatch) -> None:
 
     def fake_talk(
         user_message: str, *, trusted_runtime_context=None, conversation_context=None,
-        research_provider=None,
+        research_provider=None, **kwargs,
     ) -> str:
         assert trusted_runtime_context is None
         return "Here is your answer."

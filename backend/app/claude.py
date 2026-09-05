@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -17,6 +18,19 @@ class ClaudeError(RuntimeError):
 _telemetry: ContextVar[list[dict[str, object]] | None] = ContextVar(
     "claude_generation_telemetry", default=None
 )
+
+
+def estimate_complete_request_tokens(
+    *, user_message: str, system: str | None, output_json_schema: dict[str, object] | None,
+) -> int:
+    """Conservatively estimate all caller-controlled provider request material."""
+
+    schema = (
+        json.dumps(output_json_schema, ensure_ascii=False, separators=(",", ":"))
+        if output_json_schema is not None else ""
+    )
+    # Reserve a small envelope for message roles and structured-output configuration.
+    return max(1, (len(user_message) + len(system or "") + len(schema) + 255) // 4)
 
 
 @contextmanager
@@ -74,9 +88,9 @@ def generate_claude_text(
     # Bound the complete provider request, including mandatory instructions and
     # reserved output. Refuse an oversized request instead of silently dropping
     # a safety rule or an arbitrary tail of conversation.
-    estimated_input_tokens = (
-        len(user_message) + len(system or "") + 3
-    ) // 4
+    estimated_input_tokens = estimate_complete_request_tokens(
+        user_message=user_message, system=system, output_json_schema=output_json_schema,
+    )
     if estimated_input_tokens + response_max_tokens > settings.claude_total_token_budget:
         _record({
             "stage": stage, "status": "budget_rejected", "elapsed_ms": 0,

@@ -2,6 +2,16 @@
 (() => {
   const validId = value => typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
   const stamp = value => Number.isFinite(Date.parse(value)) ? Date.parse(value) : 0;
+  const retryStore = typeof sessionStorage === 'undefined' ? null : sessionStorage;
+  const fingerprint = value => {
+    let hash = 2166136261;
+    for (const char of JSON.stringify(value)) { hash ^= char.codePointAt(0); hash = Math.imul(hash, 16777619); }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  };
+  const retryKey = specialist => `li-workspace-pending-v1:${specialist}`;
+  const readRetry = (key, expected) => { try { const row = JSON.parse(retryStore?.getItem(key) || 'null'); return row?.fingerprint === expected ? row : null; } catch { return null; } };
+  const writeRetry = (key, row) => { try { retryStore?.setItem(key, JSON.stringify(row)); } catch { /* In-memory retry still works. */ } };
+  const removeRetry = key => { try { retryStore?.removeItem(key); } catch { /* Stale metadata contains no message content. */ } };
   function timeline(messages, interactions, conversationId) {
     const rows = messages.filter(m => ['user', 'assistant'].includes(m.role) && typeof m.content === 'string')
       .map(m => ({ id: m.message_id, sender: m.role === 'user' ? 'owner' : 'li', body: m.content, at: m.created_at }));
@@ -25,7 +35,7 @@
     onActions = () => {}, onActivity = () => {}, confirmDiscard = () => true }) {
     let agent = null, entries = [], messages = [], conversationId = null, version = 0;
     let sending = false, uploading = false, ready = false, attachment = null, pendingSend = null, pendingBottom = false;
-    let pendingTurnId = null;
+    let pendingTurnId = null, pendingTurnFingerprint = null;
     const root = document.querySelector('#specialist-live');
     const node = (tag, content = '', className = '') => {
       const el = document.createElement(tag); el.textContent = content; el.className = className; return el;
@@ -59,7 +69,8 @@
       [input, recipient, file, remove, cases, fresh].forEach(el => { el.disabled = !agent || sending || uploading; });
       send.textContent = sending ? 'Waiting for Li and specialist…' : 'Send';
     }
-    function resetDraft() { input.value = ''; attachment = null; pendingTurnId = null; file.value = ''; files.replaceChildren(); remove.hidden = true; }
+    function resetDraft() { input.value = ''; attachment = null; pendingTurnId = null; pendingTurnFingerprint = null; file.value = ''; files.replaceChildren(); remove.hidden = true; }
+    function forgetPending() { if (agent) removeRetry(retryKey(agent.id)); pendingTurnId = null; pendingTurnFingerprint = null; }
     function choices() {
       const option = (value, title) => { const el = node('option', title); el.value = value; return el; };
       cases.replaceChildren(option('', 'New conversation'));
@@ -117,8 +128,8 @@
       finally { if (token === version) controls(); }
     }
     const canDiscard = () => !(input.value.trim() || attachment) || confirmDiscard();
-    cases.addEventListener('change', () => { if (!canDiscard()) { cases.value = conversationId || ''; return; } resetDraft(); return load(cases.value || null); });
-    fresh.addEventListener('click', () => { if (!canDiscard()) return; resetDraft(); return load(null); });
+    cases.addEventListener('change', () => { if (!canDiscard()) { cases.value = conversationId || ''; return; } forgetPending(); resetDraft(); return load(cases.value || null); });
+    fresh.addEventListener('click', () => { if (!canDiscard()) return; forgetPending(); resetDraft(); return load(null); });
     remove.addEventListener('click', () => { attachment = null; file.value = ''; files.replaceChildren(); remove.hidden = true; });
     file.addEventListener('change', async () => {
       const item = file.files?.[0]; if (!item || sending || uploading) return;
@@ -145,7 +156,14 @@
       if (!message || !ready || sending || uploading) return;
       if (isBusy()) { status.textContent = 'Wait for your current Li request to finish before sending here.'; return; }
       const token = version, operation = {}; pendingSend = operation;
-      pendingTurnId ||= crypto.randomUUID();
+      const envelopeFingerprint = fingerprint({message, conversationId, specialist: agent.id,
+        recipient: recipient.value, attachment});
+      if (pendingTurnFingerprint !== envelopeFingerprint) {
+        const recovered = readRetry(retryKey(agent.id), envelopeFingerprint);
+        pendingTurnId = recovered?.turnId || crypto.randomUUID();
+        pendingTurnFingerprint = envelopeFingerprint;
+      }
+      writeRetry(retryKey(agent.id), {turnId: pendingTurnId, fingerprint: envelopeFingerprint});
       let received = false;
       sending = true; controls(); status.textContent = 'Sending in the shared conversation…';
       try {
@@ -157,7 +175,7 @@
         if (!validId(data.conversation_id) || typeof data.response !== 'string') throw new Error();
         received = true;
         onActions(data.action_intents || []);
-        conversationId = data.conversation_id; resetDraft();
+        conversationId = data.conversation_id; forgetPending(); resetDraft();
         // Show the returned reply even if persistence is degraded. Do not manufacture specialist speech.
         const at = new Date().toISOString();
         messages.push({ role: 'user', content: message, created_at: at }, { role: 'assistant', content: data.response, created_at: at });
@@ -179,6 +197,7 @@
           messages = history.messages; render(true);
           status.textContent = activity.ok ? 'Reply received and saved. Li remains included.' : 'Reply saved; specialist activity could not be refreshed. Use Refresh to retry.';
         } else { render(true); status.textContent = 'Reply received, but this exchange was not fully saved. Visible messages may disappear after refresh.'; }
+        if (data.turn_state === 'durability_unavailable') status.textContent += ' Safe replay confirmation is unavailable; refresh before resending.';
         if (data.action_intents?.length) status.textContent += ' Any proposed action still requires its normal approval in Li’s main chat.';
       } catch {
         if (token === version) status.textContent = received ? 'Reply received. History refresh failed; the returned reply is still shown. Refresh before sending again.' : 'The request could not be confirmed. Your draft is kept. Check Refresh before retrying to avoid a duplicate.';

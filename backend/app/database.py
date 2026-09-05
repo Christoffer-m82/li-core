@@ -387,6 +387,7 @@ def correct_explicit_memory(
     new_domain: str | None = None,
     new_title: str | None = None,
     source_reference: str | None = None,
+    source_private_to_li: bool = False,
 ) -> dict[str, object]:
     """
     Correct an existing low-risk explicit canonical memory.
@@ -409,7 +410,8 @@ def correct_explicit_memory(
                         CAST(%s AS TEXT),
                         CAST(%s AS TEXT),
                         CAST(%s AS TEXT),
-                        CAST(%s AS TEXT)
+                        CAST(%s AS TEXT),
+                        CAST(%s AS BOOLEAN)
                     );
                     """,
                     (
@@ -418,6 +420,7 @@ def correct_explicit_memory(
                         new_domain,
                         new_title,
                         source_reference,
+                        source_private_to_li,
                     ),
                 )
 

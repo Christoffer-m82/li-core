@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.theo_runtime import (
@@ -43,6 +45,48 @@ def test_evaluate_approve_with_canonical_context(monkeypatch) -> None:
     assert decision.decision == "approve"
     assert decision.final_confidence == 0.95
     assert "Uses notebooks" in recorded["user_message"]
+
+
+def test_theo_cannot_promote_unconfirmed_inference_to_confirmed_fact(monkeypatch) -> None:
+    monkeypatch.setattr("app.theo_runtime.recall_memory_for_theo", lambda **kwargs: [])
+    monkeypatch.setattr(
+        "app.theo_runtime.generate_claude_text",
+        lambda **kwargs: json.dumps({
+            "decision": "approve",
+            "rationale": "The inference seems plausible.",
+            "final_truth_status": "confirmed",
+            "final_temporal_status": "current",
+            "final_confidence": 0.9,
+        }),
+    )
+
+    with pytest.raises(TheoRuntimeError, match="inference|confirmed"):
+        evaluate_memory_proposal(_proposal(
+            proposed_class="inference",
+            proposed_truth_status="inferred",
+            proposed_by_agent="li",
+        ))
+
+
+def test_theo_may_approve_inference_without_changing_inferred_truth(monkeypatch) -> None:
+    monkeypatch.setattr("app.theo_runtime.recall_memory_for_theo", lambda **kwargs: [])
+    monkeypatch.setattr(
+        "app.theo_runtime.generate_claude_text",
+        lambda **kwargs: json.dumps({
+            "decision": "approve",
+            "rationale": "Retain this as an inference.",
+            "final_truth_status": None,
+            "final_temporal_status": "current",
+            "final_confidence": 0.9,
+        }),
+    )
+
+    decision = evaluate_memory_proposal(_proposal(
+        proposed_class="inference", proposed_truth_status="inferred",
+    ))
+
+    assert decision.decision == "approve"
+    assert decision.final_truth_status is None
 
 
 @pytest.mark.parametrize(

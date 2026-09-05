@@ -63,8 +63,9 @@ The repository separates these concerns:
 - Provider capabilities are held by the backend and exposed through Li-owned policy boundaries;
   specialists do not receive raw provider credentials.
 - Browser and Native Gateway chat contracts can carry a stable owner-supplied turn identifier.
-  Migration 038 prepares owner/payload-bound claim, replay, uncertainty, and replay-content-expiry
-  functions; repository presence does not prove that this migration is applied externally.
+  Migrations 038–039 prepare owner/payload-bound claims, attempt fencing, bounded progress, replay,
+  uncertainty, and access-time replay-content expiry; repository presence does not prove that these
+  migrations are applied externally.
 - Migration 037 prepares conversation privacy metadata in the history API. The backend preserves those
   labels and selects whole permitted messages and explicitly disclosed temporary uploads for each
   specialist, while Li retains the private full-conversation role defined by the Constitution.

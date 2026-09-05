@@ -124,9 +124,11 @@ def test_workspace_history_preserves_disclosure_metadata_for_runtime(monkeypatch
     messages = observed["conversation_messages"]
     assert messages[0].allowed_specialists == ("nora",)
     assert messages[1].private_to_li
-    assert all(
-        write["privacy_metadata"]["allowed_specialists"] == ["nora"] for write in writes
-    )
+    assert writes[0]["privacy_metadata"]["allowed_specialists"] == ["nora"]
+    # The reply used owner-only history, so the workspace must not relabel it as
+    # specialist-shareable derived content.
+    assert writes[1]["privacy_metadata"]["private_to_li"] is True
+    assert writes[1]["privacy_metadata"]["allowed_specialists"] == []
 
 
 def test_chat_reuses_conversation_without_creating_another(monkeypatch) -> None:

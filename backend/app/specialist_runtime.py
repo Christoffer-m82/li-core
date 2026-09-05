@@ -23,11 +23,16 @@ GroupMode = Literal["solo", "multi"]
 
 
 class SpecialistMemoryContext(BaseModel):
+    memory_class: str | None = None
     domain: str
     title: str | None = None
     value: str
     truth_status: str
+    temporal_status: str | None = None
+    sensitivity: str | None = None
     confidence: float = Field(ge=0.0, le=1.0)
+    confirmed_by_user: bool = False
+    source_reference: str | None = None
 
 
 class SpecialistRequest(BaseModel):
@@ -65,7 +70,8 @@ _TOOL_OUTPUT = re.compile(
     re.I,
 )
 _UNSUPPORTED_VERIFICATION = re.compile(
-    r"\b(?:I|we) (?:verified|searched|browsed|queried|accessed|checked live)\b", re.I
+    r"\b(?:(?:I|we) (?:have )?(?:verified|searched|browsed|queried|accessed|checked live)|"
+    r"(?:jag|vi) (?:har )?(?:verifierat|kontrollerat|sökt|granskat|slagit upp))\b", re.I
 )
 
 
@@ -162,7 +168,10 @@ _TRIGGERS: dict[str, tuple[str, ...]] = {
         "investigate",
         "competitive intelligence",
     ),
-    "milo": ("travel", "trip", "hotel", "flight", "holiday", "vacation", "itinerary", "tickets"),
+    "milo": (
+        "travel", "trip", "hotel", "flight", "holiday", "vacation", "itinerary",
+        "tickets", "weather", "restaurant",
+    ),
     "iris": ("home", "interior", "furniture", "lighting", "plants", "garden", "renovation"),
     "clara": ("wellbeing", "habit", "stress", "routine", "motivation", "resilience", "burnout"),
 }
@@ -263,18 +272,34 @@ def _named_specialists(message: str) -> list[str]:
 
 def _unquoted_routing_text(message: str) -> str:
     """Remove quoted/code examples so a mentioned name is not treated as an instruction."""
-    return re.sub(r'"[^"\n]*"|`[^`\n]*`', " ", message)
+    return re.sub(
+        r'```.*?```|`[^`]*`|"[^"]*"|“[^”]*”|‘[^’]*’',
+        " ",
+        message,
+        flags=re.DOTALL,
+    )
 
 
 def _referenced_specialist(message: str, conversation_context: str | None) -> str | None:
-    if not conversation_context or not re.search(
-        r"\b(?:ask|consult|use|bring (?:her|him|them) in|fråga|rådfråga|konsultera|"
-        r"använd|koppla in)\s+(?:her|him|them|henne|honom|dem)(?:\s+again|\s+igen)?\b",
+    if not conversation_context or re.search(
+        r"\b(?:(?:do not|don't|don’t|never)\s+(?:ask|consult|use|bring)\s+"
+        r"(?:her|him|them)|(?:fråga|rådfråga|konsultera|använd)\s+inte\s+"
+        r"(?:henne|honom|dem)|be\s+(?:henne|honom|dem)\s+inte)\b",
         message,
         re.I,
     ):
         return None
-    normalized_context = normalize(conversation_context)
+    if not re.search(
+        r"\b(?:ask|consult|use|bring (?:her|him|them) in|fråga|rådfråga|konsultera|"
+        r"använd|koppla in|be)\s+(?:her|him|them|henne|honom|dem)(?:\s+again|\s+igen)?\b",
+        message, re.I,
+    ):
+        return None
+    trusted_lines = [
+        line for line in conversation_context.splitlines()
+        if line.strip().casefold().startswith("assistant:")
+    ]
+    normalized_context = normalize("\n".join(trusted_lines))
     candidates = [
         (normalized_context.rfind(normalize(contract.name)), key)
         for key, contract in SPECIALIST_CONTRACTS.items()
@@ -359,6 +384,22 @@ def route_specialists(
         if len(selected) > 1
         else "One registered domain materially matches the request.",
     )
+
+
+def evidence_relevant_specialists(user_message: str) -> list[str]:
+    """Return domain-matched specialists without applying owner exclusions.
+
+    The turn-level evidence gate uses this view so ``without Milo`` cannot
+    bypass weather verification. Requiring a domain trigger as well as a
+    freshness trigger prevents incidental words such as ``deadline`` in an
+    ordinary conversation from being treated as a legal request.
+    """
+    message = normalize(_unquoted_routing_text(user_message.strip()))
+    return [
+        key
+        for key, contract in SPECIALIST_CONTRACTS.items()
+        if any(has_term(message, trigger, english_plural=True) for trigger in contract.triggers)
+    ]
 
 
 def route_specialist(user_message: str, *, conversation_context: str | None = None) -> RoutingDecision:

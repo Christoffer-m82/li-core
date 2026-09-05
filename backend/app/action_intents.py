@@ -184,18 +184,20 @@ def decide_intent(
         action_type = claim["action_type"]
         # Every supported write is idempotent at its provider boundary, but a
         # transport/database failure after this point can still hide success.
-        provider_started = True
         if action_type == "calendar.create":
+            provider_started = True
             outcome = execute_calendar_action(CalendarActionEnvelope(
                 request=CreateCalendarAction.model_validate(payload), approved=True,
                 attribution=attribution,
             ), calendar_provider)
         elif action_type.startswith("task."):
+            provider_started = True
             request = _REQUEST_MODELS[action_type].model_validate(payload)
             outcome = execute_task_action(TaskActionEnvelope(
                 request=request, approved=True, attribution=attribution,
             ), task_provider)
         elif action_type == "email.create_draft":
+            provider_started = True
             outcome = execute_email_action(EmailActionEnvelope(
                 request=CreateEmailDraftAction.model_validate(payload), approved=True,
                 attribution=attribution,
@@ -206,12 +208,17 @@ def decide_intent(
             )
         result = outcome.model_dump(mode="json", exclude_none=True)
         if outcome.status != "completed":
+            # A provider that explicitly reports unavailable did not accept the
+            # operation; that is a definite failure, not an ambiguous effect.
+            if outcome.status == "approval_required":
+                provider_started = False
             result = {
-                "status": "uncertain",
+                "status": "uncertain" if provider_started else "failed",
                 "action": action_type,
                 "message": (
-                    "The provider may have completed this action. "
-                    "Check its current state before retrying."
+                    "The provider may have completed this action. Check its current state before retrying."
+                    if provider_started else
+                    "The provider did not accept this action; it is safe to retry after fixing availability."
                 ),
             }
     except Exception:  # noqa: BLE001 - claimed intents must never remain stuck on bad data

@@ -13,8 +13,14 @@ def test_permanent_improvement_benchmark_maps_all_synthetic_scenarios_to_existin
     assert benchmark["fixture_policy"] == "synthetic_only"
     assert benchmark["content_logging"] is False
     assert benchmark["live_provider_required"] is False
+    runner = ROOT / benchmark["behavior_runner"]
+    assert runner.exists()
+    runner_source = runner.read_text(encoding="utf-8")
+    assert "subprocess.run" in runner_source
+    assert "pytest" in runner_source and '"node", "--test"' in runner_source
+    assert "Executable synthetic full-turn" in benchmark["coverage"]
     assert {case["id"] for case in benchmark["scenarios"]} == {
-        f"R{number}" for number in range(1, 15)
+        f"R{number}" for number in range(1, 19)
     }
     for case in benchmark["scenarios"]:
         assert case["tests"]

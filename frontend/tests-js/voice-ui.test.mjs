@@ -60,7 +60,7 @@ class FakeElement {
 }
 
 function loadApp({ geolocation, storageBlocked = false, storageWriteFails = false,
-  chatResponses = [] } = {}) {
+  chatResponses = [], sessionValues = new Map(), uuidValues = ['test-id'] } = {}) {
   const elements = new Map();
   const getElement = (selector) => {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
@@ -100,6 +100,13 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
       this.values.set(key, String(value));
     },
   };
+  const sessionStorage = {
+    values: sessionValues,
+    getItem(key) { return this.values.get(key) ?? null; },
+    setItem(key, value) { this.values.set(key, String(value)); },
+    removeItem(key) { this.values.delete(key); },
+  };
+  let uuidIndex = 0;
   const setTimeout = (callback, delay) => {
     const id = nextTimer++;
     timers.set(id, { callback, delay });
@@ -133,6 +140,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     clearTimeout,
     confirm: () => false,
     localStorage,
+    sessionStorage,
     matchMedia: () => ({ matches: false, addEventListener() {} }),
     navigator: { language: 'en-GB', geolocation },
     setTimeout,
@@ -141,12 +149,13 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     Blob,
     URL: { createObjectURL(blob) { downloads.push(blob); return 'blob:synthetic-theme'; }, revokeObjectURL(url) { revoked.push(url); } },
     console,
-    crypto: { randomUUID: () => 'test-id' },
+    crypto: { randomUUID: () => uuidValues[Math.min(uuidIndex++, uuidValues.length - 1)] },
     document,
     fetch,
     FormData: class { append() {} },
     Intl,
     localStorage,
+    sessionStorage,
     matchMedia: window.matchMedia,
     navigator: window.navigator,
     Option: class {},
@@ -177,6 +186,8 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     document,
     elements,
     requests,
+    setConversation(value) { vm.runInNewContext(`state.conversationId = ${JSON.stringify(value)}`, context); },
+    setTemporaryUpload(value) { vm.runInNewContext(`state.temporaryUploadContext = ${JSON.stringify(value)}`, context); },
     async dispatchWindow(name, event = {}) {
       await windowEvents.get(name)?.(event);
       await this.settle();
@@ -362,6 +373,44 @@ test('failed main-chat retry reuses the turn and does not duplicate the owner bu
     app.elements.get('#messages').children.filter((entry) => entry.className === 'message user').length,
     1,
   );
+});
+
+test('edited main-chat envelope gets a new turn identity', async () => {
+  const app = loadApp({
+    uuidValues: ['turn-one', 'turn-two'],
+    chatResponses: [
+      { ok: false, status: 503, json: async () => ({ detail: { message: 'Try safely.' } }) },
+      { ok: true, status: 200, json: async () => ({
+        conversation_id: 'conversation-1', response: 'New request completed.', artifacts: [],
+        action_intents: [], turn_state: 'completed',
+      }) },
+    ],
+  });
+  await app.sendMessage('First request.');
+  app.setConversation('different-conversation');
+  app.setTemporaryUpload('different attachment');
+  await app.sendMessage('Edited request.');
+  const bodies = app.requests.filter(({ url }) => url === '/api/chat')
+    .map(({ options }) => JSON.parse(options.body));
+  assert.equal(bodies[0].turn_id, 'turn-one');
+  assert.equal(bodies[1].turn_id, 'turn-two');
+});
+
+test('main-chat retry identity survives a page reload without storing message content', async () => {
+  const sessionValues = new Map();
+  const first = loadApp({
+    sessionValues, uuidValues: ['stable-turn'],
+    chatResponses: [
+      { ok: false, status: 503, json: async () => ({ detail: { message: 'Try safely.' } }) },
+    ],
+  });
+  await first.sendMessage('Private synthetic message.');
+  assert.equal([...sessionValues.values()].some((value) => value.includes('Private synthetic')), false);
+
+  const second = loadApp({ sessionValues, uuidValues: ['should-not-be-used'] });
+  await second.sendMessage('Private synthetic message.');
+  const body = JSON.parse(second.requests.find(({ url }) => url === '/api/chat').options.body);
+  assert.equal(body.turn_id, 'stable-turn');
 });
 
 test('cancel after transcription prevents the pending chat request', async () => {
