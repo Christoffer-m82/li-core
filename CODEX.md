@@ -21,6 +21,7 @@ Then use the operating documents that match the task:
 | See unfinished or externally gated work | [Open milestones](docs/OPEN_MILESTONES.md) |
 | Choose and report validation | [Testing and audit](docs/TESTING_AND_AUDIT.md) |
 | Implement or verify the six improvement packages | [Improvement blueprint](docs/LI_OS_IMPROVEMENT_BLUEPRINT.md) and [acceptance record](docs/LI_OS_IMPROVEMENT_ACCEPTANCE.md) |
+| Resume corrections from the independent Phase 2 review | [Phase 2 implementation handover](docs/LI_OS_PHASE_2_HANDOVER.md) |
 | Find an existing decision | [Decision index](docs/DECISIONS.md) |
 | Create or revise specialist portraits | [Portrait standard](system/specialist-portrait-standard.md) and [assignment record](system/specialist-portrait-assignments.md) |
 | Review evidence-backed repository risks | [Known risks](docs/KNOWN_RISKS.md) |
