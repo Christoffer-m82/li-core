@@ -80,14 +80,15 @@ new Home data source and never infers agenda or priority status from those count
 
 The conversation/composer remains the primary action, with welcome copy inside its compact header
 rather than a separate presence panel. System agents stay off Home and remain in Specialists and
-Backend/System. Recent conversations and files stay below the main workspace.
+Backend/System. Recent conversations and files stay below the main workspace. On phone-sized views,
+Home shows the first three active-first specialist cards and a **View all specialists** control; the
+full roster remains present on larger screens and on the Specialists page.
 
 Recommended remaining Home work:
 
 1. Agenda and up to three owner-selected priorities, drawn only from connected real data.
 2. A consolidated needs-attention section for approvals, overdue commitments, and useful unread briefs.
-3. A compact mobile specialist entry that avoids placing the full roster before recent work.
-4. Deployed and physical-device validation of information density and responsive behavior.
+3. Deployed and physical-device validation of information density and responsive behavior.
 
 Do not infer that every open loop is a top priority, turn missing calendar data into a clear schedule,
 invent inbox counts, or automatically execute a suggested action. Home should distinguish a suggestion,
