@@ -132,6 +132,17 @@ def test_denied_permission_makes_no_update_and_capabilities_leak_nothing():
     assert "backend_url" not in encoded and "secret" not in encoded and "token" not in encoded
 
 
+def test_native_chat_forwards_stable_turn_identity_and_drops_input_mode():
+    turn_id = uuid4()
+    response = TestClient(app).post("/v1/chat", headers=auth(), json={
+        "message": "Hej", "turn_id": str(turn_id), "input_mode": "voice_transcript",
+    })
+    assert response.status_code == 200
+    forwarded = next(call[2] for call in FakeBackend.calls if call[1] == "/internal/native/chat")
+    assert forwarded["turn_id"] == str(turn_id)
+    assert "input_mode" not in forwarded
+
+
 def test_revoked_session_fails_closed(monkeypatch):
     async def rejected(_self, method, path, body=None):
         if path.endswith("/status"):

@@ -43,11 +43,36 @@ def test_context_and_temporary_upload_are_scoped_to_routed_specialists(monkeypat
     talk_to_li(
         "Compare my health and finance options and recommend a plan.",
         temporary_upload_context="one-request file",
+        temporary_upload_allowed_specialists={"sofia"},
     )
     assert set(observed) == {"sofia", "james"}
     assert [m.domain for m in observed["sofia"].canonical_memory] == ["health"]
     assert [m.domain for m in observed["james"].canonical_memory] == ["finance"]
-    assert all(req.temporary_upload_context == "one-request file" for req in observed.values())
+    assert observed["sofia"].temporary_upload_context == "one-request file"
+    assert observed["james"].temporary_upload_context is None
+
+
+def test_private_to_li_temporary_upload_never_reaches_workspace_specialist(monkeypatch):
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+    observed = {}
+
+    def consult(names, requests):
+        observed[names[0]] = requests
+        return SpecialistConsultation(results={
+            "nora": SpecialistResult(
+                recommendation="Bounded advice", confidence=0.6, sources_needed=False,
+            )
+        })
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: "Li synthesis")
+    talk_to_li(
+        "Ask Nora to assess this.", workspace_specialist="nora",
+        temporary_upload_context="private upload",
+        temporary_upload_allowed_specialists={"nora"},
+        temporary_upload_private_to_li=True,
+    )
+    assert observed["nora"].temporary_upload_context is None
 
 
 def test_real_lifecycle_metadata_is_recorded_without_fabricated_analytics(monkeypatch):

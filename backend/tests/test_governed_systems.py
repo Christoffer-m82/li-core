@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.governed_systems import (
+    ConversationContextMessage,
     ContextItem,
     DeliveryAdapter,
     HeavyWorkRequest,
@@ -14,11 +15,13 @@ from app.governed_systems import (
     WatcherDefinition,
     assemble_context,
     authorize_heavy_work,
+    conversation_context_message,
     compress_conversation,
     evaluate_watcher,
     governed_platform_overview,
     import_skill,
     route_model,
+    specialist_conversation_context,
     transition_skill,
     validate_temporary_worker,
 )
@@ -63,6 +66,53 @@ def test_context_loader_enforces_relevance_budget_and_private_to_li():
     assert [item.content for item in assembly.selected] == ["constitution"]
     assert assembly.estimated_tokens == 100
     assert "historical" in assembly.omitted_classes
+
+
+def test_specialist_context_requires_exact_disclosure_and_keeps_whole_messages():
+    messages = [
+        ConversationContextMessage(
+            role="user", content="Li only", private_to_li=True,
+            allowed_specialists=("nora",),
+        ),
+        ConversationContextMessage(role="assistant", content="No disclosure"),
+        ConversationContextMessage(
+            role="user", content="Shared with Nora", allowed_specialists=("nora",),
+        ),
+        ConversationContextMessage(
+            role="assistant", content="Shared with James", allowed_specialists=("james",),
+        ),
+    ]
+    assert specialist_conversation_context(messages, "nora") == "user: Shared with Nora"
+    assert specialist_conversation_context(messages, "james") == "assistant: Shared with James"
+    assert specialist_conversation_context(messages, "nora", character_budget=10) is None
+
+
+def test_long_context_keeps_latest_shared_correction_as_whole_messages():
+    messages = [ConversationContextMessage(
+        role="user", content="old " + ("x" * 3000), allowed_specialists=("nora",),
+    ) for _ in range(3)]
+    messages.extend([
+        ConversationContextMessage(
+            role="user", content="Decision is option A", allowed_specialists=("nora",),
+        ),
+        ConversationContextMessage(
+            role="user", content="Correction: decision is option B", allowed_specialists=("nora",),
+        ),
+    ])
+    selected = specialist_conversation_context(messages, "nora", character_budget=120)
+    assert "Decision is option A" in selected
+    assert "Correction: decision is option B" in selected
+    assert "old " not in selected
+
+
+def test_malformed_history_privacy_metadata_fails_closed():
+    message = conversation_context_message({
+        "role": "user", "content": "Sensitive", "privacy_metadata": {
+            "private_to_li": "no", "allowed_specialists": ["nora"],
+        },
+    })
+    assert message.private_to_li
+    assert message.allowed_specialists == ()
 
 
 def test_watcher_is_no_llm_idempotent_and_disabled_by_default():

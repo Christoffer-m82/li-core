@@ -380,6 +380,7 @@ def analyze_memory_capture(
             user_message=classifier_message,
             system=MEMORY_CAPTURE_SYSTEM_PROMPT,
             max_tokens=1200,
+            stage="memory_capture",
         )
 
     except ClaudeError as exc:

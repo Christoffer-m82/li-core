@@ -29,7 +29,7 @@ ActionType = Literal[
 ]
 IntentState = Literal[
     "proposed", "owner_confirmation_required", "executing", "succeeded",
-    "failed", "denied", "expired",
+    "failed", "uncertain", "denied", "expired",
 ]
 
 
@@ -160,13 +160,13 @@ def decide_intent(
     if claim["outcome"] != "execute":
         return public
 
-    if not execution_allowed(
-        str(claim["action_type"]), approved=decision.decision == "approve",
-        policy=_effective_policy(),
-    ):
-        raise ActionIntentError("Effective action policy rejects execution without approval.")
-
+    provider_started = False
     try:
+        if not execution_allowed(
+            str(claim["action_type"]), approved=decision.decision == "approve",
+            policy=_effective_policy(),
+        ):
+            raise ActionIntentError("Effective action policy rejects execution without approval.")
         payload = claim["payload"]
         payload_hash = hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -182,6 +182,9 @@ def decide_intent(
                 specialist_interaction_ids=[UUID(str(value)) for value in interactions],
             )
         action_type = claim["action_type"]
+        # Every supported write is idempotent at its provider boundary, but a
+        # transport/database failure after this point can still hide success.
+        provider_started = True
         if action_type == "calendar.create":
             outcome = execute_calendar_action(CalendarActionEnvelope(
                 request=CreateCalendarAction.model_validate(payload), approved=True,
@@ -202,18 +205,33 @@ def decide_intent(
                 "Governance execution requires its existing owner executor."
             )
         result = outcome.model_dump(mode="json", exclude_none=True)
+        if outcome.status != "completed":
+            result = {
+                "status": "uncertain",
+                "action": action_type,
+                "message": (
+                    "The provider may have completed this action. "
+                    "Check its current state before retrying."
+                ),
+            }
     except Exception:  # noqa: BLE001 - claimed intents must never remain stuck on bad data
         outcome = None
         result = {
-            "status": "failed", "action": claim.get("action_type", "unknown"),
-            "message": "The stored action could not be executed safely.",
+            "status": "uncertain" if provider_started else "failed",
+            "action": claim.get("action_type", "unknown"),
+            "message": (
+                "The provider may have completed this action. Check its current state before retrying."
+                if provider_started else "The stored action could not be executed safely."
+            ),
         }
 
+    execution_status = (
+        "succeeded" if outcome is not None and outcome.status == "completed"
+        else "uncertain" if provider_started else "failed"
+    )
     final = resolve_action_intent(
         intent_id=str(intent_id), decision="complete",
-        execution_status=(
-            "succeeded" if outcome is not None and outcome.status == "completed" else "failed"
-        ),
+        execution_status=execution_status,
         result=result,
     )
     return ActionIntent.model_validate(final["intent"])

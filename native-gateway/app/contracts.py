@@ -54,5 +54,6 @@ class RevokeInstallationRequest(StrictModel):
 
 class ChatRequest(StrictModel):
     message: str = Field(min_length=1, max_length=12000)
+    turn_id: UUID | None = None
     conversation_id: UUID | None = None
     input_mode: Literal["text", "voice_transcript"] = "text"

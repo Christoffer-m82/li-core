@@ -23,7 +23,7 @@ def public(intent_id, request_id, state="proposed", result=None):
         "summary": "Create a follow-up task", "approval_state": state,
         "approval_required": True, "owner_confirmation_required": False,
         "created_at": NOW, "expires_at": NOW + timedelta(hours=24),
-        "resolved_at": NOW if state in {"succeeded", "failed", "denied", "expired"} else None,
+        "resolved_at": NOW if state in {"succeeded", "failed", "uncertain", "denied", "expired"} else None,
         "result": result,
     }
 
@@ -130,7 +130,7 @@ def test_approve_executes_stored_payload_and_returns_resolved_result(monkeypatch
     assert calls[-1]["execution_status"] == "succeeded"
 
 
-@pytest.mark.parametrize("state", ["denied", "expired", "failed", "succeeded"])
+@pytest.mark.parametrize("state", ["denied", "expired", "failed", "uncertain", "succeeded"])
 def test_resolved_or_non_attempt_states_never_call_provider(monkeypatch, state):
     intent_id, request_id = uuid4(), uuid4()
     monkeypatch.setattr("app.action_intents.resolve_action_intent", lambda **values: {
@@ -171,7 +171,7 @@ def test_payload_tamper_fails_intent_before_provider(monkeypatch):
     assert "tampered" not in json.dumps(calls[-1]["result"])
 
 
-def test_provider_failure_resolves_failed_and_retry_returns_same_result(monkeypatch):
+def test_provider_failure_resolves_uncertain_and_requires_reconciliation(monkeypatch):
     intent_id, request_id = uuid4(), uuid4()
     payload = {"action": "task.create", "title": "Follow up", "notes": None,
                "due_at": None, "timezone": None, "idempotency_key": f"intent:{intent_id}"}
@@ -187,8 +187,8 @@ def test_provider_failure_resolves_failed_and_retry_returns_same_result(monkeypa
                     "payload": payload, "payload_hash": payload_hash,
                     "request_id": request_id, "action_type": "task.create",
                     "specialist_interaction_ids": []}
-        return {"outcome": "resolved", "intent": public(intent_id, request_id, "failed", {
-            "status": "failed", "action": "task.create", "message": "failed",
+        return {"outcome": "resolved", "intent": public(intent_id, request_id, "uncertain", {
+            "status": "uncertain", "action": "task.create", "message": "uncertain",
         })}
 
     class FailingProvider(TaskProvider):
@@ -201,9 +201,36 @@ def test_provider_failure_resolves_failed_and_retry_returns_same_result(monkeypa
     first = decide_intent(intent_id, IntentDecision(decision="approve"),
                           calendar_provider=object(), task_provider=provider,
                           email_provider=object())
-    assert first.approval_state == "failed"
-    assert transitions[-1]["execution_status"] == "failed"
+    assert first.approval_state == "uncertain"
+    assert transitions[-1]["execution_status"] == "uncertain"
     assert "provider detail" not in json.dumps(transitions[-1]["result"])
+    assert "Check its current state" in transitions[-1]["result"]["message"]
+
+
+def test_policy_rejection_finishes_failed_before_provider_boundary(monkeypatch):
+    intent_id, request_id = uuid4(), uuid4()
+    payload = {"action": "task.create", "title": "Follow up", "notes": None,
+               "due_at": None, "timezone": None, "idempotency_key": f"intent:{intent_id}"}
+    transitions = []
+
+    def resolve(**values):
+        transitions.append(values)
+        if values["decision"] == "approve":
+            return {"outcome": "execute", "intent": public(intent_id, request_id),
+                    "payload": payload, "payload_hash": "0" * 64,
+                    "request_id": request_id, "action_type": "task.create",
+                    "specialist_interaction_ids": []}
+        return {"outcome": "resolved", "intent": public(intent_id, request_id, "failed")}
+
+    monkeypatch.setattr("app.action_intents.resolve_action_intent", resolve)
+    monkeypatch.setattr("app.action_intents.execution_allowed", lambda *args, **kwargs: False)
+    provider = TaskProvider()
+    result = decide_intent(intent_id, IntentDecision(decision="approve"),
+                           calendar_provider=object(), task_provider=provider,
+                           email_provider=object())
+    assert result.approval_state == "failed"
+    assert provider.calls == 0
+    assert transitions[-1]["execution_status"] == "failed"
 
 
 def test_migration_enforces_lifecycle_correlation_audit_and_measurement_semantics():

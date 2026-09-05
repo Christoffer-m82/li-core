@@ -34,7 +34,16 @@ required authorization. Secret entry and physical-device checks may require the 
 | Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | Authorized restore drill and dated evidence; see [known risks](KNOWN_RISKS.md) |
 | Release stability | All agreed journeys pass, no unresolved critical findings, normal use observation and rollback available | A stable-use observation period; no unsupported claim of 100% |
 
-## Baseline — 2026-09-04
+## Blueprint implementation evidence — 2026-09-05
+
+The six packages in the [Li OS improvement blueprint](LI_OS_IMPROVEMENT_BLUEPRINT.md) are implemented
+and locally verified on `codex/li-os-improvement-blueprint`. The dated
+[acceptance record](LI_OS_IMPROVEMENT_ACCEPTANCE.md) maps R1–R14 to permanent tests, records the full
+local test matrix and migration rehearsal, and distinguishes local implementation from remaining
+deployment, external-database, live-provider, restore, physical-device and stable-use evidence.
+Those remaining rows stay open; local green tests are not relabelled as deployed or device acceptance.
+
+## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
   three components. The local runtime reported an existing Starlette/httpx deprecation warning.

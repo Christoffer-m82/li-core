@@ -32,6 +32,9 @@ def test_chat_creates_persists_and_returns_conversation_id(monkeypatch) -> None:
     assert response.status_code == 200
     assert UUID(response.json()["conversation_id"]) == UUID(conversation_id)
     assert writes == [("user", "Hello"), ("assistant", "Hello back.")]
+    diagnostics = response.json()["diagnostics"]
+    assert diagnostics["schema"] == "li_turn_trace_v1"
+    assert diagnostics["content_logged"] is False
 
 
 def test_static_conversation_search_route_precedes_uuid_detail_route(monkeypatch) -> None:
@@ -80,6 +83,50 @@ def test_chat_passes_bounded_history_to_runtime_and_change_resolver(monkeypatch)
     assert response.status_code == 200
     assert observed["capture"] == "user: I prefer green notebooks.\nassistant: Got it."
     assert observed["runtime"] == observed["capture"]
+
+
+def test_workspace_history_preserves_disclosure_metadata_for_runtime(monkeypatch) -> None:
+    conversation_id = "4d9b7df2-9b69-4a62-bd7e-cef00bd4d82b"
+    history = [{
+        "role": "user", "content": "Shared decision context",
+        "privacy_metadata": {"allowed_specialists": ["nora"]},
+    }, {
+        "role": "assistant", "content": "Owner-only context",
+        "privacy_metadata": {"private_to_li": True, "allowed_specialists": ["nora"]},
+    }]
+    writes = []
+    observed = {}
+    monkeypatch.setattr("app.main.get_recent_conversation_messages", lambda **kwargs: history)
+    monkeypatch.setattr(
+        "app.main.append_conversation_message",
+        lambda **kwargs: writes.append(kwargs) or "message-id",
+    )
+    monkeypatch.setattr(
+        "app.main.analyze_memory_capture", lambda *a, **k: MemoryCaptureAnalysis(),
+    )
+
+    def talk(message, **kwargs):
+        observed.update(kwargs)
+        return "Continued safely."
+
+    monkeypatch.setattr("app.main.talk_to_li", talk)
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        with TestClient(app) as client:
+            response = client.post("/li/chat", json={
+                "message": "Continue", "conversation_id": conversation_id,
+                "workspace_specialist": "nora",
+            })
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    messages = observed["conversation_messages"]
+    assert messages[0].allowed_specialists == ("nora",)
+    assert messages[1].private_to_li
+    assert all(
+        write["privacy_metadata"]["allowed_specialists"] == ["nora"] for write in writes
+    )
 
 
 def test_chat_reuses_conversation_without_creating_another(monkeypatch) -> None:

@@ -41,6 +41,7 @@ app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets"
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
+    turn_id: UUID | None = None
     conversation_id: str | None = None
     temporary_upload_context: str | None = Field(default=None, max_length=6000)
     workspace_specialist: Literal[
@@ -387,6 +388,8 @@ async def proactive_brief_read(brief_id: UUID, _: str = Depends(require_user)) -
 @app.post("/api/chat")
 async def chat(payload: ChatRequest, _: str = Depends(require_user)) -> Response:
     body = {"message": payload.message}
+    if payload.turn_id:
+        body["turn_id"] = str(payload.turn_id)
     if payload.conversation_id:
         body["conversation_id"] = payload.conversation_id
     if payload.temporary_upload_context:

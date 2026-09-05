@@ -2,7 +2,7 @@
 
 ## Scope
 
-This register contains risks supported by tracked repository evidence as of 2026-09-03. It does not
+This register contains risks supported by tracked repository evidence as of 2026-09-05. It does not
 assert live exploitability or external configuration. Severity and acceptance require owner and,
 where applicable, Heimdall review.
 
@@ -89,6 +89,20 @@ where applicable, Heimdall review.
   quiet hours, and owner approval.
 - **Next review:** Activation and stand-down procedures should verify both planes and retain evidence
   per rhythm.
+
+## KR-009: Recoverable-turn release requires schema-first coordination
+
+- **Evidence:** The improvement branch prepares application handling for uncertain action outcomes and
+  stable chat turns together with migrations 037 and 038. The existing schema cannot persist the new
+  `uncertain` action state or provide the turn-claim functions.
+- **Impact:** Deploying the application before migration 038 can prevent safe resolution of a provider
+  write whose outcome was not observed. A missing chat-turn function degrades explicitly for rolling
+  compatibility, but action-state persistence must not be treated as optional.
+- **Current control:** The full migration history passes the disposable database validator, and the
+  [deployment workflow](DEPLOYMENT_WORKFLOW.md#2-pass-prerequisite-gates) requires schema 0.38 before
+  this backend revision. Neither migration has been applied externally by repository work.
+- **Next review:** Close only after an authorized target migration, denial/role validation, deployment,
+  and a fault-injected smoke test are recorded for the same reviewed release.
 
 ## Review cadence
 

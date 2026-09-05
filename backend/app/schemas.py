@@ -152,6 +152,10 @@ class LiMemoryCaptureOutcome(BaseModel):
 
 class LiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
+    # Supplied by clients and reused unchanged for an explicit retry. Older
+    # clients may omit it, but then the response truthfully reports that
+    # durable replay protection was unavailable for that turn.
+    turn_id: UUID | None = None
     email_action: EmailActionEnvelope | None = None
     conversation_id: UUID | None = None
     retention_policy: str = Field(default="standard", min_length=1, max_length=100)
@@ -184,6 +188,10 @@ class SpecialistAttribution(BaseModel):
 class LiChatResponse(BaseModel):
     response: str
     conversation_id: UUID
+    turn_id: UUID | None = None
+    turn_state: Literal["completed", "completed_replay", "durability_unavailable"] = (
+        "durability_unavailable"
+    )
     memory_capture: list[LiMemoryCaptureOutcome] = Field(default_factory=list)
     memory_capture_reference: str | None = None
     memory_capture_error: str | None = None
@@ -193,6 +201,7 @@ class LiChatResponse(BaseModel):
     specialist_attribution: SpecialistAttribution | None = None
     action_intents: list[ActionIntent] = Field(default_factory=list)
     context_selection: dict[str, Any] | None = None
+    diagnostics: dict[str, Any] | None = None
 
 
 class ArtifactUpload(BaseModel):

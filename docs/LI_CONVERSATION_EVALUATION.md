@@ -118,8 +118,10 @@ Calls have a 60-second timeout and no automatic retries. Provider failures or in
 responses stop the run, preserving partial results without a completion marker. Retry only
 after diagnosis, in a new output directory, with a fresh approved call budget.
 
-The output contains prompt snapshots, resolved commit hashes, prompt/scenario hashes,
-generation settings, and incrementally saved conversations. Give the reviewer only
+The output uses the `li_core_voice_v2` evaluation contract and contains prompt snapshots, resolved
+commit hashes, prompt/scenario hashes, generation settings, per-call elapsed time, stop reason and
+provider token usage when supplied, plus incrementally saved conversations. Missing provider usage is
+recorded as unavailable rather than zero. Give the reviewer only
 `review.jsonl`: A/B labels are randomised independently for each scenario/repetition, with
 scores and safety gates left blank. Keep `answer-key.jsonl`, `manifest.json`, and prompt
 snapshots separate until scoring is finished. A `completion.json` file means generation

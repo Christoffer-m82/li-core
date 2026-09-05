@@ -47,6 +47,8 @@ def run() -> int:
                                 extra={"artifact_id": str(record["artifact_id"])})
             # Intent expiry is metadata-only and shares this isolated, least-privilege worker.
             cursor.execute("SELECT li_api.expire_action_intents(%s) AS expired;", (100,))
+            # Drop replay content after its bounded window while retaining an idempotency tombstone.
+            cursor.execute("SELECT li_api.expire_chat_replay_responses(%s) AS expired;", (100,))
     logger.info("retention_complete", extra={"deleted_count": deleted})
     return deleted
 

@@ -6,7 +6,7 @@ const preferenceStorage = {
 function savePreference(key, value) {
   try { preferenceStorage.setItem(key, value); } catch { /* Controls still work for this visit. */ }
 }
-const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], capabilities: [], temporaryUploadContext: null, theme: preferenceStorage.getItem('li-theme') || 'dark', voiceOutput: preferenceStorage.getItem('li-voice-output') === 'on', voiceSession: 0, voiceSendTimer: null, displayName: '', currentSpecialist: null, installPrompt: null };
+const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], capabilities: [], temporaryUploadContext: null, pendingTurn: null, theme: preferenceStorage.getItem('li-theme') || 'dark', voiceOutput: preferenceStorage.getItem('li-voice-output') === 'on', voiceSession: 0, voiceSendTimer: null, displayName: '', currentSpecialist: null, installPrompt: null };
 const $ = (selector) => document.querySelector(selector);
 const COUNTRY_CODES = `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW`.split(' ');
 const countryNames = new Intl.DisplayNames([navigator.language || 'en'], {type: 'region'});
@@ -32,6 +32,8 @@ profilePhoto.register($('#account-button'));
 
 function greeting() { const hour = new Date().getHours(); const salutation = `Good ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}`; return state.displayName ? `${salutation}, ${state.displayName.split(/\s+/)[0]}` : salutation; }
 function setView(view) { closeSpecialistPortrait(); $$('.view').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view)); $$('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view)); $('#page-title').textContent = { home: greeting(), inbox: 'Li Briefs', agents: 'Agent Status & Analytics', backend: 'Backend Overview', history: 'Conversation history', settings: 'Settings', specialist: 'Specialist activity', 'system-agent': 'System agent profile' }[view]; if (view === 'home') setTimeout(() => $('#message-input').focus(), 100); if (view === 'inbox') loadProactiveBriefs(); if (view === 'agents') loadAgentAnalytics(); if (view === 'backend') { loadCapabilities(); loadFreshnessPolicies(); loadProviderCoverage(); loadGovernedWorkStatus(); } if (view === 'history') loadConversations(); if (view === 'settings') { loadPrivacy(); loadPlace(); profilePhoto.load(); } }
+
+function updateConnectivity() { const offline = navigator.onLine === false; $('#offline-status')?.classList.toggle('hidden', !offline); if (offline) $('#connection-label').textContent = 'Offline · private data unavailable'; }
 
 async function loadProactiveBriefs() {
   const host = $('#proactive-brief-list'); if (!host) return; host.replaceChildren();
@@ -84,9 +86,69 @@ function addMessage(role, text, options = {}) { const row = document.createEleme
 
 function renderActionIntent(intent) { const card = document.createElement('article'); card.className = `action-intent-card ${intent.approval_state}`; card.dataset.intentId = intent.intent_id; const eyebrow = document.createElement('small'); eyebrow.textContent = 'Approval required'; const title = document.createElement('strong'); title.textContent = intent.action_type.replaceAll('.', ' · '); const summary = document.createElement('p'); summary.textContent = intent.summary; const status = document.createElement('span'); status.className = 'intent-status'; status.textContent = intent.approval_state.replaceAll('_', ' '); const controls = document.createElement('div'); controls.className = 'intent-controls'; card.append(eyebrow, title, summary, status, controls); const update = (next) => { card.className = `action-intent-card ${next.approval_state}`; status.textContent = next.approval_state.replaceAll('_', ' '); controls.replaceChildren(); if (next.result?.message || next.result?.confirmation) { const result = document.createElement('p'); result.className = 'intent-result'; result.textContent = next.result.message || next.result.confirmation; card.appendChild(result); } if (['proposed', 'owner_confirmation_required'].includes(next.approval_state)) addControls(next); }; const decide = async (value, current) => { controls.querySelectorAll('button').forEach((button) => { button.disabled = true; }); const body = { decision: value }; if (value === 'approve' && current.owner_confirmation_required) { if (!window.confirm('Owner confirmation: continue to the existing governed execution boundary?')) { addControls(current); return; } body.owner_confirmation = 'confirm_permanent_agent_change'; } const response = await fetch(`/api/action-intents/${encodeURIComponent(current.intent_id)}/decision`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }); if (!response.ok) { status.textContent = 'Could not resolve safely'; addControls(current); return; } update(await response.json()); }; const addControls = (current) => { controls.replaceChildren(); [['approve', 'Approve'], ['deny', 'Deny']].forEach(([value, label]) => { const button = document.createElement('button'); button.type = 'button'; button.className = value === 'approve' ? 'primary-button' : 'secondary-button'; button.textContent = current.owner_confirmation_required && value === 'approve' ? 'Continue to owner confirmation' : label; button.addEventListener('click', () => decide(value, current)); controls.appendChild(button); }); }; if (['proposed', 'owner_confirmation_required'].includes(intent.approval_state)) addControls(intent); $('#messages').appendChild(card); }
 
-async function loadSession() { try { const response = await fetch('/api/session'); state.signedIn = response.ok; if (response.ok) { const session = await response.json(); state.displayName = session.display_name || ''; profilePhoto.setName(state.displayName || session.email); $('#page-title').textContent = greeting(); } } catch { state.signedIn = false; } $('#signed-out').classList.toggle('hidden', state.signedIn); $('#workspace').classList.toggle('hidden', !state.signedIn); if (!state.signedIn) { closeSpecialistPortrait(); specialistView?.clear(); profilePhoto.clear(); $('#connection-label').textContent = 'Sign in required'; return; } await profilePhoto.load(); try { const ready = await fetch('/api/ready'); $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention'; } catch { $('#connection-label').textContent = 'Li is unreachable'; } await Promise.all([loadSpecialists(), loadAgentAnalytics(), loadHomeData()]); }
+async function loadSession() { try { const response = await fetch('/api/session'); state.signedIn = response.ok; if (response.ok) { const session = await response.json(); state.displayName = session.display_name || ''; profilePhoto.setName(state.displayName || session.email); $('#page-title').textContent = greeting(); } } catch { state.signedIn = false; } $('#signed-out').classList.toggle('hidden', state.signedIn); $('#workspace').classList.toggle('hidden', !state.signedIn); updateConnectivity(); if (!state.signedIn) { closeSpecialistPortrait(); specialistView?.clear(); profilePhoto.clear(); $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Sign in required'; return; } await profilePhoto.load(); try { const ready = await fetch('/api/ready'); $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention'; } catch { $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Li is unreachable'; } await Promise.all([loadSpecialists(), loadAgentAnalytics(), loadHomeData()]); }
 
-async function sendMessage(message) { if (state.sending) return; state.sending = true; addMessage('user', message); state.history.push({ role: 'user', text: message }); setLiState('thinking', 0.75); const pending = addMessage('assistant', 'Thinking…', { temporary: true }); const specialistPoll = setInterval(loadSpecialists, 1200); $('#message-input').value = ''; $('.send-button').disabled = true; try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, conversation_id: state.conversationId, temporary_upload_context: state.temporaryUploadContext }) }); if (response.status === 401) { await loadSession(); throw new Error('Your session has expired. Please sign in again.'); } if (!response.ok) throw new Error('Li could not respond just now. Please try again.'); const data = await response.json(); state.temporaryUploadContext = null; $('#attachment-tray').replaceChildren(); state.conversationId = data.conversation_id; pending.remove(); addMessage('assistant', data.response, { attachments: data.artifacts || [] }); (data.action_intents || []).forEach(renderActionIntent); state.history.push({ role: 'assistant', text: data.response }); renderHistory(); if (state.voiceOutput) speakLiResponse(data.response); return data; } catch (error) { pending.remove(); addMessage('assistant', error.message || 'Something went wrong.'); return null; } finally { clearInterval(specialistPoll); await loadSpecialists(); state.sending = false; $('.send-button').disabled = false; if (!window.speechSynthesis?.speaking) setLiState('idle'); $('#message-input').focus(); } }
+async function sendMessage(message) {
+  if (state.sending) return;
+  const turn = state.pendingTurn?.message === message
+    ? state.pendingTurn
+    : { message, turnId: crypto.randomUUID(), rendered: false };
+  state.pendingTurn = turn;
+  state.sending = true;
+  if (!turn.rendered) {
+    addMessage('user', message);
+    state.history.push({ role: 'user', text: message });
+    turn.rendered = true;
+  }
+  setLiState('thinking', 0.75);
+  const pending = addMessage('assistant', 'Thinking…', { temporary: true });
+  const specialistPoll = setInterval(loadSpecialists, 1200);
+  $('#message-input').value = '';
+  $('.send-button').disabled = true;
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, turn_id: turn.turnId, conversation_id: state.conversationId,
+        temporary_upload_context: state.temporaryUploadContext }),
+    });
+    if (response.status === 401) {
+      await loadSession();
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+    if (!response.ok) {
+      const problem = await response.json().catch(() => ({}));
+      const detail = typeof problem.detail === 'object' ? problem.detail.message : null;
+      throw new Error(detail || 'Li could not confirm this request. Your draft is ready to retry safely.');
+    }
+    const data = await response.json();
+    state.pendingTurn = null;
+    state.temporaryUploadContext = null;
+    $('#attachment-tray').replaceChildren();
+    state.conversationId = data.conversation_id;
+    pending.remove();
+    addMessage('assistant', data.response, { attachments: data.artifacts || [] });
+    (data.action_intents || []).forEach(renderActionIntent);
+    state.history.push({ role: 'assistant', text: data.response });
+    renderHistory();
+    if (data.turn_state === 'durability_unavailable') {
+      addMessage('assistant', 'The reply arrived, but safe replay confirmation is unavailable. Refresh before resending this request.');
+    }
+    if (state.voiceOutput) speakLiResponse(data.response);
+    return data;
+  } catch (error) {
+    pending.remove();
+    $('#message-input').value = message;
+    addMessage('assistant', error.message || 'Something went wrong.');
+    return null;
+  } finally {
+    clearInterval(specialistPoll);
+    await loadSpecialists();
+    state.sending = false;
+    $('.send-button').disabled = false;
+    if (!window.speechSynthesis?.speaking) setLiState('idle');
+    $('#message-input').focus();
+  }
+}
 
 const voiceTranscription = window.LiVoice?.BrowserVoiceTranscriptionProvider.isSupported() ? new window.LiVoice.BrowserVoiceTranscriptionProvider() : null;
 const voiceSynthesis = window.LiVoice?.BrowserVoiceSynthesisProvider.isSupported() ? new window.LiVoice.BrowserVoiceSynthesisProvider() : null;
@@ -351,6 +413,7 @@ $$('button[data-view]').forEach((button) => button.addEventListener('click', () 
 $('#back-home').addEventListener('click', () => setView('home')); $('#handoff-to-li').addEventListener('click', () => { const specialist = state.currentSpecialist; setView('home'); if (specialist) $('#message-input').value = `Continue with Li about my work with ${specialist.name}.`; $('#message-input').focus(); }); $('#composer').addEventListener('submit', (event) => { event.preventDefault(); const value = $('#message-input').value.trim(); if (value) sendMessage(value); }); $('#message-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#composer').requestSubmit(); } }); $('#message-input').addEventListener('input', (event) => { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`; if (!state.sending && $('#microphone-button').getAttribute('aria-pressed') !== 'true') setLiState('idle'); }); $('#attach-button').addEventListener('click', () => $('#file-input').click()); $('#file-input').addEventListener('change', (event) => { if (event.target.files[0]) handleFile(event.target.files[0]); event.target.value = ''; }); const drop = $('#conversation-panel'); ['dragenter', 'dragover'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.add('dragging'); })); ['dragleave', 'drop'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.remove('dragging'); })); drop.addEventListener('drop', (event) => { if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]); }); $$('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => activateTheme(button.dataset.themeChoice))); $('#logout-button').addEventListener('click', async () => { await fetch('/auth/logout', { method: 'POST' }); await loadSession(); }); $('#account-button').addEventListener('click', () => setView('settings')); matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (state.theme === 'auto') activateTheme('auto'); });
 $('#microphone-button').addEventListener('click', () => { if ($('#microphone-button').getAttribute('aria-pressed') === 'true') cancelVoiceInput(); else startVoiceInput(); }); $('#voice-cancel').addEventListener('click', cancelVoiceInput); $('#stop-speaking').addEventListener('click', stopSpeaking); $('#voice-output-toggle').addEventListener('click', () => { state.voiceOutput = !state.voiceOutput; savePreference('li-voice-output', state.voiceOutput ? 'on' : 'off'); if (!state.voiceOutput) stopSpeaking(); updateVoiceOutputControl(); });
 $('#install-app').addEventListener('click', installApp); window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); state.installPrompt = event; updateInstallControl(); }); window.addEventListener('appinstalled', () => { state.installPrompt = null; updateInstallControl('Li is installed on this device.'); });
+window.addEventListener('offline', updateConnectivity); window.addEventListener('online', () => loadSession());
 $('#profile-photo-remove').addEventListener('click', () => profilePhoto.remove(window.confirm('Remove your profile photo and return to CM on all devices?')));
 window.addEventListener('focus', () => { if (state.signedIn && document.visibilityState !== 'hidden') profilePhoto.load(); });
 $('#artifact-retention').addEventListener('change', async (event) => { const response = await fetch('/api/privacy/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artifact_retention_days: Number(event.target.value) }) }); $('#privacy-status').textContent = response.ok ? `Li-created files now expire after ${event.target.value} days unless kept.` : 'Could not update retention.'; });
@@ -359,4 +422,4 @@ $('#analytics-period').addEventListener('change', loadAgentAnalytics); $('#relev
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 const freshnessPanel = document.createElement('article'); freshnessPanel.className = 'panel'; const freshnessHeading = document.createElement('h3'); freshnessHeading.textContent = 'Freshness & Evidence'; const freshnessNote = document.createElement('p'); freshnessNote.className = 'muted'; freshnessNote.textContent = 'Read-only specialist policy. Stable knowledge stays separate from live world state.'; const freshnessList = document.createElement('div'); freshnessList.id = 'freshness-policy-list'; freshnessList.className = 'capability-grid'; freshnessPanel.append(freshnessHeading, freshnessNote, freshnessList); const backendNotes = $('[data-view-panel="backend"] .backend-notes'); if (backendNotes) backendNotes.before(freshnessPanel);
 const providerPanel = document.createElement('article'); providerPanel.className = 'panel'; const providerHeading = document.createElement('h3'); providerHeading.textContent = 'Provider Coverage & Source Authority'; const providerNote = document.createElement('p'); providerNote.className = 'muted'; providerNote.textContent = 'Read-only declared coverage. No credentials, secret identifiers, or invented reliability metrics.'; const providerList = document.createElement('div'); providerList.id = 'provider-coverage-list'; providerList.className = 'capability-grid'; providerPanel.append(providerHeading, providerNote, providerList); if (backendNotes) backendNotes.before(providerPanel);
-renderSystemAgents(); $('#system-agent-back').addEventListener('click', () => setView('home')); initializeAppearance(); createPlaceSettings(); $('#page-title').textContent = greeting(); activateTheme(state.theme); initializeVoice(); updateInstallControl(); loadSession();
+renderSystemAgents(); $('#system-agent-back').addEventListener('click', () => setView('home')); initializeAppearance(); createPlaceSettings(); $('#page-title').textContent = greeting(); activateTheme(state.theme); initializeVoice(); updateInstallControl(); updateConnectivity(); loadSession();

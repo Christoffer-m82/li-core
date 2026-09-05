@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from pathlib import Path
 from typing import Any, Literal
 import yaml
@@ -34,6 +35,13 @@ class SpecialistRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     current_user_message: str = Field(min_length=1, max_length=10000)
+    objective: str = Field(default="Provide bounded specialist advice to Li.", min_length=1,
+                           max_length=1000)
+    specialist_question: str = Field(default="Assess the request within your registered remit.",
+                                     min_length=1, max_length=1200)
+    shared_facts: list[str] = Field(default_factory=list, max_length=8)
+    evidence_requirements: list[str] = Field(default_factory=list, max_length=8)
+    success_criteria: list[str] = Field(default_factory=list, max_length=8)
     conversation_context: str | None = Field(default=None, max_length=6000)
     canonical_memory: list[SpecialistMemoryContext] = Field(default_factory=list, max_length=4)
     temporary_upload_context: str | None = Field(default=None, max_length=6000)
@@ -132,7 +140,10 @@ _TRIGGERS: dict[str, tuple[str, ...]] = {
     "amelia": ("relationship", "dating", "friendship", "social", "conflict", "communication"),
     "freja": ("parenting", "child", "children", "family", "co-parent", "father", "mother"),
     "oliver": ("legal", "law", "contract", "regulation", "regulatory", "employment", "court"),
-    "james": ("finance", "investment", "wealth", "pension", "tax", "cash flow", "budget"),
+    "james": (
+        "finance", "investment", "wealth", "pension", "tax", "cash flow", "budget",
+        "mortgage",
+    ),
     "victor": (
         "business",
         "commercial",
@@ -198,8 +209,8 @@ def _load_contracts() -> dict[str, SpecialistContract]:
                 context_domains=tuple(agent.get("memory_access", {}).get("domains", ())),
                 allows_research_request=key == "nora",
             )
-        if len(contracts) != 12:
-            raise ValueError("expected exactly 12 permanent specialists")
+        if not contracts:
+            raise ValueError("at least one permanent specialist is required")
         return contracts
     except (OSError, KeyError, TypeError, ValueError, yaml.YAMLError, ValidationError) as exc:
         raise SpecialistRuntimeError("The permanent specialist registry is invalid.") from exc
@@ -250,9 +261,33 @@ def _named_specialists(message: str) -> list[str]:
     return named if named and (_EXPLICIT_ACTION.search(message) or direct or swedish_request) else []
 
 
-def route_specialists(user_message: str) -> RoutingDecision:
+def _unquoted_routing_text(message: str) -> str:
+    """Remove quoted/code examples so a mentioned name is not treated as an instruction."""
+    return re.sub(r'"[^"\n]*"|`[^`\n]*`', " ", message)
+
+
+def _referenced_specialist(message: str, conversation_context: str | None) -> str | None:
+    if not conversation_context or not re.search(
+        r"\b(?:ask|consult|use|bring (?:her|him|them) in|fråga|rådfråga|konsultera|"
+        r"använd|koppla in)\s+(?:her|him|them|henne|honom|dem)(?:\s+again|\s+igen)?\b",
+        message,
+        re.I,
+    ):
+        return None
+    normalized_context = normalize(conversation_context)
+    candidates = [
+        (normalized_context.rfind(normalize(contract.name)), key)
+        for key, contract in SPECIALIST_CONTRACTS.items()
+    ]
+    position, key = max(candidates, default=(-1, ""))
+    return key if position >= 0 else None
+
+
+def route_specialists(
+    user_message: str, *, conversation_context: str | None = None,
+) -> RoutingDecision:
     """Choose Li-only, one adviser, or bounded concurrent advisers."""
-    message = normalize(user_message.strip())
+    message = normalize(_unquoted_routing_text(user_message.strip()))
     excluded = _excluded_specialists(message)
     explicit = _named_specialists(message)
     if explicit:
@@ -264,27 +299,53 @@ def route_specialists(user_message: str) -> RoutingDecision:
             route_category="explicit_specialist",
             route_reason="User explicitly named the selected registered specialist(s).",
         )
+    referenced = _referenced_specialist(message, conversation_context)
+    if referenced and referenced not in excluded:
+        return RoutingDecision(
+            specialists=[referenced],
+            selection_mode="explicit",
+            group_mode="solo",
+            route_category="resolved_specialist_reference",
+            route_reason="A permitted recent turn resolved the owner's specialist reference.",
+        )
     decision_request = bool(_DECISION_TERMS.search(message)) or any(
         has_term(message, term) for term in (
             "compare", "trade-offs", "options", "recommend", "decision", "choose",
             "evaluate", "plan", "strategy", "pros and cons",
         )
     )
-    if _SIMPLE_PREFIX.search(message) and not decision_request:
-        return RoutingDecision(
-            route_category="li_only_simple", route_reason="Simple self-contained request."
+    scores = {
+        key: sum(
+            has_term(message, trigger, english_plural=True) for trigger in contract.triggers
         )
-    ranked = [
-        key
         for key, contract in SPECIALIST_CONTRACTS.items()
         if key not in excluded
-        and any(has_term(message, trigger, english_plural=True) for trigger in contract.triggers)
+    }
+    registry_order = {key: index for index, key in enumerate(SPECIALIST_CONTRACTS)}
+    ranked = [
+        key for key, score in sorted(
+            scores.items(), key=lambda item: (-item[1], registry_order[item[0]])
+        )
+        if score > 0
     ]
     if not ranked:
+        if _SIMPLE_PREFIX.search(message) and not decision_request:
+            return RoutingDecision(
+                route_category="li_only_simple", route_reason="Simple self-contained request."
+            )
         return RoutingDecision(
             route_category="li_only_general",
             route_reason="No specialist domain materially matched.",
         )
+    if _SIMPLE_PREFIX.search(message) and not decision_request:
+        # Definitions/translations normally stay with Li, but a current or
+        # high-stakes claim must still reach its evidence-governed contract.
+        from app.freshness_policy import decide_freshness
+
+        if not any(decide_freshness(key, message).evidence_required for key in ranked):
+            return RoutingDecision(
+                route_category="li_only_simple", route_reason="Simple self-contained request."
+            )
     # Equivalent requests can have different word counts across languages.
     complex_request = decision_request
     selected = (
@@ -300,8 +361,8 @@ def route_specialists(user_message: str) -> RoutingDecision:
     )
 
 
-def route_specialist(user_message: str) -> RoutingDecision:
-    return route_specialists(user_message)
+def route_specialist(user_message: str, *, conversation_context: str | None = None) -> RoutingDecision:
+    return route_specialists(user_message, conversation_context=conversation_context)
 
 
 def specialist_needs_canonical_memory(user_message: str) -> bool:
@@ -312,15 +373,35 @@ def nora_needs_canonical_memory(user_message: str) -> bool:
     return specialist_needs_canonical_memory(user_message)
 
 
-def memory_allowed_for_specialist(specialist: str, domain: str) -> bool:
+def memory_allowed_for_specialist(
+    specialist: str, domain: str, *, user_message: str | None = None,
+) -> bool:
     allowed = SPECIALIST_CONTRACTS[specialist].context_domains
-    normalized = domain.casefold().replace("_", " ")
-    return any(
-        item == "only_context_explicitly_supplied_for_task"
-        or normalized in item.casefold().replace("_", " ")
-        or item.casefold().replace("_", " ") in normalized
-        for item in allowed
-    )
+    normalized = normalize(domain).replace("_", " ").strip()
+    if "only_context_explicitly_supplied_for_task" in allowed:
+        if not user_message:
+            return False
+        explicit_domains = {
+            "preferences": ("preference", "preferences", "priorities", "föredrar", "preferenser"),
+            "goals": ("goal", "goals", "mål", "målen"),
+            "finance": ("finance", "budget", "money", "ekonomi", "budget"),
+            "health": ("health", "medical", "hälsa", "medicinsk"),
+            "work": ("work", "job", "arbete", "jobb"),
+            "family": ("family", "familj"),
+        }
+        return any(
+            normalized == key and any(has_term(user_message, term) for term in terms)
+            for key, terms in explicit_domains.items()
+        )
+    normalized_allowed: set[str] = set()
+    for item in allowed:
+        candidate = normalize(item).replace("_", " ").strip()
+        normalized_allowed.add(candidate)
+        if candidate.startswith("relevant "):
+            normalized_allowed.add(candidate.removeprefix("relevant "))
+        if candidate.endswith(" summary"):
+            normalized_allowed.add(candidate.removesuffix(" summary"))
+    return normalized in normalized_allowed
 
 
 def _extract_json(text: str) -> object:
@@ -348,10 +429,13 @@ Return only one JSON object with exactly these fields and types:
 - sources_needed: boolean (never an array)
 - follow_up_questions: array of strings
 - research_request: {'an object or null' if contract.allows_research_request else 'always null'}
+A task packet also contains an objective, your specialist-specific question, explicitly shared facts,
+evidence requirements, and success criteria. Work only toward that question and those criteria.
 A non-null research_request has exactly query (string), freshness_requirement (string), source_types (array of strings), and rationale (string), and only asks Li to consider research. When research_evidence is supplied, analyze that evidence and set research_request to null; never request another research pass."""
     try:
         raw = generate_claude_text(
-            user_message=request.model_dump_json(), system=system, max_tokens=max_tokens
+            user_message=request.model_dump_json(), system=system, max_tokens=max_tokens,
+            stage=f"specialist:{specialist}",
         )
         result = SpecialistResult.model_validate(_extract_json(raw))
         if not contract.allows_research_request and result.research_request is not None:
@@ -388,7 +472,8 @@ def consult_specialists(
     with ThreadPoolExecutor(max_workers=len(specialists)) as executor:
         futures = {
             name: executor.submit(
-                delegate_to_specialist, name, requests[name], max_tokens=max_tokens
+                copy_context().run,
+                delegate_to_specialist, name, requests[name], max_tokens=max_tokens,
             )
             for name in specialists
         }

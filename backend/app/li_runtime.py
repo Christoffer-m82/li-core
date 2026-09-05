@@ -7,6 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.action_intents import ActionIntentProposal
+from app.governed_systems import ConversationContextMessage, specialist_conversation_context
 from app.request_language import SWEDISH_QUERY_STOPWORDS, UNICODE_WORD
 from app.claude import generate_claude_text
 from app.database import MemoryReadError, recall_memory
@@ -39,6 +40,9 @@ from app.runtime_data import (
     record_synthesis_attribution,
     start_interaction,
 )
+
+if set(POLICIES) != set(SPECIALIST_PROFILES):
+    raise RuntimeError("Freshness policies must cover the configured permanent specialist registry.")
 
 _conversation_id: ContextVar[str | None] = ContextVar("li_conversation_id", default=None)
 
@@ -134,6 +138,53 @@ def _parse_specialist_synthesis(value: str) -> SpecialistSynthesis:
     elif candidate.startswith("```") and candidate.endswith("```"):
         candidate = candidate[3:-3].strip()
     return SpecialistSynthesis.model_validate_json(candidate)
+
+
+def _looks_like_structured_output(value: str) -> bool:
+    """Identify malformed structured output without treating ordinary prose as a failure."""
+
+    candidate = value.lstrip()
+    return (
+        candidate.startswith(("{", "[", "```"))
+        or '"final_response"' in candidate
+        or '"action_intents"' in candidate
+        or '"used_specialist_keys"' in candidate
+    )
+
+
+def _safe_generation_failure(user_message: str, *, evidence_blocked: bool = False) -> str:
+    """Return a non-actionable EN/SV failure without exposing rejected model output."""
+
+    normalized = user_message.casefold()
+    swedish = bool(re.search(
+        r"[åäö]|\b(?:vad|vem|varför|hur|kan|kunde|skulle|vill|jag|mig|min|mitt|mina|"
+        r"dagens|idag|den här|snälla|fråga|be)\b",
+        normalized,
+    ))
+    if evidence_blocked:
+        return (
+            "Jag kunde inte verifiera den aktuella informationen, så jag vill inte gissa. "
+            "Försök gärna igen senare. Ingen åtgärd föreslogs."
+            if swedish else
+            "I couldn't verify the current information, so I won't guess. "
+            "Please try again later. No action was proposed."
+        )
+    return (
+        "Jag kunde inte slutföra svaret på ett säkert sätt. Försök gärna igen. "
+        "Ingen åtgärd föreslogs."
+        if swedish else
+        "I couldn't safely complete that response. Please try again. "
+        "No action was proposed."
+    )
+
+
+def _safe_unstructured_response(value: str, user_message: str) -> str:
+    """Allow legacy plain prose, but never expose malformed schema-shaped output."""
+
+    candidate = value.strip()
+    if not candidate or _looks_like_structured_output(candidate):
+        return _safe_generation_failure(user_message)
+    return candidate
 
 
 def _read_required_file(path: Path) -> str:
@@ -376,6 +427,9 @@ def talk_to_li_with_outcome(
     location_context: str | None = None,
     workspace_specialist: str | None = None,
     workspace_recipient: str = "group",
+    conversation_messages: list[ConversationContextMessage] | None = None,
+    temporary_upload_allowed_specialists: set[str] | None = None,
+    temporary_upload_private_to_li: bool = False,
 ) -> LiTurnOutcome:
     """
     Send a message to Li with relevant canonical memory context.
@@ -426,7 +480,10 @@ def talk_to_li_with_outcome(
             temporary_upload_context,
         ])
 
-    routing = route_specialists(user_message)
+    routing = (
+        route_specialists(user_message, conversation_context=conversation_context)
+        if conversation_context else route_specialists(user_message)
+    )
     if workspace_specialist is not None:
         if workspace_specialist not in SPECIALIST_PROFILES or workspace_recipient not in {"group", "specialist"}:
             raise LiRuntimeError("Invalid specialist workspace recipient.")
@@ -449,14 +506,27 @@ def talk_to_li_with_outcome(
     request_id: str = str(uuid4())
     if routing.specialists:
         bounded_conversation = conversation_context[-6000:] if conversation_context else None
-        specialist_conversation = "\n".join(filter(None, (bounded_conversation, location_context))) or None
         specialist_requests: dict[str, SpecialistRequest] = {}
         for specialist in routing.specialists:
+            disclosed_conversation = (
+                specialist_conversation_context(conversation_messages, specialist)
+                if conversation_messages is not None
+                else bounded_conversation if workspace_specialist == specialist else None
+            )
+            specialist_conversation = disclosed_conversation
+            specialist_upload = (
+                temporary_upload_context
+                if not temporary_upload_private_to_li and (
+                    specialist == workspace_specialist
+                    or specialist in (temporary_upload_allowed_specialists or set())
+                )
+                else None
+            )
             specialist_memories: list[SpecialistMemoryContext] = []
             if specialist_needs_canonical_memory(user_message):
                 for memory in memories:
                     if memory.get("private_to_li") or not memory_allowed_for_specialist(
-                        specialist, str(memory.get("domain", ""))
+                        specialist, str(memory.get("domain", "")), user_message=user_message
                     ):
                         continue
                     value = memory.get("value_text")
@@ -472,6 +542,31 @@ def talk_to_li_with_outcome(
                         break
             decision = decide_freshness(specialist, user_message)
             policy = POLICIES[specialist]
+            profile = SPECIALIST_PROFILES[specialist]
+            packet_fields = {
+                "current_user_message": user_message,
+                "objective": f"Help Li answer the owner's current request: {user_message[:850]}",
+                "specialist_question": (
+                    f"As {profile.name}, assess only the parts within your registered "
+                    f"{profile.role} remit. Identify the most useful conclusion, assumptions, "
+                    "uncertainty, and what Li should preserve in the final answer."
+                ),
+                "shared_facts": [location_context] if location_context else [],
+                "evidence_requirements": ([
+                    f"Current evidence is required: {decision.freshness_reason}",
+                    "Do not infer changing facts from model memory when verification is unavailable.",
+                ] if decision.evidence_required else [
+                    "Use stable knowledge only; flag any claim that would need current verification."
+                ]),
+                "success_criteria": [
+                    "Stay within the registered specialist contract and supplied context.",
+                    "Give Li a concise recommendation with assumptions and uncertainty.",
+                    "Do not propose or imply direct tool use or completed actions.",
+                ],
+                "conversation_context": specialist_conversation,
+                "canonical_memory": specialist_memories,
+                "temporary_upload_context": specialist_upload,
+            }
             evidence: list[dict[str, object]] = []
             metadata: dict[str, object] = {
                 **decision.model_dump(mode="json"),
@@ -500,9 +595,7 @@ def talk_to_li_with_outcome(
                                      "failure_reason": selection.decline_reason})
                     freshness_metadata[specialist] = metadata
                     specialist_requests[specialist] = SpecialistRequest(
-                        current_user_message=user_message, conversation_context=specialist_conversation,
-                        canonical_memory=specialist_memories,
-                        temporary_upload_context=temporary_upload_context, research_evidence=[])
+                        **packet_fields, research_evidence=[])
                     continue
                 request = ResearchRequest(
                     query=user_message[:1000],
@@ -530,10 +623,7 @@ def talk_to_li_with_outcome(
                 })
             freshness_metadata[specialist] = metadata
             specialist_requests[specialist] = SpecialistRequest(
-                current_user_message=user_message,
-                conversation_context=specialist_conversation,
-                canonical_memory=specialist_memories,
-                temporary_upload_context=temporary_upload_context,
+                **packet_fields,
                 research_evidence=evidence,
             )
         conversation_id = _conversation_id.get()
@@ -596,10 +686,9 @@ def talk_to_li_with_outcome(
                 try:
                     final_nora_result = delegate_to_nora(
                         SpecialistRequest(
-                            current_user_message=user_message,
-                            conversation_context=bounded_conversation,
-                            canonical_memory=specialist_requests["nora"].canonical_memory,
-                            temporary_upload_context=temporary_upload_context,
+                            **specialist_requests["nora"].model_dump(
+                                exclude={"research_evidence"}
+                            ),
                             research_evidence=[
                                 record.model_dump(mode="json") for record in nora_validation.evidence
                             ],
@@ -678,6 +767,21 @@ def talk_to_li_with_outcome(
                 )
             except RuntimeDataError:
                 pass
+
+        evidence_blocked = any(
+            metadata.get("evidence_required")
+            and metadata.get("freshness_status") == "could_not_verify"
+            for metadata in freshness_metadata.values()
+        )
+        if evidence_blocked:
+            system_sections.extend([
+                "===== REQUIRED EVIDENCE LIMIT =====",
+                (
+                    "Current evidence required by policy could not be verified. Do not provide "
+                    "the requested changing facts from model memory and do not weaken this limit "
+                    "during validation recovery. State the limitation and a safe next step only."
+                ),
+            ])
 
         if consultation.results:
             system_sections.extend([
@@ -796,41 +900,59 @@ def talk_to_li_with_outcome(
                 "required": ["final_response", "used_specialist_keys", "action_intents"],
             }
         ),
+        stage="li_synthesis" if routing.specialists else "li_direct",
     )
 
     if not routing.specialists or not consultation.results:
         try:
             direct = _parse_specialist_synthesis(generated)
         except (ValidationError, ValueError):
-            return LiTurnOutcome(response=generated)
+            return LiTurnOutcome(response=_safe_unstructured_response(generated, user_message))
         return LiTurnOutcome(
             response=direct.final_response,
             request_id=request_id if direct.action_intents else None,
             action_intents=direct.action_intents,
         )
 
+    synthesis: SpecialistSynthesis | None = None
     try:
-        synthesis = _parse_specialist_synthesis(generated)
+        candidate_synthesis = _parse_specialist_synthesis(generated)
         available = set(consultation.results)
-        used_keys = list(dict.fromkeys(synthesis.used_specialist_keys))
+        used_keys = list(dict.fromkeys(candidate_synthesis.used_specialist_keys))
         if any(key not in available for key in used_keys):
             raise ValueError("Synthesis attributed an unavailable specialist.")
+        synthesis = candidate_synthesis
     except (ValidationError, ValueError):
-        fallback_sections = [section for section in system_sections
-                             if "INTERNAL SPECIALIST ANALYSES" not in section]
+        try:
+            analyses_index = system_sections.index("===== INTERNAL SPECIALIST ANALYSES =====")
+        except ValueError:
+            analyses_index = len(system_sections)
+        fallback_sections = list(system_sections[:analyses_index])
         fallback_sections.extend([
             "===== SYNTHESIS FALLBACK =====",
-            "Specialist synthesis validation failed. Answer independently as Li and do not claim specialist input.",
+            (
+                "The specialist synthesis failed validation. Answer independently as Li, do not "
+                "claim specialist input, and do not propose or imply any state-changing action. "
+                "Preserve every preceding safety, privacy, evidence and capability restriction. "
+                "Return user-facing prose only, never JSON or tool-shaped text."
+            ),
         ])
         fallback = generate_claude_text(
             user_message=user_message,
-            system="\n\n".join(fallback_sections[:2] + fallback_sections[-2:]),
+            system="\n\n".join(fallback_sections),
             max_tokens=max_tokens,
+            stage="li_validation_repair",
         )
         used_keys = []
-        final_response = fallback
+        final_response = (
+            _safe_generation_failure(user_message, evidence_blocked=True)
+            if evidence_blocked and _looks_like_structured_output(fallback)
+            else _safe_unstructured_response(fallback, user_message)
+        )
+        action_intents: list[ActionIntentProposal] = []
     else:
         final_response = synthesis.final_response
+        action_intents = synthesis.action_intents
 
     measured_ids = [interaction_ids[key] for key in consultation.results if key in interaction_ids]
     used_ids = [interaction_ids[key] for key in used_keys if key in interaction_ids]
@@ -845,7 +967,7 @@ def talk_to_li_with_outcome(
         response=final_response,
         request_id=request_id if measured_ids else None,
         used_interaction_ids=used_ids,
-        action_intents=synthesis.action_intents if 'synthesis' in locals() else [],
+        action_intents=action_intents,
     )
 
 

@@ -176,6 +176,7 @@ def evaluate_memory_proposal(
             user_message=_build_review_input(proposal, memories),
             system=THEO_REVIEW_SYSTEM_PROMPT,
             max_tokens=800,
+            stage="theo_review",
         )
     except MemoryReadError as exc:
         raise TheoRuntimeError("Theo could not retrieve canonical memory context.") from exc

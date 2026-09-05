@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr
     claude_model: str = "claude-sonnet-5"
     claude_max_tokens: int = 2048
+    claude_timeout_seconds: float = Field(default=60.0, ge=1.0, le=180.0)
+    claude_total_token_budget: int = Field(default=30_000, ge=4_096, le=200_000)
 
     # Optional Li-owned live research provider
     brave_search_api_key: SecretStr | None = None

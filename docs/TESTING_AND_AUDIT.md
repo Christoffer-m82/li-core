@@ -95,6 +95,20 @@ Offline prompt-wiring tests do not establish real-model conversational quality.
 For request-trigger changes, also run the paired checks in
 [English and Swedish request handling](BILINGUAL_REQUEST_HANDLING.md).
 
+The permanent synthetic regression manifest for the six
+[Li OS improvement packages](LI_OS_IMPROVEMENT_BLUEPRINT.md) is
+[`backend/evaluations/improvement-benchmark-v1.json`](../backend/evaluations/improvement-benchmark-v1.json).
+Its validator requires every R1–R14 scenario to map to an existing executable test:
+
+```text
+cd backend
+python -m pytest tests/test_improvement_benchmark.py
+```
+
+These fixtures prove deterministic safety, privacy, recovery and UI contracts. They do not establish
+live-model conversation quality, deployed behavior or physical-device acceptance. Provider-backed
+evaluation remains governed by [Li conversation evaluation](LI_CONVERSATION_EVALUATION.md).
+
 For every Markdown change:
 
 1. Parse all relative Markdown links, ignore URL fragments for filesystem resolution, and confirm
@@ -145,8 +159,10 @@ Ordinary `git diff` does not include untracked files. For each untracked path, i
 diff with `git diff --no-index -- NUL <path>` on Windows (or `/dev/null` on POSIX), or include it in an
 equivalent review tool that visibly renders untracked content. Then verify every changed path is in
 scope, scan added lines for secret-like values and personal/runtime data, and confirm no generated
-environment-specific manifest was added. Do not commit until the user has reviewed the complete diff
-and validation result and explicitly asks for a commit.
+environment-specific manifest was added. Do not commit until the complete diff and validation result
+have been reviewed. Whether a separate owner prompt is required is governed by the current
+repository-level authorization in [AGENTS.md](../AGENTS.md); that authorization never removes the
+review requirement or expands protected external actions.
 
 ## Result format
 

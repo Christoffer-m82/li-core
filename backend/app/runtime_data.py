@@ -15,6 +15,10 @@ class RuntimeDataError(RuntimeError):
     pass
 
 
+class RuntimeDataCapabilityUnavailable(RuntimeDataError):
+    """Raised only when a rolling-upgrade database function is not installed yet."""
+
+
 def _call(name: str, params: tuple[object, ...] = ()) -> list[dict[str, object]]:
     settings = get_settings()
     placeholders = ",".join(["%s"] * len(params))
@@ -23,6 +27,10 @@ def _call(name: str, params: tuple[object, ...] = ()) -> list[dict[str, object]]
             with conn.cursor() as cursor:
                 cursor.execute(f"SELECT * FROM li_api.{name}({placeholders});", params)
                 return [dict(row) for row in cursor.fetchall()]
+    except psycopg.errors.UndefinedFunction as exc:
+        raise RuntimeDataCapabilityUnavailable(
+            f"Runtime data operation {name} is not installed."
+        ) from exc
     except psycopg.Error as exc:
         raise RuntimeDataError(f"Runtime data operation {name} failed.") from exc
 
@@ -37,6 +45,33 @@ def _owner_call(name: str, params: tuple[object, ...]) -> list[dict[str, object]
                 return [dict(row) for row in cursor.fetchall()]
     except psycopg.Error as exc:
         raise RuntimeDataError(f"Owner runtime operation {name} failed.") from exc
+
+
+def begin_chat_turn(*, turn_id: UUID, request_hash: str) -> dict[str, object]:
+    """Claim or replay one owner-bound chat operation."""
+    rows = _call("begin_chat_turn", (turn_id, request_hash))
+    if not rows:
+        raise RuntimeDataError("Chat turn claim returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
+def bind_chat_turn_conversation(*, turn_id: UUID, request_hash: str,
+                                conversation_id: UUID) -> dict[str, object]:
+    rows = _call("bind_chat_turn_conversation", (turn_id, request_hash, conversation_id))
+    if not rows:
+        raise RuntimeDataError("Chat turn conversation binding returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
+def finish_chat_turn(*, turn_id: UUID, request_hash: str, state: str,
+                     response: dict[str, object] | None = None) -> dict[str, object]:
+    rows = _call(
+        "finish_chat_turn",
+        (turn_id, request_hash, state, Jsonb(response) if response is not None else None),
+    )
+    if not rows:
+        raise RuntimeDataError("Chat turn completion returned no result.")
+    return dict(next(iter(rows[0].values())))
 
 
 def get_privacy_settings() -> dict[str, object]:

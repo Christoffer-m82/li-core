@@ -14,8 +14,10 @@ other database.
 - Migration files are transactional SQL (`BEGIN`/`COMMIT`) and record logical versions in
   `li_memory.schema_versions`.
 - Later migrations contain explicit prerequisite and duplicate-version guards.
-- Application tests inspect important migration text and authority invariants, but the repository
-  contains no general migration runner or disposable-database integration harness.
+- Application tests inspect important migration text and authority invariants. The explicit historical
+  manifest in `memory/tests/validate_migrations.py` applies the supported sequence to a disposable
+  PostgreSQL database and verifies representative data, RLS, ownership, allowed/denied access and
+  replay rejection. It is a local/CI rehearsal, not an external migration runner or target-state proof.
 - Two historical files share the `021` prefix and both record schema version `0.21`:
   `021_artifact_library.sql` and `021_private_conversation_deletion.sql`. Migration 025 explains that
   the private-deletion capability is restored at schema version `0.25`. See

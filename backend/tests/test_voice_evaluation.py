@@ -71,7 +71,8 @@ def test_provider_adapter_is_bounded_and_rejects_truncation(monkeypatch, stop_re
         assert kwargs["max_tokens"] == 512
         assert "tools" not in kwargs
         return SimpleNamespace(stop_reason=stop_reason,
-                               content=[SimpleNamespace(type="text", text="Hej")])
+                               content=[SimpleNamespace(type="text", text="Hej")],
+                               usage=SimpleNamespace(input_tokens=10, output_tokens=2))
 
     def client(**kwargs):
         assert kwargs == {"api_key": "synthetic-test-key", "max_retries": 0,
@@ -81,7 +82,10 @@ def test_provider_adapter_is_bounded_and_rejects_truncation(monkeypatch, stop_re
     monkeypatch.setattr(anthropic, "Anthropic", client)
     generate = evaluation.provider()
     if stop_reason == "end_turn":
-        assert generate("test system", "test turn", "verified-test-model", 512) == "Hej"
+        generated = generate("test system", "test turn", "verified-test-model", 512)
+        assert generated["text"] == "Hej"
+        assert generated["telemetry"]["input_tokens"] == 10
+        assert generated["telemetry"]["output_tokens"] == 2
     else:
         with pytest.raises(ValueError, match="Incomplete"):
             generate("test system", "test turn", "verified-test-model", 512)
@@ -112,6 +116,8 @@ def test_history_blinding_and_no_automatic_scores(tmp_path):
         assert record["status"] == "generated_unreviewed"
         assert all(value is None for value in record["scores"].values())
         assert all(value is None for value in record["gates"].values())
+        assert len(record["call_telemetry"]) == 2
+        assert all(call["usage_available"] is False for call in record["call_telemetry"])
     assert not json.loads((output / "completion.json").read_text())["release_approved"]
     with pytest.raises(FileExistsError):
         evaluation.execute(plan(), fake, output, "test-model", 2048)
