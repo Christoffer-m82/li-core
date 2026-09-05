@@ -2,9 +2,14 @@ from functools import lru_cache
 
 import google.auth.transport.requests
 import httpx
+from google.auth.exceptions import GoogleAuthError
 from google.oauth2 import id_token
 
 from app.config import Settings
+
+
+class BackendUnavailable(Exception):
+    """The private backend cannot be reached through its trusted identity boundary."""
 
 
 @lru_cache(maxsize=4)
@@ -17,7 +22,18 @@ def _identity_token(audience: str, minute: int) -> str:
 def cloud_run_identity_token(audience: str) -> str:
     import time
 
-    return _identity_token(audience, int(time.time()) // 300)
+    try:
+        token = _identity_token(audience, int(time.time()) // 300)
+    except (GoogleAuthError, OSError) as exc:
+        raise BackendUnavailable("Backend workload identity is unavailable.") from exc
+    if (
+        not isinstance(token, str)
+        or not 1 <= len(token) <= 8192
+        or not token.isascii()
+        or any(character.isspace() for character in token)
+    ):
+        raise BackendUnavailable("Backend workload identity is unavailable.")
+    return token
 
 
 async def request_backend(

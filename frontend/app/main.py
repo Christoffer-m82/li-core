@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
-from app.backend import request_backend
+from app.backend import BackendUnavailable, request_backend
 from app.config import get_settings
 from app.profile_service import (
     ProfileServiceResponse,
@@ -467,7 +467,7 @@ async def download_artifact(artifact_id: str, _: str = Depends(require_user)) ->
         raise HTTPException(status_code=400, detail="Invalid artifact identifier.")
     try:
         upstream = await request_backend(settings, "GET", f"/artifacts/{artifact_id}")
-    except (httpx.HTTPError, ValueError) as exc:
+    except (BackendUnavailable, httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Artifact is temporarily unreachable.") from exc
     return Response(upstream.content, status_code=upstream.status_code,
         media_type=upstream.headers.get("content-type", "application/octet-stream"),
@@ -502,7 +502,7 @@ async def recorded_specialist_interactions(path: str) -> list[dict[str, object]]
         ):
             raise ValueError("Invalid interaction response")
         return events
-    except (httpx.HTTPError, ValueError) as exc:
+    except (BackendUnavailable, httpx.HTTPError, ValueError) as exc:
         raise HTTPException(
             status_code=502, detail="Specialist activity is temporarily unavailable."
         ) from exc
@@ -644,7 +644,7 @@ async def proxy(method: str, path: str, json_body: dict | None = None,
     try:
         upstream = await request_backend(settings, method, path, json_body=json_body,
                                          authority=authority)
-    except (httpx.HTTPError, ValueError) as exc:
+    except (BackendUnavailable, httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Li is temporarily unreachable.") from exc
     content_type = upstream.headers.get("content-type", "application/json")
     return Response(upstream.content, status_code=upstream.status_code, media_type=content_type)

@@ -5,6 +5,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.backend import BackendUnavailable
 from app.main import MAX_UPLOAD_BYTES, app
 from app.profile_service import ProfileServiceResponse
 from app.security import require_user
@@ -72,6 +73,27 @@ def test_specialist_unavailability_is_not_empty_activity(monkeypatch, path, fail
     response = signed_in_client().get(path)
     assert response.status_code == 502
     assert response.json() == {"detail": "Specialist activity is temporarily unavailable."}
+
+
+@pytest.mark.parametrize(
+    ("path", "detail"),
+    [
+        ("/api/ready", "Li is temporarily unreachable."),
+        ("/api/specialists", "Specialist activity is temporarily unavailable."),
+        (
+            "/api/artifacts/00000000-0000-0000-0000-000000000001",
+            "Artifact is temporarily unreachable.",
+        ),
+    ],
+)
+def test_workload_identity_failure_uses_safe_route_boundary(monkeypatch, path, detail):
+    async def backend(*_args, **_kwargs):
+        raise BackendUnavailable("synthetic credential detail must not escape")
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    response = signed_in_client().get(path)
+    assert response.status_code == 502
+    assert response.json() == {"detail": detail}
 
 
 def test_specialist_deep_view_assets_and_controls():
