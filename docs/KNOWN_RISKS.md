@@ -74,7 +74,10 @@ where applicable, Heimdall review.
 - **Impact:** Maintainers may mistake documented intent or a commit message for an applied migration,
   healthy backup, paused scheduler, private service, or least-privilege binding.
 - **Current control:** [CODEX.md](../CODEX.md) requires evidence labels; deployment and migration
-  workflows require dated authorized checks.
+  workflows require dated authorized checks. The
+  [2026-09-05 staging release](releases/2026-09-05-a864076-staging.md) records redacted schema,
+  backup, deployment, rollback, IAM-continuity and smoke evidence without treating Git as the source
+  of live truth.
 - **Next review:** Maintain redacted, non-secret operational evidence in an approved system and link
   it from release records rather than embedding sensitive state here.
 
@@ -90,19 +93,21 @@ where applicable, Heimdall review.
 - **Next review:** Activation and stand-down procedures should verify both planes and retain evidence
   per rhythm.
 
-## KR-009: Recoverable-turn release requires schema-first coordination
+## KR-009: Recoverable-turn provider outcomes still need live fault validation
 
-- **Evidence:** The improvement branch prepares application handling for uncertain action outcomes and
-  stable chat turns together with migrations 037 through 039. The existing schema cannot persist the new
-  `uncertain` action state or provide the turn-claim functions.
-- **Impact:** Deploying the application before migration 038 can prevent safe resolution of a provider
-  write whose outcome was not observed. A missing chat-turn function degrades explicitly for rolling
-  compatibility, but action-state persistence must not be treated as optional.
-- **Current control:** The full migration history passes the disposable database validator, and the
-  [deployment workflow](DEPLOYMENT_WORKFLOW.md#2-pass-prerequisite-gates) requires schema 0.39 before
-  this backend revision. None of these migrations has been applied externally by repository work.
-- **Next review:** Close only after an authorized target migration, denial/role validation, deployment,
-  and a fault-injected smoke test are recorded for the same reviewed release.
+- **Evidence:** Migrations 037 through 039 and the recoverable-turn runtime are deployed together in
+  the [2026-09-05 staging release](releases/2026-09-05-a864076-staging.md). Deterministic and disposable
+  database tests cover uncertain action state, turn claims, replay denial and stale-worker fencing;
+  an authenticated live provider fault was not intentionally induced during rollout.
+- **Impact:** A provider that neither supports idempotency nor exposes reconciliation can still leave
+  an externally dispatched write uncertain. Li must report that uncertainty instead of repeating the
+  action or claiming success.
+- **Current control:** The target schema is 0.39, the matching backend image is deployed, role and
+  invalid-credential denials passed, and rollback remains available. Application tests fail closed
+  for unobserved provider outcomes.
+- **Next review:** Run a controlled, no-additional-charge, authenticated fault-injection smoke test
+  against a non-destructive provider fixture and record reconciliation behavior for the deployed
+  release.
 
 ## Review cadence
 
