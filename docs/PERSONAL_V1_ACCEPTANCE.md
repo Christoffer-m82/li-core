@@ -32,11 +32,12 @@ migrations 037–039 and the earlier application release have separate staging e
 bilingual chat/retry journey also passes. These are satisfied prerequisites at their recorded layers,
 not proof that the full core stability gate is closed.
 
-Outstanding entry evidence includes the latest applicable staging rollout and core smoke journeys,
-migration 040 and its deployed memory/privacy checks where that release includes it, applicable owner
-and physical-device checks, and absence of blocking findings through the required stability period.
-Until those are recorded, OM-003 remains planned and is not automatically next. Unrelated eligible
-acceptance work continues if voice is blocked.
+The schema-0.40 staging rollout and read-only owner-proposal journey are now recorded in the
+[2026-09-06 release evidence](releases/2026-09-06-2746421-staging.md). Outstanding entry evidence is
+the live English/Swedish core-chat smoke journey, applicable owner mutation and physical-device checks,
+and absence of blocking findings through the required stability period. Until those are recorded,
+OM-003 remains planned and is not automatically next. Unrelated eligible acceptance work continues
+if voice is blocked.
 
 Optional visual improvements, profile-photo activation, every proactive rhythm and standalone native-
 app completion are not prerequisites for installable-web voice. The enhanced voice experience itself
@@ -48,7 +49,7 @@ before the final release sign-off can include it.
 | Area | Acceptance checks | Evidence still required |
 | --- | --- | --- |
 | Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey now covers bilingual Nora routing, completion, persisted history reload and idempotent replay; an approved live staging smoke test remains pending |
-| Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Read-only canonical-memory search, proposal inspection and visible chat outcomes are locally implemented and tested. Applying migration 040, deployed/device journeys and authorized live data-integrity tests remain open |
+| Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Schema 0.40 and the matching application release are deployed; the signed-in read-only proposal journey passed without changing data. Physical-device, correction/forgetting and other authorized live data-integrity journeys remain open |
 | Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | A synthetic HTTP-boundary lifecycle now covers the complete journey, owner-scoped not-found behavior, a recoverable storage outage and deletion; operator-verified scheduled expiry remains pending |
 | Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance and phone specialist entry implemented; agenda, owner-selected priorities and consolidated attention remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
 | Specialists | All registry names/roles, selected portraits, original viewer, recorded interactions, honest unavailable states | Longer-running interaction and accessibility checks; system profiles remain read-only definitions |
@@ -57,7 +58,7 @@ before the final release sign-off can include it.
 | Proactivity | Owner-approved schedule, grounded brief, quiet hours, duplicate prevention, delivery and stand-down | Exact per-rhythm activation approval plus coordinated database/scheduler verification; external notification delivery needs a design |
 | Voice | Existing foundation: transcript correctness, cancel, permission denial, unavailable service and spoken response stop. Planned late-Package-6 extension: expressive Swedish/English real-time conversation, natural turn timing, interruption and recovery; see the [real-time voice plan](REALTIME_VOICE_PLAN.md). | Close the core stability entry gate first. Then complete provider/cost evaluation, architecture decision, implementation, authorized staged deployment and measured Android phone/tablet owner acceptance with Windows regressions. The addition remains planning only. |
 | Installation | Install, launch, sign-in expiry, update, offline explanation, keyboard/touch navigation | Complete the [physical-device and owner checklist](PERSONAL_V1_DEVICE_ACCEPTANCE.md); native Android and gateway completion remains tracked separately |
-| Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | The original and replacement backups passed the [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md), and the superseded copy was then deleted with owner authorization while the validated replacement was preserved. Recurring cadence and remaining release-security evidence stay open. See [known risks](KNOWN_RISKS.md). |
+| Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | The original and replacement backups passed the [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md), and the superseded copy was then deleted with owner authorization while the validated replacement was preserved. The [schema-0.40 release](releases/2026-09-06-2746421-staging.md) retained private backend IAM, numeric secret-version references and application rollback. Recurring cadence and remaining acceptance evidence stay open. See [known risks](KNOWN_RISKS.md). |
 | Release stability | All agreed journeys pass, no unresolved critical findings, normal use observation and rollback available | A stable-use observation period; no unsupported claim of 100% |
 
 ## Local browser accessibility evidence — 2026-09-05
@@ -136,8 +137,8 @@ stable turn without rerunning Nora or adding a duplicate message. Existing failu
 in-progress, uncertain, conflicting, expired and unavailable turn states.
 
 This evidence uses no live model, provider, personal memory or external action. It closes the
-controlled-fixture portion of Core chat and routing, but it does not replace the pending approved
-staging smoke test or physical-device acceptance.
+controlled-fixture portion of Core chat and routing, but it does not replace the pending provider-
+backed staging smoke test or physical-device acceptance.
 
 ## Controlled memory UI journey — 2026-09-06
 
@@ -153,9 +154,10 @@ Backend and frontend regression tests prove authentication, query and result lim
 separate Li/owner read authorities, absence of a memory mutation route, safe text rendering and the
 visible outcome contract. The full migration history through schema 0.40 passes on the exact pinned
 disposable Supabase PostgreSQL image, including owner allow, backend deny, function ownership, direct
-table denial and replay rejection. This is local implementation evidence only. Migration 040 is not
-yet applied to staging, and deployed staging, physical-device and authorized live data-integrity
-journeys remain open.
+table denial and replay rejection. Migration 040 and the matching backend/web release were later
+deployed and the signed-in read-only owner journey passed; see the
+[release record](releases/2026-09-06-2746421-staging.md). Physical-device, correction/forgetting and
+other authorized live data-integrity journeys remain open.
 
 ## Earlier baseline — 2026-09-04
 
