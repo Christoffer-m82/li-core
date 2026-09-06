@@ -1,4 +1,9 @@
 from pathlib import Path
+import json
+import shutil
+import subprocess
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +17,115 @@ def _tool_text() -> str:
 
 def _create_tool_text() -> str:
     return CREATE_TOOL.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("diagnostic", "expected"),
+    [
+        ('FATAL: password authentication failed for user "synthetic-private"', "AUTHENTICATION"),
+        ('error: aborting because of server version mismatch', "VERSION_MISMATCH"),
+        ('ERROR: permission denied for table synthetic_private', "PERMISSION"),
+        ('connection to server at "synthetic-private" failed: Connection refused', "CONNECTION"),
+        ('connection to server failed: timeout expired', "CONNECTION"),
+        ('could not translate host name "synthetic-private" to address', "CONNECTION"),
+        ('SSL error: certificate verify failed synthetic-private', "TLS"),
+        ('ERROR: query failed: synthetic-private unrecognized error', "UNKNOWN"),
+        ('', "UNKNOWN"),
+    ],
+)
+def test_dump_diagnostic_returns_only_fixed_categories(diagnostic: str, expected: str) -> None:
+    pwsh = shutil.which("pwsh")
+    if not pwsh:
+        pytest.skip("PowerShell 7 is required for executable backup-tool tests")
+    # Extract only the pure function: never execute backup code or secret prompts.
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    'memory/backup-tools/create-encrypted-backup.ps1', [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'PowerShell parse failed' }
+$fn = $ast.Find({param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Get-SafePgDumpFailure'
+}, $true)
+if ($null -eq $fn) { throw 'Missing safe diagnostic function' }
+. ([scriptblock]::Create($fn.Extent.Text))
+$inputText = [Console]::In.ReadToEnd() | ConvertFrom-Json
+Get-SafePgDumpFailure -Diagnostic $inputText
+"""
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-NonInteractive", "-Command", command],
+        cwd=ROOT, input=json.dumps(diagnostic), text=True, capture_output=True,
+        timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == expected
+    assert result.stderr == ""
+
+
+def test_dump_failure_stays_closed_and_does_not_render_raw_diagnostic() -> None:
+    text = _create_tool_text()
+    assert 'Get-SafePgDumpFailure -Diagnostic $dumpDiagnostic' in text
+    assert 'Category: $failureCategory. Raw output remains suppressed.' in text
+    assert 'throw $dumpDiagnostic' not in text
+    assert 'Write-Host $dumpDiagnostic' not in text
+
+
+def test_pre041_gate_uses_same_password_before_encryption_prompts() -> None:
+    text = _create_tool_text()
+    assert text.count('Read-Host "Enter the source database password"') == 1
+    assert "$preflightInfo.Environment['PGPASSWORD'] = $databasePassword" in text
+    assert '$dumpInfo.Environment["PGPASSWORD"] = $databasePassword' in text
+    assert "BEGIN READ ONLY;" in text
+    assert "string_to_array(version, '.')::integer[] > ARRAY[0,40]" in text
+    assert "user_key='christoffer' AND status='active'" in text
+    assert "to_regprocedure('li_api.mark_chat_turn_effect_started(uuid,text,uuid)') IS NULL" in text
+    gate = text.index("$preflightOutput.Trim() -cne 'PRE041_READY'")
+    assert gate < text.index('Read-Host "Create a new backup encryption passphrase"')
+    assert gate < text.index('$dump.Start()')
+
+
+def test_preflight_start_failure_stops_before_encryption_or_export(tmp_path: Path) -> None:
+    pwsh = shutil.which("pwsh")
+    if not pwsh:
+        pytest.skip("PowerShell 7 is required for executable backup-tool tests")
+    # A nonexistent synthetic client prevents any database connection. No real
+    # secrets are used, even in the masked-prompt substitute.
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$settings = [Console]::In.ReadToEnd() | ConvertFrom-Json
+$global:backupTestPromptCount = 0
+function Read-Host {
+    param($Prompt, [switch]$AsSecureString)
+    $global:backupTestPromptCount++
+    if ($Prompt -ne 'Enter the source database password') { throw 'Unexpected prompt' }
+    return ConvertTo-SecureString 'synthetic-test-only' -AsPlainText -Force
+}
+function Get-Command {
+    param($Name, $ErrorAction)
+    return [pscustomobject]@{ Source = (Join-Path $settings.directory 'missing-client.exe') }
+}
+try {
+    & ./memory/backup-tools/create-encrypted-backup.ps1 -HostName invalid.example -Port 5432 `
+        -DatabaseName synthetic -UserName synthetic -OutputPath $settings.output -RequirePre041
+    throw 'Unexpected completion'
+} catch {
+    if ($_.Exception.Message -notlike '*start process*') { throw }
+}
+if ($global:backupTestPromptCount -ne 1) { throw 'Expected exactly one private prompt' }
+if (Test-Path -LiteralPath $settings.output) { throw 'Unexpected output file' }
+if (Test-Path -LiteralPath ($settings.output + '.partial')) { throw 'Unexpected partial file' }
+Write-Output 'SAFE_STOP'
+"""
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-NonInteractive", "-Command", command],
+        cwd=ROOT,
+        input=json.dumps({"directory": str(tmp_path), "output": str(tmp_path / "test.pgdump.liosenc")}),
+        text=True, capture_output=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "SAFE_STOP"
+    assert result.stderr == ""
 
 
 def test_create_tool_never_accepts_secrets_as_parameters_or_overwrites_output() -> None:
