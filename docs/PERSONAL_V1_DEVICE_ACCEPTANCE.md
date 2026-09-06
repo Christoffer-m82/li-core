@@ -90,9 +90,9 @@ The [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-dri
 restored the encrypted pre-migration backup, then advanced the disposable copy from schema 0.36 to
 0.39 while preserving canonical counts and authority boundaries. No plaintext dump was written.
 An independently encrypted replacement then passed authentication, catalogue validation, a full
-schema-0.39 restore, and the same authority checks. Recurring cadence and deletion of the superseded
-copy remain operational work; this local result does not prove a production recovery or
-physical-device behavior.
+schema-0.39 restore, and the same authority checks. The superseded copy was subsequently deleted
+with owner authorization while the replacement was preserved. Recurring cadence remains operational
+work; this local result does not prove a production recovery or physical-device behavior.
 
 Stable-use acceptance requires an owner-observed period of ordinary use. Record the agreed start and
 end dates, devices used, completed journeys, errors, uncertain outcomes, unexpected duplicates,
