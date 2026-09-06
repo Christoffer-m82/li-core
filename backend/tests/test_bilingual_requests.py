@@ -67,8 +67,21 @@ def test_natural_requests_have_same_routing(en, sv, expected):
     assert route_specialists(sv).specialists == expected
 
 
+def test_prefixed_explicit_request_routes_same_specialist_in_both_languages():
+    en = route_specialists(
+        "Acceptance test only; do not remember this. Ask Nora to compare the labels."
+    )
+    sv = route_specialists(
+        "Endast acceptanstest; kom inte ihåg detta. Be Nora jämföra etiketterna."
+    )
+
+    assert en.model_dump() == sv.model_dump()
+    assert sv.specialists == ["nora"]
+
+
 @pytest.mark.parametrize("message", [
     "Nora", "Noras bok är blå.", "Can I be Nora in this story?",
+    "Översätt detta: Be Nora jämföra alternativen.",
     "Matematik är roligt.", "Jag är lagom trött.", "Skattjakt är kul.",
     "I live far away.",
 ])
