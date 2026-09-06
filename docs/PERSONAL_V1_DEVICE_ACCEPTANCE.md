@@ -6,7 +6,8 @@ Use this checklist to record the remaining owner-observed evidence for the insta
 the owner's Android phone, Android tablet, and Windows laptop. It supplements the
 [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) and does not replace the
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
-[2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md).
+[2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
+is the later [schema-0.40 staging release](releases/2026-09-06-2746421-staging.md).
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -92,7 +93,10 @@ restored the encrypted pre-migration backup, then advanced the disposable copy f
 An independently encrypted replacement then passed authentication, catalogue validation, a full
 schema-0.39 restore, and the same authority checks. The superseded copy was subsequently deleted
 with owner authorization while the replacement was preserved. Recurring cadence remains operational
-work; this local result does not prove a production recovery or physical-device behavior.
+work; this local result does not prove a production recovery or physical-device behavior. Migration
+040 was subsequently applied and validated in staging, and the matching application release passed
+its read-only owner journey. The schema-0.39 restore evidence remains correctly labelled as the
+pre-migration recovery point rather than being rewritten as a schema-0.40 restore.
 
 Stable-use acceptance requires an owner-observed period of ordinary use. Record the agreed start and
 end dates, devices used, completed journeys, errors, uncertain outcomes, unexpected duplicates,
@@ -103,10 +107,11 @@ normal-use evidence.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | `release-c3f2d51` |
-| Backend revision | `li-os-release-c3f2d51` |
-| Web revision | `li-os-web-release-c3f2d51` |
-| Database schema | `0.39` |
+| Deployed release | `release-2746421` |
+| Backend revision | `li-os-release-2746421` |
+| Web revision | `li-os-web-release-2746421` |
+| Database schema | `0.40` |
+| Staging rollout | PASS — read-only smoke evidence recorded on 2026-09-06; this is not device acceptance |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
