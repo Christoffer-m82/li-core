@@ -283,6 +283,41 @@ def test_current_message_recipient_scope_blocks_a_different_specialist(monkeypat
     assert outcome.decision_trace["route_category"] == "li_only_disclosure_scope"
 
 
+@pytest.mark.parametrize("message,workspace", [
+    ("Ask Nora to compare these options.", "nora"),
+    ("Be Nora jämföra de här alternativen.", "nora"),
+    ("Hello", None),
+    ("Hej", None),
+])
+def test_untyped_legacy_history_is_private_even_in_selected_workspace(
+    monkeypatch, message, workspace,
+):
+    from app.specialist_runtime import SpecialistConsultation, SpecialistResult
+
+    packets = []
+    monkeypatch.setattr("app.li_runtime._retrieve_relevant_memories", lambda *a, **k: [])
+
+    def consult(names, request):
+        packets.append(request)
+        return SpecialistConsultation(results={"nora": SpecialistResult(
+            recommendation="Compare reversibility.", confidence=0.8, sources_needed=False,
+        )})
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", lambda **kwargs: json.dumps({
+        "final_response": "Synthetic private recalled answer.",
+        "used_specialist_keys": ["nora"] if workspace else [], "action_intents": [],
+    }))
+    outcome = talk_to_li_with_outcome(
+        message, workspace_specialist=workspace,
+        conversation_context="user: Synthetic private old conversation.",
+    )
+    assert all(packet.conversation_context is None for packet in packets)
+    assert bool(packets) == bool(workspace)
+    assert outcome.response_private_to_li is True
+    assert outcome.response_allowed_specialists == []
+
+
 def test_rejected_specialist_attribution_cannot_propose_an_action(monkeypatch) -> None:
     """R1: a rejected synthesis is not an authority-bearing partial success."""
     from app.specialist_runtime import SpecialistConsultation, SpecialistResult

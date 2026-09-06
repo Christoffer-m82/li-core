@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.auth import require_api_token
 from app.main import app
-from app.memory_capture import MemoryCaptureAnalysis
+from app.memory_capture import MemoryCandidate, MemoryCaptureAnalysis
 from app.runtime_data import RuntimeDataError
 from app.specialist_runtime import SpecialistConsultation, SpecialistResult
 
@@ -160,3 +160,68 @@ def test_bilingual_specialist_chat_persists_reloads_and_replays_once(
     assert fixture["consultations"] == [["nora"]]
     assert fixture["syntheses"] == 1
     assert len(fixture["messages"]) == 2
+
+
+@pytest.mark.parametrize("message", [
+    "Ask Nora to compare these options from our previous conversation.",
+    "Be Nora jämföra de här alternativen från vårt tidigare samtal.",
+])
+@pytest.mark.parametrize("existing_history", [False, True])
+def test_historical_recall_stays_private_in_workspace_and_derived_outputs(
+    monkeypatch, message, existing_history,
+):
+    fixture = _install_controlled_chat_fixture(monkeypatch)
+    if existing_history:
+        fixture["messages"].append({
+            "role": "user", "content": "Compare reversible options.",
+            "privacy_metadata": {"private_to_li": False, "allowed_specialists": ["nora"]},
+        })
+    private_history = "Synthetic private notebook preference: amber covers."
+    packets, captures = [], []
+    monkeypatch.setattr("app.main.search_conversation_history", lambda *args: [{
+        "created_at": "2026-09-01T09:00:00Z", "conversation_id": str(uuid4()),
+        "role": "user", "snippet": private_history,
+    }])
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs:
+                        MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+                            action="store_explicit", memory_class="explicit_preference",
+                            domain="preferences", value="Synthetic preference", sensitivity="low",
+                        )]))
+    monkeypatch.setattr("app.main.apply_memory_capture",
+                        lambda *args, **kwargs: captures.append(kwargs) or [])
+
+    def consult(names, request):
+        packets.append(request)
+        return SpecialistConsultation(results={"nora": SpecialistResult(
+            recommendation="Compare reversibility.", confidence=0.8, sources_needed=False,
+        )})
+
+    def synthesize(**kwargs):
+        assert private_history in str(kwargs["system"])
+        return json.dumps({"final_response": private_history,
+                           "used_specialist_keys": ["nora"], "action_intents": []})
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", synthesize)
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        with TestClient(app) as client:
+            response = client.post("/li/chat", json={
+                "message": message, "turn_id": str(uuid4()), "workspace_specialist": "nora",
+            })
+            metadata = fixture["messages"][-1]["privacy_metadata"]
+            # A later Workspace turn must not launder Li's private recalled answer.
+            followup = client.post("/li/chat", json={
+                "message": "Ask Nora to compare these options.", "turn_id": str(uuid4()),
+                "conversation_id": str(fixture["conversation_id"]),
+                "workspace_specialist": "nora",
+            })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert followup.status_code == 200
+    assert len(packets) == 2
+    assert all(private_history not in packet.model_dump_json() for packet in packets)
+    assert metadata["private_to_li"] is True
+    assert metadata["allowed_specialists"] == []
+    assert captures and captures[0]["source_private_to_li"] is True
