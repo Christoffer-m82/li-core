@@ -49,7 +49,7 @@ before the final release sign-off can include it.
 
 | Area | Acceptance checks | Evidence still required |
 | --- | --- | --- |
-| Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey now covers bilingual Nora routing, completion, persisted history reload and idempotent replay; an approved live staging smoke test remains pending |
+| Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey covers bilingual Nora routing, completion, persisted history reload and idempotent replay. A bounded live check found that a prefixed English request routed to Nora while its Swedish `Be Nora` equivalent did not; the repository correction is locally verified but not deployed |
 | Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Schema 0.41 and the matching privacy/recovery application corrections are deployed after a fresh encrypted backup, full restore and rehearsal. The signed-in read-only paths passed without changing data. Provider-backed bilingual privacy, correction/forgetting, uncertain-effect reconciliation, and physical-device journeys remain open |
 | Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | A synthetic HTTP-boundary lifecycle now covers the complete journey, owner-scoped not-found behavior, a recoverable storage outage and deletion; operator-verified scheduled expiry remains pending |
 | Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance and phone specialist entry implemented; agenda, owner-selected priorities and consolidated attention remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
@@ -303,6 +303,29 @@ phone/tablet, microphone, provider-backed response, owner acceptance, or stabili
 Those rows remain `NOT RUN` in the
 [device and owner checklist](PERSONAL_V1_DEVICE_ACCEPTANCE.md), which now targets the recorded
 [schema-0.41 release](releases/2026-09-06-8831381-staging.md).
+
+## Live bilingual specialist-routing finding — 2026-09-06
+
+After the owner confirmed an existing Anthropic API credit balance and disabled auto-reload, a
+bounded signed-in staging check used one synthetic, non-personal comparison in English and its
+Swedish equivalent. The English request invoked Nora and recorded her recommendation. The Swedish
+request returned a Swedish Li response but created no Nora recommendation. No file, external action,
+memory correction, forgetting request, personal fact, or existing personal-record inspection was
+part of the check.
+
+The deployed router recognized Swedish `Be <specialist> ...` only at the start of the entire
+message or after a narrow modal phrase. A harmless sentence before the instruction therefore changed
+the Swedish outcome, while English `Ask <specialist> ...` remained explicit anywhere in the request.
+The repository correction accepts `Be` at a later sentence or clause boundary and preserves the
+existing quoted-example, name-only, opt-out, disclosure, and maximum-specialist guards. A paired
+regression failed against the prior logic and passes with the correction. The full backend suite
+passes 1,081 tests and Ruff passes; the upstream Starlette/AnyIO warning remains visible.
+
+This is a live staging failure plus a locally verified repository correction. It is not a deployed
+fix. The corrected backend requires an authorized reviewed rollout, followed by the same bounded
+Swedish check and activity-record verification before bilingual live routing can pass. The two
+synthetic chat turns remain ordinary staging history; no destructive cleanup or personal-data
+operation was performed.
 
 ## Earlier baseline — 2026-09-04
 

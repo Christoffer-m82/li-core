@@ -262,7 +262,8 @@ def _named_specialists(message: str) -> list[str]:
     swedish_request = any(
         re.search(
             rf"(?:\b(?:fråga|rådfråga|konsultera|anlita|koppla in|ta in|använd|låt)|"
-            rf"^\s*(?:snälla\s+)?be|\b(?:kan|kunde|skulle)\s+du\s+(?:snälla\s+)?be)\s+"
+            rf"(?:^|[.!?;]\s*)(?:snälla\s+)?be|"
+            rf"\b(?:kan|kunde|skulle)\s+du\s+(?:snälla\s+)?be)\s+"
             rf"(?:gärna\s+)?{re.escape(SPECIALIST_CONTRACTS[key].name)}\b", message, re.I,
         )
         for key in named
