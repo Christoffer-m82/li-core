@@ -53,11 +53,13 @@ opens the full-resolution asset in a new tab for browser zoom. See the
 [portrait viewer](SPECIALIST_VIEW.md#portrait-viewer) for interaction and accessibility details.
 
 History includes an authenticated, read-only search of Li's current canonical memory. Search input
-is bounded and sent only to the existing Li recall boundary; the browser displays no memory or
-proposal identifiers and provides no direct memory mutation route. Corrections and forgetting stay
-explicit chat requests, where the UI reports the backend's actual stored, proposed, corrected,
-forgotten or uncertain outcome. Theo's proposal queue and owner confirmation authority are not
-forwarded through the browser BFF.
+is bounded and sent only to the existing Li recall boundary. The same view lists outstanding memory
+suggestions through a separate owner-only, read-only function. The browser displays no memory or
+proposal identifiers and provides no direct memory mutation route. It receives neither source
+references nor raw proposal metadata, and Theo's credential is never forwarded. Corrections and
+forgetting stay explicit chat requests, where the UI reports the backend's actual stored, proposed,
+corrected, forgotten or uncertain outcome. The BFF uses its server-side owner workload credential
+only for proposal inspection; that credential never reaches browser code or responses.
 
 Portraits currently retain the original 1254 × 1254 PNGs (about 32 MB for all 15 selected portraits).
 Images load lazily and their exact public static paths are cached on demand, not precached during

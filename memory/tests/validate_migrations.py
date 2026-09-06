@@ -55,6 +55,7 @@ MIGRATION_ORDER = tuple(
             (37, "conversation_context_privacy"),
             (38, "recoverable_turns_and_actions"),
             (39, "phase_2_truth_and_turn_recovery"),
+            (40, "owner_memory_proposal_inspection"),
         )
     ]
 )
@@ -64,7 +65,7 @@ INTENTIONALLY_SKIPPED = {"021_private_conversation_deletion.sql"}
 # migration's own GRANT/REVOKE pair has one grantor and its removal assertions
 # test the real final authority state.
 PRIVILEGED_ROLE_MIGRATIONS = set(MIGRATION_ORDER[7:])
-EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 40)}
+EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 41)}
 
 
 def psql(
@@ -188,6 +189,15 @@ def validate_result() -> None:
         "private-source correction boundary is installed": (
             "SELECT to_regprocedure('li_api.correct_explicit_memory(uuid,text,text,text,text,boolean)') "
             "IS NOT NULL;"
+        ),
+        "owner proposal inspection boundary is installed": (
+            "SELECT to_regprocedure('li_api.list_owner_memory_proposals(integer)') IS NOT NULL "
+            "AND has_function_privilege('li_memory_owner_confirmation', "
+            "'li_api.list_owner_memory_proposals(integer)', 'EXECUTE') "
+            "AND NOT has_function_privilege('li_memory_api', "
+            "'li_api.list_owner_memory_proposals(integer)', 'EXECUTE') "
+            "AND NOT has_function_privilege('li_memory_theo', "
+            "'li_api.list_owner_memory_proposals(integer)', 'EXECUTE');"
         ),
         "chat turns record progress and external-effect uncertainty": (
             "SELECT count(*)=3 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid "
@@ -417,6 +427,24 @@ def validate_result() -> None:
         "SELECT id,'synthetic-test','inference','testing','synthetic','inferred','pending' "
         "FROM li_memory.users WHERE user_key='christoffer' RETURNING id;"
     ).splitlines()[0]
+    owner_proposal_view = psql(
+        "--tuples-only", "--no-align", "--field-separator", "|", "--command",
+        "SET SESSION AUTHORIZATION li_owner_runtime; "
+        "SELECT proposed_value_text,proposal_status,owner_confirmation_required "
+        "FROM li_api.list_owner_memory_proposals(20) "
+        "WHERE proposed_value_text='synthetic';",
+        capture=True, user="supabase_admin",
+    ).stdout.strip().splitlines()[-1]
+    if owner_proposal_view != "synthetic|pending|f":
+        raise RuntimeError("Owner could not inspect the pending memory proposal")
+    normal_proposal_view = psql(
+        "--command",
+        "SET SESSION AUTHORIZATION li_backend_runtime; "
+        "SELECT * FROM li_api.list_owner_memory_proposals(20);",
+        capture=True, check=False, user="supabase_admin",
+    )
+    if normal_proposal_view.returncode == 0:
+        raise RuntimeError("Normal backend authority could inspect owner memory proposals")
     promoted_inference = psql(
         "--command",
         "SET SESSION AUTHORIZATION li_theo_runtime; "
@@ -516,11 +544,11 @@ def validate_result() -> None:
     )
     if (
         replay.returncode == 0
-        or "schema version 0.39 is already claimed" not in replay.stderr.lower()
+        or "schema version 0.40 is already claimed" not in replay.stderr.lower()
     ):
         raise RuntimeError("Latest migration did not fail closed on replay")
 
-    if scalar("SELECT count(*) FROM li_memory.schema_versions;") != "39":
+    if scalar("SELECT count(*) FROM li_memory.schema_versions;") != "40":
         raise RuntimeError("Replay attempt changed schema-version history")
 
 

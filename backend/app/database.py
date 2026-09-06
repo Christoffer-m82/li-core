@@ -618,6 +618,69 @@ def get_pending_memory_proposals(
     ]
 
 
+def get_owner_memory_proposals(
+    *,
+    limit: int = 20,
+) -> list[dict[str, object]]:
+    """List outstanding proposals through the owner's read-only boundary."""
+
+    try:
+        with _owner_connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        proposed_by_agent,
+                        proposed_class,
+                        proposed_domain,
+                        proposed_value_text,
+                        proposed_truth_status,
+                        proposed_temporal_status,
+                        proposed_sensitivity,
+                        proposal_status,
+                        reason,
+                        review_note,
+                        owner_confirmation_required,
+                        created_at,
+                        reviewed_at
+                    FROM li_api.list_owner_memory_proposals(%s);
+                    """,
+                    (limit,),
+                )
+                rows = cursor.fetchall()
+    except psycopg.Error as exc:
+        raise OwnerConfirmationError(
+            "Li OS could not retrieve owner memory proposals."
+        ) from exc
+
+    return [
+        {
+            "proposed_by_agent": str(row["proposed_by_agent"]),
+            "proposed_class": str(row["proposed_class"]),
+            "proposed_domain": str(row["proposed_domain"]),
+            "proposed_value_text": str(row["proposed_value_text"]),
+            "proposed_truth_status": (
+                str(row["proposed_truth_status"])
+                if row["proposed_truth_status"] is not None
+                else None
+            ),
+            "proposed_temporal_status": (
+                str(row["proposed_temporal_status"])
+                if row["proposed_temporal_status"] is not None
+                else None
+            ),
+            "proposed_sensitivity": str(row["proposed_sensitivity"]),
+            "proposal_status": str(row["proposal_status"]),
+            "reason": row["reason"],
+            "review_note": row["review_note"],
+            "owner_confirmation_required": bool(row["owner_confirmation_required"]),
+            "created_at": row["created_at"],
+            "reviewed_at": row["reviewed_at"],
+        }
+        for row in rows
+    ]
+
+
 def review_memory_proposal(
     *,
     proposal_id: str,

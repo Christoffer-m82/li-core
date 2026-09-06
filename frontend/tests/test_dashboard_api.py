@@ -346,12 +346,42 @@ def test_memory_search_requires_authentication():
     assert TestClient(app).get("/api/memory", params={"q": "notebook"}).status_code == 401
 
 
+def test_memory_proposals_are_owner_scoped_read_only_and_bounded(monkeypatch):
+    observed = []
+
+    async def backend(*args, **kwargs):
+        observed.append((args[1], args[2], kwargs.get("authority", "li")))
+        return httpx.Response(200, json=[])
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    client = signed_in_client()
+    response = client.get("/api/memory/proposals", params={"limit": 20})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert observed == [("GET", "/owner/memory/proposals?limit=20", "owner")]
+    assert client.get("/api/memory/proposals", params={"limit": 51}).status_code == 422
+    assert len(observed) == 1
+
+
+def test_memory_proposals_require_authentication():
+    assert TestClient(app).get("/api/memory/proposals").status_code == 401
+
+
 def test_memory_ui_is_read_only_renders_text_safely_and_shows_chat_outcomes():
     root = Path(__file__).parents[1]
     html = (root / "static" / "index.html").read_text(encoding="utf-8")
     javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
-    history = html.split('data-view-panel="history"', 1)[1].split("</section>", 1)[0]
-    for element_id in ("memory-search-form", "memory-search", "memory-search-status", "memory-results"):
+    history = html.split('data-view-panel="history"', 1)[1].split(
+        '<section class="view" data-view-panel="specialist"', 1
+    )[0]
+    for element_id in (
+        "memory-search-form",
+        "memory-search",
+        "memory-search-status",
+        "memory-results",
+        "memory-proposal-status",
+        "memory-proposal-list",
+    ):
         assert f'id="{element_id}"' in history
     assert "Search the current memory" in history
     assert "tell Li exactly what should change in chat" in history
@@ -362,6 +392,10 @@ def test_memory_ui_is_read_only_renders_text_safely_and_shows_chat_outcomes():
     assert "data.memory_capture || []" in javascript
     assert "clearMemoryView();" in javascript
     assert "request !== state.memoryRequest" in javascript
+    assert "fetch('/api/memory/proposals?limit=20')" in javascript
+    assert "proposal.proposed_value_text" in javascript
+    assert "proposal.proposal_id" not in javascript
+    assert "request !== state.memoryProposalRequest" in javascript
     assert "/api/memory', { method: 'POST'" not in javascript
 
 

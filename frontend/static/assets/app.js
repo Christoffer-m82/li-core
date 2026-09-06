@@ -20,7 +20,7 @@ function clearRetry(key) { try { retryStorage?.removeItem(key); } catch { /* Exp
 function savePreference(key, value) {
   try { preferenceStorage.setItem(key, value); } catch { /* Controls still work for this visit. */ }
 }
-const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], capabilities: [], temporaryUploadContext: null, pendingTurn: null, theme: preferenceStorage.getItem('li-theme') || 'dark', voiceOutput: preferenceStorage.getItem('li-voice-output') === 'on', voiceSession: 0, voiceSendTimer: null, displayName: '', currentSpecialist: null, installPrompt: null, memoryRequest: 0 };
+const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], capabilities: [], temporaryUploadContext: null, pendingTurn: null, theme: preferenceStorage.getItem('li-theme') || 'dark', voiceOutput: preferenceStorage.getItem('li-voice-output') === 'on', voiceSession: 0, voiceSendTimer: null, displayName: '', currentSpecialist: null, installPrompt: null, memoryRequest: 0, memoryProposalRequest: 0 };
 const $ = (selector) => document.querySelector(selector);
 const COUNTRY_CODES = `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW`.split(' ');
 const countryNames = new Intl.DisplayNames([navigator.language || 'en'], {type: 'region'});
@@ -71,7 +71,7 @@ function setView(view) {
   if (view === 'inbox') loadProactiveBriefs();
   if (view === 'agents') loadAgentAnalytics();
   if (view === 'backend') { loadCapabilities(); loadFreshnessPolicies(); loadProviderCoverage(); loadGovernedWorkStatus(); }
-  if (view === 'history') loadConversations();
+  if (view === 'history') { loadConversations(); loadMemoryProposals(); }
   if (view === 'settings') { loadPrivacy(); loadPlace(); profilePhoto.load(); }
 }
 
@@ -429,9 +429,12 @@ function renderMemoryResults(memories) {
 }
 function clearMemoryView() {
   state.memoryRequest += 1;
+  state.memoryProposalRequest += 1;
   $('#memory-search').value = '';
   $('#memory-results').replaceChildren();
+  $('#memory-proposal-list').replaceChildren();
   $('#memory-search-status').textContent = 'Enter a topic to inspect Li’s current memory.';
+  $('#memory-proposal-status').textContent = 'Outstanding suggestions will appear when History opens.';
 }
 async function searchMemory(event) {
   event.preventDefault();
@@ -448,6 +451,40 @@ async function searchMemory(event) {
   } catch {
     if (request !== state.memoryRequest) return;
     $('#memory-search-status').textContent = 'Li’s memory is unavailable right now. No result should be treated as deleted.';
+  }
+}
+function renderMemoryProposals(proposals) {
+  const host = $('#memory-proposal-list'); host.replaceChildren();
+  if (!proposals.length) {
+    $('#memory-proposal-status').textContent = 'No memory suggestions are waiting for review.'; return;
+  }
+  $('#memory-proposal-status').textContent = `${proposals.length} outstanding ${proposals.length === 1 ? 'suggestion' : 'suggestions'}.`;
+  proposals.forEach((proposal) => {
+    const card = document.createElement('article'); card.className = 'memory-result memory-proposal';
+    const heading = document.createElement('h3');
+    heading.textContent = `${String(proposal.proposed_domain || 'General').replaceAll('_', ' ')} · ${String(proposal.proposed_class || 'memory').replaceAll('_', ' ')}`;
+    const value = document.createElement('p'); value.textContent = proposal.proposed_value_text || 'No readable proposed value is available.';
+    const meta = document.createElement('small'); meta.className = 'memory-meta';
+    const status = proposal.owner_confirmation_required ? 'Needs your confirmation' : 'Awaiting Theo review';
+    meta.textContent = `${status} · proposed by ${proposal.proposed_by_agent || 'Li'} · ${String(proposal.proposed_sensitivity || 'personal').replaceAll('_', ' ')}`;
+    card.append(heading, value, meta);
+    if (proposal.reason) { const reason = document.createElement('small'); reason.className = 'memory-proposal-reason'; reason.textContent = `Why: ${proposal.reason}`; card.appendChild(reason); }
+    if (proposal.review_note) { const note = document.createElement('small'); note.className = 'memory-proposal-reason'; note.textContent = `Review note: ${proposal.review_note}`; card.appendChild(note); }
+    host.appendChild(card);
+  });
+}
+async function loadMemoryProposals() {
+  const request = ++state.memoryProposalRequest;
+  $('#memory-proposal-status').textContent = 'Loading outstanding suggestions…';
+  $('#memory-proposal-list').replaceChildren();
+  try {
+    const response = await fetch('/api/memory/proposals?limit=20'); if (!response.ok) throw new Error();
+    const proposals = await response.json(); if (!Array.isArray(proposals)) throw new Error();
+    if (request !== state.memoryProposalRequest) return;
+    renderMemoryProposals(proposals);
+  } catch {
+    if (request !== state.memoryProposalRequest) return;
+    $('#memory-proposal-status').textContent = 'Memory suggestions are unavailable right now. Nothing should be treated as approved or rejected.';
   }
 }
 async function loadArtifacts() { const list = $('#artifact-list'); list.replaceChildren(); try { const response = await fetch('/api/artifacts'); if (!response.ok) throw new Error(); const data = await response.json(); if (!data.artifacts.length) { list.textContent = 'No saved files yet.'; return; } data.artifacts.forEach((artifact) => { const row = document.createElement('div'); row.className = 'artifact-row'; row.appendChild(attachmentChip({ ...artifact, filename: artifact.safe_filename, url: `/api/artifacts/${artifact.artifact_id}` })); const status = document.createElement('small'); status.className = 'muted'; status.textContent = artifact.retention_state === 'kept' ? 'Kept permanently' : `Expires ${new Date(artifact.expires_at).toLocaleString()}`; row.appendChild(status); list.appendChild(row); }); } catch { list.textContent = 'Private files are unavailable.'; } }

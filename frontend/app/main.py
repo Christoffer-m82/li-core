@@ -553,6 +553,21 @@ async def memory_recall(
     return response
 
 
+@app.get("/api/memory/proposals")
+async def memory_proposals(
+    limit: int = Query(default=20, ge=1, le=50),
+    _: str = Depends(require_user),
+) -> Response:
+    """Expose only the owner's read-only proposal inspection boundary."""
+    response = await proxy(
+        "GET",
+        f"/owner/memory/proposals?{urlencode({'limit': limit})}",
+        authority="owner",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/api/agents/analytics")
 async def agents_analytics(period: str = "30d", _: str = Depends(require_user)) -> Response:
     return await proxy("GET", f"/agents/analytics?period={period}")

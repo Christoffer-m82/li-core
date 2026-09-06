@@ -88,6 +88,22 @@ class PendingMemoryProposal(BaseModel):
     created_at: datetime
 
 
+class OwnerMemoryProposal(BaseModel):
+    proposed_by_agent: str
+    proposed_class: str
+    proposed_domain: str
+    proposed_value_text: str
+    proposed_truth_status: str | None
+    proposed_temporal_status: str | None
+    proposed_sensitivity: str
+    proposal_status: Literal["pending", "needs_user_confirmation"]
+    reason: str | None
+    review_note: str | None
+    owner_confirmation_required: bool
+    created_at: datetime
+    reviewed_at: datetime | None
+
+
 class MemoryProposalReview(BaseModel):
     decision: Literal[
         "approve",
