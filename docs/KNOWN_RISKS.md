@@ -109,20 +109,19 @@ where applicable, Heimdall review.
   against a non-destructive provider fixture and record reconciliation behavior for the deployed
   release.
 
-## KR-010: The current pre-migration backup needs replacement
+## KR-010: The superseded pre-migration backup needs deletion
 
 - **Evidence:** During the [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md),
   the passphrase protecting the existing pre-037 encrypted backup was exposed outside the repository.
   The passphrase and backup are not tracked in Git.
-- **Impact:** Anyone who obtains both that encrypted file and the exposed passphrase could decrypt the
-  backup. Successful restoration proves recoverability but does not restore confidentiality to that
-  copy.
-- **Current control:** The encrypted backup remains local and untracked, its passphrase is not recorded
-  in repository evidence, and it must not be reused for another purpose. The original must remain only
-  until an independently encrypted replacement has been created and authenticated.
-- **Next review:** Create a fresh encrypted backup with a new private passphrase entered only at a
-  masked local prompt, validate its hash and archive, then delete the old encrypted copy through an
-  explicitly authorized, recorded cleanup step.
+- **Impact:** Anyone who obtains both that superseded encrypted file and the exposed passphrase could
+  decrypt it. Successful restoration does not restore confidentiality to that copy.
+- **Current control:** A new independently encrypted backup passed authentication, catalogue
+  validation, a full isolated schema-0.39 restore, and authority-boundary checks in the
+  [2026-09-06 drill](releases/2026-09-06-isolated-restore-drill.md). Both files remain local and
+  untracked; the old copy is no longer a required fallback.
+- **Next review:** Delete the superseded pre-037 encrypted file with the approved local operator
+  command and record that it is no longer present. Never reuse its exposed passphrase.
 
 ## Review cadence
 

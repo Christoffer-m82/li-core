@@ -3,10 +3,36 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 RESTORE_TOOL = ROOT / "memory" / "backup-tools" / "restore-encrypted-backup.ps1"
+CREATE_TOOL = ROOT / "memory" / "backup-tools" / "create-encrypted-backup.ps1"
 
 
 def _tool_text() -> str:
     return RESTORE_TOOL.read_text(encoding="utf-8")
+
+
+def _create_tool_text() -> str:
+    return CREATE_TOOL.read_text(encoding="utf-8")
+
+
+def test_create_tool_never_accepts_secrets_as_parameters_or_overwrites_output() -> None:
+    text = _create_tool_text()
+
+    assert "Read-Host \"Enter the source database password\" -AsSecureString" in text
+    assert "Read-Host \"Create a new backup encryption passphrase\" -AsSecureString" in text
+    assert "DatabasePassword" not in text
+    assert "BackupPassword" not in text
+    assert "Refusing to overwrite an existing encrypted backup" in text
+    assert "Move-Item -LiteralPath $partialPath -Destination $resolvedOutput" in text
+
+
+def test_create_tool_authenticates_all_frames_when_pg_restore_closes_early() -> None:
+    text = _create_tool_text()
+
+    assert "catch [System.IO.IOException]" in text
+    assert "$restoreInputOpen = $false" in text
+    assert "Unexpected bytes follow the authenticated backup terminator." in text
+    assert "Encrypted archive validation failed" in text
+    assert "The backup archive contains no restorable catalogue entries." in text
 
 
 def test_restore_tool_requires_explicit_isolated_target_and_schema_version() -> None:

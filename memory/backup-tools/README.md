@@ -1,4 +1,43 @@
-# Encrypted backup restore drill
+# Encrypted backup creation and restore drills
+
+## Create an encrypted backup
+
+[`create-encrypted-backup.ps1`](create-encrypted-backup.ps1) streams a PostgreSQL custom archive
+from `pg_dump` directly into a framed `LIOSBKP1` AES-256-GCM file. It then authenticates every
+encrypted frame and validates the archive catalogue with `pg_restore --list` before promoting the
+`.partial` file to the requested final path. No plaintext dump is written.
+
+The tool refuses to overwrite an existing backup or partial output. Database and encryption
+passphrases are entered at masked prompts and are never accepted as command-line parameters. Use a
+new, unique encryption passphrase for every replacement backup and keep it outside the repository.
+
+```powershell
+pwsh -NoProfile -File .\memory\backup-tools\create-encrypted-backup.ps1 `
+  -HostName '<source-database-host>' `
+  -Port 5432 `
+  -DatabaseName '<source-database-name>' `
+  -UserName '<approved-backup-user>' `
+  -OutputPath '.\output\backups\li-os-memory-yyyyMMddTHHmmssZ.pgdump.liosenc'
+```
+
+Creating a backup is a database read and may consume provider egress. Confirm authorization and
+no-additional-charge coverage before running it. Never record its passphrase in Git, chat, logs, or
+the release evidence.
+
+## Operator cadence
+
+For the personal-use system, run an authenticated creation-and-restore drill at least once each
+calendar month and before every authorized staging migration, whichever comes first. Also run one
+after a material database or backup-tool change. The 2026-09-06 drill is the current baseline, so
+the next routine drill is due by 2026-10-06 unless a staging migration requires it sooner.
+
+Each occurrence must use a fresh dated backup path and an independently chosen passphrase, restore
+into a newly created disposable database, record the checks listed below, and remove the disposable
+target after review. Keep at least one independently encrypted, fully validated current backup until
+its successor has passed the same checks. This is an operator procedure only: it does not authorize
+a cloud scheduler, paid storage, migration, or external deletion.
+
+## Restore an encrypted backup
 
 This tool implements the controlled restore sequence required by the
 [Memory Storage Policy](../storage-policy.md#41-restore-testing). It restores the Li-owned schemas

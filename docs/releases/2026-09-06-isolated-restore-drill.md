@@ -19,8 +19,7 @@ personal row values were printed or recorded.
 
 The owner entered the database and encryption passphrases only at masked local prompts. An earlier
 passphrase was exposed outside the repository during troubleshooting; it is not recorded here and
-must not be reused. The existing encrypted backup should be retired only after an independently
-encrypted replacement has been created and validated.
+must not be reused.
 
 ## Result
 
@@ -54,6 +53,31 @@ The immutable migrations' own transactional checks also passed. Failed intermedi
 treated as partial and never reused. After evidence was recorded, all three loopback-only disposable
 containers were removed, which removed the successful and partial drill databases with them.
 
+## Replacement backup
+
+The owner authorized a new staging backup after the signed-in Supabase usage page reported the
+organization on the Free plan with paid overages disabled. The bounded database read created an
+independently encrypted schema-0.39 replacement. The owner entered a new passphrase only at masked
+local prompts.
+
+| Field | Recorded value |
+| --- | --- |
+| Backup | `li-os-memory-dev-replacement-20260906T090615Z.pgdump.liosenc` |
+| SHA-256 | `90523b35d05bf3d486dd454562f13cffb226e21e26eec3859efec217d5493128` |
+| Bytes | `913114` |
+| Authenticated archive entries | `1246` |
+| Isolated restored schema | `0.39` |
+| Active owners | `1` |
+| Canonical memory records | `23` |
+| Canonical tables | `62` |
+| Restore and initial validation | `2.28 seconds` |
+
+The replacement also passed the role, membership, schema-owner, row-level-security, backend-access,
+and retention-denial assertions used for the first drill. Its loopback-only disposable container was
+removed after validation. The superseded encrypted file remains pending local deletion because the
+execution environment blocked Codex from performing that file deletion; it is not a valid fallback
+and its exposed passphrase must not be reused.
+
 ## Recovery timing and limits
 
 The measured 2.23 seconds is the tool's local restore-and-validation duration after the target and
@@ -67,8 +91,8 @@ event's data-loss boundary when calculating RPO.
 
 ## Remaining actions
 
-- Establish and approve a recurring restore-test cadence.
-- Create and authenticate a replacement encrypted backup using a new private passphrase, then retire
-  the old encrypted backup through a separately controlled deletion step.
+- Exercise the [monthly and pre-migration operator cadence](../../memory/backup-tools/README.md#operator-cadence),
+  with the next routine drill due by 2026-10-06 unless a staging migration requires it sooner.
+- Delete the superseded local pre-037 encrypted file using the approved operator cleanup command.
 - Keep physical-device, stable-use, live-provider, and production rollback evidence separate from
   this local database result.

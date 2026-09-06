@@ -79,8 +79,10 @@ stand-down test. The artifact-retention scheduler is separate from proactivity a
 The [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md) authenticated and
 restored the encrypted pre-migration backup, then advanced the disposable copy from schema 0.36 to
 0.39 while preserving canonical counts and authority boundaries. No plaintext dump was written.
-Recurring cadence and replacement of the exposed-passphrase backup remain operational work; this
-local result does not prove a production recovery or physical-device behavior.
+An independently encrypted replacement then passed authentication, catalogue validation, a full
+schema-0.39 restore, and the same authority checks. Recurring cadence and deletion of the superseded
+copy remain operational work; this local result does not prove a production recovery or
+physical-device behavior.
 
 Stable-use acceptance requires an owner-observed period of ordinary use. Record the agreed start and
 end dates, devices used, completed journeys, errors, uncertain outcomes, unexpected duplicates,
