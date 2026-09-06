@@ -538,12 +538,66 @@ def validate_result() -> None:
         raise RuntimeError("Replay attempt changed schema-version history")
 
 
+def validate_memory_effect_fence() -> None:
+    turn = "00000000-0041-0000-0000-000000000001"
+    claim = json.loads(psql(
+        "-tA", "-c", "SET SESSION AUTHORIZATION li_memory_api; "
+        f"SELECT li_api.begin_chat_turn('{turn}',repeat('a',64));",
+        capture=True, user="supabase_admin",
+    ).stdout.strip().splitlines()[-1])
+    token = claim["attempt_token"]
+    psql("-c", "SET SESSION AUTHORIZATION li_memory_api; "
+         f"SELECT li_api.mark_chat_turn_progress('{turn}',repeat('a',64),"
+         f"'{token}','response_ready');", capture=True, user="supabase_admin")
+    for bad_args in [
+        f"'{turn}',repeat('b',64),'{token}'",
+        f"'{turn}',repeat('a',64),'00000000-0000-0000-0000-000000000000'",
+        f"'{turn}',NULL,'{token}'", f"'{turn}',repeat('a',64),NULL",
+    ]:
+        denied = psql("-c", "SET SESSION AUTHORIZATION li_memory_api; "
+                      f"SELECT li_api.mark_chat_turn_effect_started({bad_args});",
+                      capture=True, check=False, user="supabase_admin")
+        if denied.returncode == 0:
+            raise RuntimeError("Invalid effect fence identity was accepted")
+    for role in ["li_memory_api", "li_backend_runtime"]:
+        # Repeated guards must be permitted for a bounded multi-candidate batch.
+        psql("-c", f"SET SESSION AUTHORIZATION {role}; "
+             f"SELECT li_api.mark_chat_turn_effect_started('{turn}',repeat('a',64),'{token}');",
+             capture=True, user="supabase_admin")
+    if scalar(f"SELECT progress_stage||':'||external_effect_state FROM "
+              f"li_runtime_data.chat_turns WHERE id='{turn}';") != "response_ready:dispatched":
+        raise RuntimeError("Late memory write lost its progress or uncertainty marker")
+    # Simulate a process loss, not a provider call or real memory mutation.
+    psql("-c", f"UPDATE li_runtime_data.chat_turns SET lease_expires_at=NOW()-INTERVAL '1 second' "
+         f"WHERE id='{turn}';", capture=True, user="supabase_admin")
+    denied = psql("-c", "SET SESSION AUTHORIZATION li_memory_api; "
+                  f"SELECT li_api.mark_chat_turn_effect_started('{turn}',repeat('a',64),'{token}');",
+                  capture=True, check=False, user="supabase_admin")
+    if denied.returncode == 0:
+        raise RuntimeError("Expired effect fence was allowed to restart memory writes")
+    retry = json.loads(psql(
+        "-tA", "-c", "SET SESSION AUTHORIZATION li_memory_api; "
+        f"SELECT li_api.begin_chat_turn('{turn}',repeat('a',64));",
+        capture=True, user="supabase_admin",
+    ).stdout.strip().splitlines()[-1])
+    if retry["outcome"] != "uncertain":
+        raise RuntimeError("A crashed memory-writing turn became safe to repeat")
+    for role in ["li_memory_theo", "li_memory_owner_confirmation",
+                 "anon", "authenticated", "service_role", "li_retention_runtime"]:
+        denied = psql("-c", f"SET SESSION AUTHORIZATION {role}; "
+                      f"SELECT li_api.mark_chat_turn_effect_started('{turn}',repeat('a',64),'{token}');",
+                      capture=True, check=False, user="supabase_admin")
+        if denied.returncode == 0 or "permission denied" not in denied.stderr.lower():
+            raise RuntimeError("Effect fence role denial was not enforced")
+
+
 def main() -> None:
     validate_manifest()
     validate_inventory()
     bootstrap_supabase_roles()
     apply_history()
     validate_result()
+    validate_memory_effect_fence()
     print("Disposable database migration validation passed.")
 
 

@@ -182,6 +182,50 @@ existing affected records assessed through an authorized privacy-preserving proc
 finding can be treated as closed in staging. OM-003 remains gated by core stability and the other
 outstanding entry evidence; no voice provider or implementation was activated.
 
+## Chat memory recovery correction — 2026-09-06
+
+The Astra review reproduced a separate recovery gap: a permitted memory correction could commit
+before a model failure, while the enclosing turn was marked `failed` (safe to resume). The paired
+English/Swedish regression failed before the fix. Memory effects were not covered by the email
+dispatch marker, and deferred capture happens after `response_ready`, too late for a backward
+transition in the existing ordered progress stages.
+
+[Migration 041](../memory/migrations/041_chat_memory_effect_fencing.sql) adds a narrow, attempt-fenced
+write-ahead uncertainty marker independent of model progress. It preserves existing role membership,
+tables and stored data. Each actual capture write (store, proposal, correction or forgetting) must
+pass its guard first. A handled failure after a write is uncertain; a process loss after the marker
+cannot make the same turn safe to repeat on lease expiry. Missing schema capability or a stale guard
+blocks the memory write and reports an unverified capture instead of silently using an unfenced path.
+Legacy requests without a turn ID still report durability unavailable; this is not an exactly-once
+claim or a new provider reconciliation mechanism.
+
+The complete manifest through 0.41 passed on a fresh local container using the CI-pinned Supabase
+PostgreSQL image. The rehearsal checked data preservation, replay rejection, function ownership,
+existing role separation, wrong hash/token and null-token rejection, expired-lease rejection,
+repeat guards, late writes after `response_ready`, and process-loss uncertainty. These are synthetic
+local results, not an applied staging migration or live memory acceptance.
+
+Backend `pytest -q` passed 1,062 tests; Ruff passed for the backend and migration harness. The
+upstream Starlette/AnyIO alias warning remains visible. Run these commands from `backend/`, as the
+component test configuration requires; a repository-root invocation is not equivalent.
+
+### Staging entry and rollback for this correction
+
+Follow the existing [migration workflow](MIGRATION_WORKFLOW.md) and
+[deployment workflow](DEPLOYMENT_WORKFLOW.md). Obtain exact staging authorization and verified
+no-additional-charge coverage; make and validate a fresh pre-041 encrypted backup through private
+operator prompts. Confirm target schema 0.40 and the new file checksum, rehearse, then apply the
+reviewed migration once before deploying the matching application. Existing 0.40 staging evidence
+and an older restored backup do not prove this new operation has happened.
+
+The additive function leaves the previous application schema-compatible; keep the prior immutable
+image and rollback revision. An application rollback does not undo memory writes or close the old
+recovery defect. Do not delete memory or remove the function as a rollback shortcut. An application
+deployed ahead of 041 must fail closed on durable-turn capture, not pretend all memory journeys work.
+After rollout, verify permitted and denied calls and bounded bilingual recovery journeys before
+recording the finding as closed. Existing affected outcomes may need owner reconciliation, not an
+automatic retry. OM-003 remains gated; unrelated eligible personal-use work continues.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all

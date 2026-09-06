@@ -83,6 +83,21 @@ where applicable, Heimdall review.
   against a non-destructive provider fixture and record reconciliation behavior for the deployed
   release.
 
+## KR-011: Chat privacy and memory-retry corrections are not yet deployed
+
+- **Evidence:** The [2026-09-06 acceptance corrections](PERSONAL_V1_ACCEPTANCE.md#historical-recall-privacy-correction--2026-09-06)
+  reproduce historical-snippet disclosure and a separate memory-write/retry gap with synthetic
+  regressions. Their local fixes do not change the currently recorded schema-0.40 staging release.
+- **Impact:** The older runtime can propagate recalled private content into a shared Workspace or
+  treat a turn with an already-applied memory correction as safe to repeat after reply failure.
+- **Current control:** Historical recall now fails closed in the corrected code. The separate
+  [memory effect guard](PERSONAL_V1_ACCEPTANCE.md#chat-memory-recovery-correction--2026-09-06)
+  has a local migration rehearsal and explicit staging/rollback gates. No personal records were
+  inspected or reclassified as part of these synthetic tests.
+- **Next review:** Deploy the reviewed corrections with the required backup, authorization and cost
+  evidence; validate live boundaries and assess existing affected records without automatic deletion
+  or retry. Keep voice and final acceptance gated until the relevant core findings are closed.
+
 ## Closed risks
 
 ### KR-001: Duplicate migration number and schema version — resolved 2026-09-06

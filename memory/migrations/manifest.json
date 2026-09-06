@@ -41,7 +41,8 @@
     { "file": "037_conversation_context_privacy.sql", "logical_version": "0.37" },
     { "file": "038_recoverable_turns_and_actions.sql", "logical_version": "0.38" },
     { "file": "039_phase_2_truth_and_turn_recovery.sql", "logical_version": "0.39" },
-    { "file": "040_owner_memory_proposal_inspection.sql", "logical_version": "0.40" }
+    { "file": "040_owner_memory_proposal_inspection.sql", "logical_version": "0.40" },
+    { "file": "041_chat_memory_effect_fencing.sql", "logical_version": "0.41" }
   ],
   "intentionally_skipped": [
     {
