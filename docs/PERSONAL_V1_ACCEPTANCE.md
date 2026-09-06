@@ -279,6 +279,31 @@ and the Send control remained at least 44 CSS pixels high. This is local simulat
 contract evidence only; it is not staging, physical Android, installed-Windows, microphone or owner
 acceptance.
 
+## Post-0.41 read-only web and accessibility check — 2026-09-06
+
+After the schema-0.41 rollout, the signed-in staging Home, Specialists, Marco Workspace, specialist
+History and Statistics, global History, and Settings views were opened without submitting a chat,
+changing settings, uploading a file, or mutating memory. Across those visible views, DOM-backed
+measurements found no horizontal page overflow, unnamed enabled controls, or displayed images without
+alternative text. Visible interactive controls met the 44 CSS-pixel target. Sampled keyboard focus
+used a visible outline, and the native specialist portrait dialog exposed its name and role, focused
+its Close control, and returned focus to the opening portrait button after Escape. The Statistics
+view retained textual counts and explanations alongside its visual presentation. No client browser
+errors were recorded during the check.
+
+The Settings view truthfully showed the `CM` owner-photo fallback and the choose, save, and remove
+controls without changing the current photo. The page linked its web manifest and displayed install
+guidance, but the audit browser was running as a normal tab rather than an installed app. The current
+frontend suites also passed locally: Ruff, 93 Python tests, compileall, and 85 dependency-free browser
+tests; the upstream Starlette/AnyIO alias warning remained visible.
+
+This is bounded staging-read and local automated evidence, not a full WCAG conformance claim. No
+screen reader, actual Windows 200% zoom, offline transition, installed Windows PWA, physical Android
+phone/tablet, microphone, provider-backed response, owner acceptance, or stability period was tested.
+Those rows remain `NOT RUN` in the
+[device and owner checklist](PERSONAL_V1_DEVICE_ACCEPTANCE.md), which now targets the recorded
+[schema-0.41 release](releases/2026-09-06-8831381-staging.md).
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
