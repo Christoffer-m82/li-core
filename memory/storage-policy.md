@@ -1148,6 +1148,11 @@ memory schema v0.2
 
 Do not manually alter production memory structures without traceable migration history.
 
+Repository tooling must use the reviewed canonical migration manifest rather than infer order from
+filenames. This is required because immutable history contains two files with the `021` prefix and
+logical version `0.21`; the manifest records which file belongs to the supported rebuild sequence,
+why the other is skipped, and which later migration restores its intended capability.
+
 ---
 
 ## 58. Migration Safety

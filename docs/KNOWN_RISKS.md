@@ -6,19 +6,6 @@ This register contains risks supported by tracked repository evidence as of 2026
 assert live exploitability or external configuration. Severity and acceptance require owner and,
 where applicable, Heimdall review.
 
-## KR-001: Duplicate migration number and schema version
-
-- **Evidence:** `memory/migrations/021_artifact_library.sql` and
-  `memory/migrations/021_private_conversation_deletion.sql` both use the `021` prefix and record
-  `0.21`. Migration 025 states that it restores private conversation deletion after the collision.
-- **Impact:** A filename-driven runner or operator may assume a total order that the logical version
-  table cannot represent, skip one file, or misread target state.
-- **Current control:** Later migrations have explicit schema prerequisites; migration 025 restores the
-  deletion capability. The [migration workflow](MIGRATION_WORKFLOW.md) requires reading dependencies
-  and verifying database state rather than trusting prefixes.
-- **Next review:** Any migration automation or baseline rebuild must define and test the canonical
-  handling of both historical 021 files without modifying them.
-
 ## KR-003: In-memory backend rate limiting is per instance
 
 - **Evidence:** The [backend deployment guide](../README.md#one-time-google-cloud-setup) describes the
@@ -97,6 +84,18 @@ where applicable, Heimdall review.
   release.
 
 ## Closed risks
+
+### KR-001: Duplicate migration number and schema version — resolved 2026-09-06
+
+- **Previous evidence:** `021_artifact_library.sql` and `021_private_conversation_deletion.sql` both
+  use the `021` prefix and claim logical version `0.21`.
+- **Resolution:** `memory/migrations/manifest.json` is now the canonical machine-readable sequence.
+  It applies the artifact-library migration, records the private-conversation deletion file as an
+  intentional historical skip, and points to migration 025 as the restoring migration. The disposable
+  database validation consumes the manifest and fails on unlisted files, duplicate applied versions,
+  incomplete skip evidence or an unknown restoring migration. No historical SQL was modified.
+- **Residual rule:** Migration tooling and baseline rebuilds must consume the manifest instead of
+  sorting filenames. External target state must still be verified from `schema_versions`.
 
 ### KR-002: Mutable deployment secret references — resolved 2026-09-06
 

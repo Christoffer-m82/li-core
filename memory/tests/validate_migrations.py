@@ -9,63 +9,19 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_ROOT = REPOSITORY_ROOT / "memory" / "migrations"
+MANIFEST_PATH = MIGRATIONS_ROOT / "manifest.json"
 
-# Historical order is explicit because two files use the 021 prefix and claim
-# version 0.21. Migration 025 restores the capability from the skipped file.
-MIGRATION_ORDER = tuple(
-    [
-        f"{number:03d}_{name}.sql"
-        for number, name in (
-            (1, "initial_schema"),
-            (2, "security_baseline"),
-            (3, "memory_api_boundary"),
-            (4, "core_memory_functions"),
-            (5, "theo_review_workflow"),
-            (6, "backend_runtime_role"),
-            (7, "explicit_memory_deduplication"),
-            (8, "theo_runtime_role"),
-            (9, "owner_memory_confirmation"),
-            (10, "owner_api_schema_usage"),
-            (11, "memory_corrections_and_forgetting"),
-            (12, "harden_forget_memory_policy"),
-            (13, "automated_theo_review"),
-            (14, "conversation_history"),
-            (15, "conversation_history_rls_cleanup"),
-            (16, "tasks_and_reminders"),
-            (17, "governed_artifacts_and_specialist_history"),
-            (18, "agent_analytics_and_relevance"),
-            (19, "fix_agent_recommendation_status_ambiguity"),
-            (20, "controlled_agent_governance_executor"),
-            (21, "artifact_library"),
-            (22, "retention_worker_role"),
-            (23, "fix_artifact_reservation_ambiguity"),
-            (24, "fix_specialist_history_status_ambiguity"),
-            (25, "restore_private_conversation_deletion"),
-            (26, "generalized_specialist_orchestration"),
-            (27, "fix_generalized_specialist_history_status_ambiguity"),
-            (28, "specialist_synthesis_action_instrumentation"),
-            (29, "durable_action_intents"),
-            (30, "governed_action_policy_and_rhythms"),
-            (31, "governed_proactivity"),
-            (32, "private_place_settings"),
-            (33, "native_mobile_location_boundary"),
-            (34, "authenticated_native_gateway"),
-            (35, "governed_li_native_systems"),
-            (36, "owner_model_registry_configuration"),
-            (37, "conversation_context_privacy"),
-            (38, "recoverable_turns_and_actions"),
-            (39, "phase_2_truth_and_turn_recovery"),
-            (40, "owner_memory_proposal_inspection"),
-        )
-    ]
-)
-INTENTIONALLY_SKIPPED = {"021_private_conversation_deletion.sql"}
+MIGRATION_MANIFEST = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+MIGRATION_RECORDS = tuple(MIGRATION_MANIFEST["migrations"])
+SKIPPED_RECORDS = tuple(MIGRATION_MANIFEST["intentionally_skipped"])
+MIGRATION_ORDER = tuple(record["file"] for record in MIGRATION_RECORDS)
+INTENTIONALLY_SKIPPED = {record["file"] for record in SKIPPED_RECORDS}
 # PostgreSQL 16+ retains grantor-specific role-membership rows. Run the role-
 # managing migration tail through Supabase's delegated migration executor so a
 # migration's own GRANT/REVOKE pair has one grantor and its removal assertions
 # test the real final authority state.
 PRIVILEGED_ROLE_MIGRATIONS = set(MIGRATION_ORDER[7:])
-EXPECTED_VERSIONS = {f"0.{number}" for number in range(1, 41)}
+EXPECTED_VERSIONS = {record["logical_version"] for record in MIGRATION_RECORDS}
 
 
 def psql(
@@ -92,6 +48,33 @@ def scalar(sql: str) -> str:
         capture=True, user="supabase_admin",
     )
     return result.stdout.strip()
+
+
+def validate_manifest() -> None:
+    if MIGRATION_MANIFEST.get("format_version") != "1.0":
+        raise RuntimeError("Unsupported migration manifest format")
+    if not MIGRATION_RECORDS or not SKIPPED_RECORDS:
+        raise RuntimeError("Migration manifest must list applied and intentionally skipped files")
+
+    ordered_files = [record.get("file") for record in MIGRATION_RECORDS]
+    ordered_versions = [record.get("logical_version") for record in MIGRATION_RECORDS]
+    if any(set(record) != {"file", "logical_version"} for record in MIGRATION_RECORDS):
+        raise RuntimeError("Applied migration manifest records have unexpected fields")
+    if len(ordered_files) != len(set(ordered_files)):
+        raise RuntimeError("Migration manifest applies a file more than once")
+    if len(ordered_versions) != len(set(ordered_versions)):
+        raise RuntimeError("Migration manifest applies a logical version more than once")
+
+    for record in SKIPPED_RECORDS:
+        required = {"file", "logical_version", "reason", "restored_by"}
+        if set(record) != required or not all(record.values()):
+            raise RuntimeError("Skipped migration manifest record is incomplete")
+        if record["file"] in ordered_files:
+            raise RuntimeError("Skipped migration is also present in the applied order")
+        if record["logical_version"] not in ordered_versions:
+            raise RuntimeError("Skipped migration does not identify its duplicate logical version")
+        if record["restored_by"] not in ordered_files:
+            raise RuntimeError("Skipped migration names an unknown restoring migration")
 
 
 def validate_inventory() -> None:
@@ -542,17 +525,21 @@ def validate_result() -> None:
         capture=True,
         check=False,
     )
+    latest_version = MIGRATION_RECORDS[-1]["logical_version"]
     if (
         replay.returncode == 0
-        or "schema version 0.40 is already claimed" not in replay.stderr.lower()
+        or f"schema version {latest_version} is already claimed" not in replay.stderr.lower()
     ):
         raise RuntimeError("Latest migration did not fail closed on replay")
 
-    if scalar("SELECT count(*) FROM li_memory.schema_versions;") != "40":
+    if scalar("SELECT count(*) FROM li_memory.schema_versions;") != str(
+        len(EXPECTED_VERSIONS)
+    ):
         raise RuntimeError("Replay attempt changed schema-version history")
 
 
 def main() -> None:
+    validate_manifest()
     validate_inventory()
     bootstrap_supabase_roles()
     apply_history()

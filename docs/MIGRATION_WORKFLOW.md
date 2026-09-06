@@ -14,14 +14,16 @@ other database.
 - Migration files are transactional SQL (`BEGIN`/`COMMIT`) and record logical versions in
   `li_memory.schema_versions`.
 - Later migrations contain explicit prerequisite and duplicate-version guards.
-- Application tests inspect important migration text and authority invariants. The explicit historical
-  manifest in `memory/tests/validate_migrations.py` applies the supported sequence to a disposable
-  PostgreSQL database and verifies representative data, RLS, ownership, allowed/denied access and
-  replay rejection. It is a local/CI rehearsal, not an external migration runner or target-state proof.
+- Application tests inspect important migration text and authority invariants. The canonical,
+  machine-readable `memory/migrations/manifest.json` defines the supported order, logical versions,
+  and intentionally skipped historical file. `memory/tests/validate_migrations.py` consumes it in a
+  disposable PostgreSQL database and verifies representative data, RLS, ownership, allowed/denied
+  access and replay rejection. It is a local/CI rehearsal, not an external migration runner or
+  target-state proof.
 - Two historical files share the `021` prefix and both record schema version `0.21`:
   `021_artifact_library.sql` and `021_private_conversation_deletion.sql`. Migration 025 explains that
   the private-deletion capability is restored at schema version `0.25`. See
-  [Known risks](KNOWN_RISKS.md#kr-001-duplicate-migration-number-and-schema-version).
+  [resolved migration-history risk](KNOWN_RISKS.md#kr-001-duplicate-migration-number-and-schema-version--resolved-2026-09-06).
 
 ## Create or review a migration
 
@@ -29,8 +31,8 @@ other database.
    read-only owner check. A filename list is not proof of applied state.
 2. Read every migration from the verified version through the proposed dependency; do not rely only
    on numeric prefixes.
-3. Add a new, uniquely numbered SQL file. Never rewrite a historical migration that may have been
-   applied.
+3. Add a new, uniquely numbered SQL file and append its exact filename and logical version to the
+   canonical manifest. Never rewrite a historical migration that may have been applied.
 4. Begin a transaction and fail closed on a missing prerequisite, a claimed target version, or an
    invalid owner/authority precondition.
 5. Create or alter objects under the intended owner context. Keep temporary `SET ROLE`, schema
