@@ -12,6 +12,19 @@ Li Web voice is an additive input/output adapter around the existing authenticat
 - Voice code has no audio-upload, audio-storage, logging, analytics, artifact, or memory API. Raw audio retention is none. Browser speech services and their availability or processing behavior are browser/vendor-dependent.
 - Approval cards remain tactile. Voice code cannot call the ActionIntent decision endpoint, so a phrase such as “yes, approve it” is only a normal chat turn and cannot resolve a pending action.
 
+## Planned real-time conversation milestone
+
+The owner requested natural, human-sounding phone/tablet conversation on 2026-09-06 and asked to
+record the plan only. See the [real-time voice plan](docs/REALTIME_VOICE_PLAN.md) for provider
+evaluation, architecture options, interruption and timing requirements, delivery stages, and
+acceptance gates. This is future scope under OM-003, not implemented behavior or a provider decision.
+The existing final-response, orchestration and approval boundaries above remain in force; any
+speech-to-speech design that changes them must resolve that contract before implementation.
+Its project placement is late in Package 6 after the blueprint's
+[core stability entry gate](docs/LI_OS_IMPROVEMENT_BLUEPRINT.md#om-003-dependency-placement), before
+enhanced-voice device/owner acceptance and final sign-off; blocked voice work does not stop unrelated
+eligible acceptance work.
+
 ## Typed provider boundary
 
 The browser adapters define the reusable contract shape for later providers:

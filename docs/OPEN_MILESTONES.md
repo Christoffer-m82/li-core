@@ -11,7 +11,7 @@ rather than rewriting the authoritative design.
 | --- | --- | --- | --- |
 | OM-001 | Complete the native mobile product beyond coarse-place proof of concept | Android and iOS documents identify their code as proof of concept; the gateway ADR defines an acceptance gate. See [Android](../native/android/README.md), [iOS](../native/ios/README.md), and [Native Gateway ADR](../system/NATIVE_GATEWAY_ARCHITECTURE.md#deployment-prerequisites-and-acceptance-gate). | Platform integration tests, security/privacy review, revocation tests, and operator-verified staged deployment evidence. |
 | OM-002 | Configure native attestation or formally accept the residual risk | The [Native Gateway deployment guide](../deployment/cloud-run/native-gateway.md) sets attestation status to `not_configured`. | Approved design decision plus implementation and denial-path tests, or a dated explicit risk acceptance. |
-| OM-003 | Progress voice from foundation to production interaction | [Voice Interaction Foundation](../VOICE_ARCHITECTURE.md) describes a web milestone and typed provider boundary rather than a complete voice service. | End-to-end browser/native validation, privacy review for microphone/audio handling, interruption/error tests, and deployment evidence. |
+| OM-003 | Natural real-time voice conversation on phone and tablet | The [Voice Interaction Foundation](../VOICE_ARCHITECTURE.md) is the implemented baseline. The owner-requested [real-time voice plan](REALTIME_VOICE_PLAN.md) is a late Package 6 stream after the blueprint's [core stability entry gate](LI_OS_IMPROVEMENT_BLUEPRINT.md#om-003-dependency-placement), not an automatically selected next task. Provider selection and implementation remain pending. | In order: bounded provider/voice evaluation with verified cost coverage, reviewed architecture and privacy boundaries, implementation and session/error/authority tests, authorized staged deployment, then measured Android phone/tablet and owner acceptance with Windows regression coverage before final sign-off. Native delivery remains linked to OM-001 but is not a web-voice prerequisite. |
 | OM-004 | Activate governed proactivity selectively | The [proactivity guide](../deployment/cloud-run/governed-proactivity.md) provisions five jobs paused and keeps rhythms `preview_only` until owner approval. | Per-rhythm owner approval, matching scheduler resume evidence, quiet-hour/idempotency tests, and a documented stand-down test. |
 | OM-005 | Resolve the annual rhythm schedule from approved owner context | The [proactivity guide](../deployment/cloud-run/governed-proactivity.md) defaults the annual job to January 2 until a birthday-derived schedule is approved. | Owner-approved schedule stored without sensitive date leakage in public metadata, plus scheduler verification. |
 | OM-006 | Strengthen authentication beyond shared Li tokens | The [README](../README.md#rotation-and-rollback) names per-device OIDC/WebAuthn, short-lived access tokens, refresh revocation, inventory, and endpoint scopes as the longer-term upgrade. | Approved ADR, migration/deployment plan, revocation and recovery tests, and removal plan for shared-token dependencies. |
@@ -22,6 +22,10 @@ rather than rewriting the authoritative design.
 
 The [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) orders the current completion
 work and separates automated checks from live and physical-device evidence.
+
+For OM-003, continue unrelated eligible personal-use work whenever provider, cost, architecture,
+deployment or device evidence blocks the voice sequence. Optional visual polish, profile photos,
+activation of every proactive rhythm and standalone native-app completion do not gate web-app voice.
 
 When closing or changing a milestone, update the authoritative source first when the underlying
 decision or design changed. In this index, record only the new status and evidence link. Move durable

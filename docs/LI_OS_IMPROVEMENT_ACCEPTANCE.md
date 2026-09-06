@@ -32,6 +32,16 @@ into the acceptance scenario rather than replaced.
 | 5. Evaluation and observability | Reproduced. Provider calls record stage, status, elapsed time, token usage, stop reason and structured-output status without routine message content; incomplete generations fail closed; turn diagnostics expose privacy-minimized stage traces; the voice evaluator records provider metadata and preserves incomplete-run truth. | R13; benchmark-manifest validation; backend suite | **Locally verified for synthetic evaluation.** Live-model quality comparison is deliberately unrun because covered metered entitlement was not established. |
 | 6. Personal-use journeys | Revised from “finish everything” to evidence-backed local completion. Chat and Specialist Workspace retries reuse stable identities; offline launch displays the public shell without caching private/auth/API responses; sign-in/photo failures remain honest; existing chat/history, files, themes, CM fallback, specialist conversations and proactive controls remain covered. | R10–R14; frontend Python and browser suites; gateway/profile suites | **Locally verified and released to staging.** Authenticated owner journeys, live-provider checks, Android phone/tablet checks, Windows installed-app checks, restore drill and stable-use observation remain pending. |
 
+## Package 6 sequencing clarification
+
+This acceptance record proves the original six-package implementation only at the layers and baseline
+stated above. The later planned OM-003 enhancement does not retroactively turn this evidence into a
+real-time voice implementation or activation claim. OM-003 now sits late in Package 6 after the
+[core stability entry gate](LI_OS_IMPROVEMENT_BLUEPRINT.md#om-003-dependency-placement) and before
+enhanced-voice device/owner acceptance and final sign-off. Its own evaluation, cost, architecture,
+implementation, deployment and device evidence remain outstanding. Unrelated eligible acceptance
+work may continue while a voice-specific gate is blocked.
+
 ## Validation record
 
 All results below were produced on 2026-09-05 from the branch above.

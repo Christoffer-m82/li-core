@@ -17,6 +17,32 @@ Use synthetic fixtures for automated tests. Do not send mail, create calendar ev
 delete records, activate rhythms, or restore a database solely to gather evidence without the exact
 required authorization. Secret entry and physical-device checks may require the owner.
 
+## Package 6 dependency sequence
+
+The current execution placement for OM-003 is:
+
+**stable core chat/history, memory/privacy, bilingual response/routing, tactile action approval and
+recoverable turns → OM-003 provider/voice evaluation and cost check → architecture decision →
+implementation → authorized staged deployment → enhanced voice device/owner acceptance → final
+personal-use sign-off that includes enhanced voice.**
+
+The [Package 6 entry criteria](LI_OS_IMPROVEMENT_BLUEPRINT.md#om-003-dependency-placement) govern
+eligibility. Packages 1–5 and the existing Package 6 foundations are merged and locally verified;
+migrations 037–039 and the earlier application release have separate staging evidence. The controlled
+bilingual chat/retry journey also passes. These are satisfied prerequisites at their recorded layers,
+not proof that the full core stability gate is closed.
+
+Outstanding entry evidence includes the latest applicable staging rollout and core smoke journeys,
+migration 040 and its deployed memory/privacy checks where that release includes it, applicable owner
+and physical-device checks, and absence of blocking findings through the required stability period.
+Until those are recorded, OM-003 remains planned and is not automatically next. Unrelated eligible
+acceptance work continues if voice is blocked.
+
+Optional visual improvements, profile-photo activation, every proactive rhythm and standalone native-
+app completion are not prerequisites for installable-web voice. The enhanced voice experience itself
+must nevertheless complete Android phone/tablet and owner acceptance, with Windows regression checks,
+before the final release sign-off can include it.
+
 ## Ordered work and exit checks
 
 | Area | Acceptance checks | Evidence still required |
@@ -29,7 +55,7 @@ required authorization. Secret entry and physical-device checks may require the 
 | Themes | Built-ins and custom creation; editing and portable export/import; preserve content and contrast | [Editing and transfer](../frontend/APPEARANCE.md#edit-and-transfer) is implemented, locally regression-tested and deployed to staging; physical-device acceptance remains pending. Automatic cross-device sync needs a storage design |
 | Calendar, Gmail, tasks, research | Read flows; supported writes gated by approval; unavailable providers and stale evidence handled clearly | Provider-specific end-to-end checks; Gmail sending remains deliberately unavailable |
 | Proactivity | Owner-approved schedule, grounded brief, quiet hours, duplicate prevention, delivery and stand-down | Exact per-rhythm activation approval plus coordinated database/scheduler verification; external notification delivery needs a design |
-| Voice | Transcript correctness, cancel, interruption, permission denial, unavailable service, spoken response stop | Physical Android phone/tablet and Windows browser checks; server speech remains unconfigured |
+| Voice | Existing foundation: transcript correctness, cancel, permission denial, unavailable service and spoken response stop. Planned late-Package-6 extension: expressive Swedish/English real-time conversation, natural turn timing, interruption and recovery; see the [real-time voice plan](REALTIME_VOICE_PLAN.md). | Close the core stability entry gate first. Then complete provider/cost evaluation, architecture decision, implementation, authorized staged deployment and measured Android phone/tablet owner acceptance with Windows regressions. The addition remains planning only. |
 | Installation | Install, launch, sign-in expiry, update, offline explanation, keyboard/touch navigation | Complete the [physical-device and owner checklist](PERSONAL_V1_DEVICE_ACCEPTANCE.md); native Android and gateway completion remains tracked separately |
 | Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | The original and replacement backups passed the [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md); recurring cadence, deletion of the superseded copy, and remaining release-security evidence stay open. See [known risks](KNOWN_RISKS.md). |
 | Release stability | All agreed journeys pass, no unresolved critical findings, normal use observation and rollback available | A stable-use observation period; no unsupported claim of 100% |
