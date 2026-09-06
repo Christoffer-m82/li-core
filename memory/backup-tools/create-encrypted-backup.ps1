@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory = $true)][ValidateRange(1, 65535)][int]$Port,
     [Parameter(Mandatory = $true)][string]$DatabaseName,
     [Parameter(Mandatory = $true)][string]$UserName,
-    [Parameter(Mandatory = $true)][ValidatePattern('\.pgdump\.liosenc$')][string]$OutputPath
+    [Parameter(Mandatory = $true)][ValidatePattern('\.pgdump\.liosenc$')][string]$OutputPath,
+    [switch]$RequirePre041
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,10 +89,77 @@ if (Test-Path -LiteralPath $partialPath) {
 
 $pgDump = (Get-Command pg_dump -ErrorAction Stop).Source
 $pgRestore = (Get-Command pg_restore -ErrorAction Stop).Source
+$key = $null
+$partialCreated = $false
+$dump = $null
+$restore = $null
+$encrypted = $null
+
+try {
 $databaseSecret = Read-Host "Enter the source database password" -AsSecureString
+$databasePassword = ConvertFrom-PrivateSecureString $databaseSecret
+if ([string]::IsNullOrWhiteSpace($databasePassword)) {
+    throw "Database password was empty."
+}
+if ($RequirePre041) {
+    # Use the same private credential and client installation as the export.
+    # No password is requested a second time or passed on a command line.
+    $preflightInfo = [Diagnostics.ProcessStartInfo]::new()
+    $clientName = if ($IsWindows) { 'psql.exe' } else { 'psql' }
+    $preflightInfo.FileName = Join-Path (Split-Path -Parent $pgDump) $clientName
+    $preflightInfo.UseShellExecute = $false
+    $preflightInfo.RedirectStandardOutput = $true
+    $preflightInfo.RedirectStandardError = $true
+    $preflightInfo.CreateNoWindow = $true
+    $preflightInfo.Environment['PGPASSWORD'] = $databasePassword
+    $preflightInfo.Environment['LC_MESSAGES'] = 'C'
+    $preflightInfo.Environment['PGCONNECT_TIMEOUT'] = '15'
+    $preflightSql = @'
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '15s';
+SELECT CASE WHEN
+  EXISTS (SELECT 1 FROM li_memory.schema_versions WHERE version = '0.40')
+  AND NOT EXISTS (SELECT 1 FROM li_memory.schema_versions
+                 WHERE string_to_array(version, '.')::integer[] > ARRAY[0,40])
+  AND (SELECT COUNT(*) FROM li_memory.users WHERE user_key='christoffer' AND status='active')=1
+  AND to_regprocedure('li_api.mark_chat_turn_effect_started(uuid,text,uuid)') IS NULL
+THEN 'PRE041_READY' ELSE 'PRE041_BLOCKED' END;
+ROLLBACK;
+'@
+    foreach ($argument in @('--no-psqlrc', '--no-password', '--host', $HostName,
+        '--port', $Port.ToString(), '--dbname', $DatabaseName, '--username', $UserName,
+        '--quiet', '--tuples-only', '--no-align', '--set', 'ON_ERROR_STOP=1',
+        '--command', $preflightSql)) {
+        $preflightInfo.ArgumentList.Add($argument)
+    }
+    $preflight = [Diagnostics.Process]::new()
+    $preflight.StartInfo = $preflightInfo
+    try {
+        $null = $preflight.Start()
+        $preflightOutputTask = $preflight.StandardOutput.ReadToEndAsync()
+        $preflightErrorTask = $preflight.StandardError.ReadToEndAsync()
+        $preflight.WaitForExit()
+        $preflightOutput = $preflightOutputTask.GetAwaiter().GetResult()
+        $preflightDiagnostic = $preflightErrorTask.GetAwaiter().GetResult()
+        if ($preflight.ExitCode -ne 0) {
+            $failureCategory = Get-SafePgDumpFailure -Diagnostic $preflightDiagnostic
+            throw "Source preflight failed. Category: $failureCategory. Raw output remains suppressed. No backup was started."
+        }
+        if ($preflightOutput.Trim() -cne 'PRE041_READY') {
+            throw 'Source preflight prerequisites failed. No backup was started.'
+        }
+    }
+    finally {
+        $preflightDiagnostic = $null
+        $preflightOutput = $null
+        $preflightInfo.Environment.Remove('PGPASSWORD') | Out-Null
+        $preflight.Dispose()
+    }
+    Write-Host 'PASS: schema 0.40, no later schema, one active owner, effect function absent.'
+    Write-Host 'The export will use the same database password. No second database password entry is needed.'
+}
 $backupSecret = Read-Host "Create a new backup encryption passphrase" -AsSecureString
 $backupConfirmation = Read-Host "Repeat the new backup encryption passphrase" -AsSecureString
-$databasePassword = ConvertFrom-PrivateSecureString $databaseSecret
 $backupPassword = ConvertFrom-PrivateSecureString $backupSecret
 $backupPasswordConfirmation = ConvertFrom-PrivateSecureString $backupConfirmation
 
@@ -118,12 +186,6 @@ $derive = [Security.Cryptography.Rfc2898DeriveBytes]::new(
 )
 $key = $derive.GetBytes(32)
 $derive.Dispose()
-$partialCreated = $false
-$dump = $null
-$restore = $null
-$encrypted = $null
-
-try {
     $dumpInfo = [Diagnostics.ProcessStartInfo]::new()
     $dumpInfo.FileName = $pgDump
     $dumpInfo.UseShellExecute = $false
@@ -336,4 +398,8 @@ finally {
     $databasePassword = ""
     $backupPassword = ""
     $backupPasswordConfirmation = ""
+    if ($null -ne $dumpInfo) { $dumpInfo.Environment.Remove('PGPASSWORD') | Out-Null }
+    foreach ($secret in @($databaseSecret, $backupSecret, $backupConfirmation)) {
+        if ($null -ne $secret) { $secret.Dispose() }
+    }
 }
