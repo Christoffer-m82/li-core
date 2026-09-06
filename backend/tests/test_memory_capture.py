@@ -18,6 +18,34 @@ def _memory(memory_id: str = "old-id") -> dict[str, object]:
     }
 
 
+@pytest.mark.parametrize("value", ["I prefer quiet rooms.", "Jag föredrar tysta rum."])
+@pytest.mark.parametrize("private_source", [True, False])
+def test_proposal_cannot_drop_source_privacy(monkeypatch, value, private_source):
+    events = []
+    monkeypatch.setattr(
+        "app.memory_capture.propose_memory",
+        lambda **kwargs: events.append("proposal") or "synthetic-proposal",
+    )
+    analysis = MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+        action="propose_for_theo", memory_class="explicit_preference", domain="preferences",
+        value=value, sensitivity="personal",
+    )])
+
+    def capture():
+        return apply_memory_capture(
+            analysis, source_private_to_li=private_source,
+            before_write=lambda: events.append("guard"),
+        )
+
+    if private_source:
+        with pytest.raises(MemoryCaptureError, match="source privacy"):
+            capture()
+        assert events == []
+    else:
+        assert capture()[0].status == "proposed"
+        assert events == ["guard", "proposal"]
+
+
 @pytest.mark.parametrize("action", ["store_explicit", "propose_for_theo", "correct_explicit", "forget"])
 @pytest.mark.parametrize("guard_fails", [False, True])
 def test_every_memory_mutation_is_guarded_immediately_before_write(monkeypatch, action, guard_fails):

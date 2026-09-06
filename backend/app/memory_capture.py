@@ -409,8 +409,17 @@ def apply_memory_capture(
     Direct writes remain limited to explicitly stated low-risk
     facts, preferences, and opinions.
 
-    Anything requiring stronger governance is routed to Theo.
+    Anything requiring stronger governance is routed to Theo only when
+    the proposal path can preserve its source privacy.
     """
+
+    # The current proposal API has no privacy field and canonicalizes with
+    # private_to_li=False. Reject the batch before any write or effect marker;
+    # do not silently downgrade private content or bypass Theo with a direct store.
+    if source_private_to_li and any(
+        candidate.action == "propose_for_theo" for candidate in analysis.candidates
+    ):
+        raise MemoryCaptureError("Theo memory proposals cannot preserve source privacy.")
 
     outcomes: list[MemoryCaptureOutcome] = []
 
