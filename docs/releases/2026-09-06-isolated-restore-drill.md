@@ -74,9 +74,11 @@ local prompts.
 
 The replacement also passed the role, membership, schema-owner, row-level-security, backend-access,
 and retention-denial assertions used for the first drill. Its loopback-only disposable container was
-removed after validation. The superseded encrypted file remains pending local deletion because the
-execution environment blocked Codex from performing that file deletion; it is not a valid fallback
-and its exposed passphrase must not be reused.
+removed after validation. After the owner authorized removal of old backups that were no longer
+needed, the exact superseded pre-037 encrypted file was deleted locally on 2026-09-06. A follow-up
+existence check confirmed that it was absent while the validated schema-0.39 replacement remained
+present with the recorded SHA-256. No database, cloud resource or replacement backup was deleted.
+The exposed passphrase must never be reused.
 
 ## Recovery timing and limits
 
@@ -93,6 +95,5 @@ event's data-loss boundary when calculating RPO.
 
 - Exercise the [monthly and pre-migration operator cadence](../../memory/backup-tools/README.md#operator-cadence),
   with the next routine drill due by 2026-10-06 unless a staging migration requires it sooner.
-- Delete the superseded local pre-037 encrypted file using the approved operator cleanup command.
 - Keep physical-device, stable-use, live-provider, and production rollback evidence separate from
   this local database result.
