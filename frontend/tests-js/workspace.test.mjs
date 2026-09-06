@@ -73,6 +73,22 @@ test('failed workspace retry reuses the same stable turn identity', async () => 
   succeed=true; await app.send();
   assert.equal(ids.length,2); assert.equal(ids[0],ids[1]);
 });
+test('uncertain workspace outcome keeps the draft, guidance, and stable turn identity', async () => {
+  const ids=[]; const app=setup(async (url,options) => {
+    if(url==='/api/chat') {
+      ids.push(JSON.parse(options.body).turn_id);
+      return {ok:false,json:async()=>({detail:{code:'turn_outcome_uncertain',
+        message:'This request may have partially completed. Refresh the conversation before deciding whether to retry.'}})};
+    }
+    return reply({interactions:[]});
+  });
+  await app.view.open(agent,[]); app.get('workspace-input').value='Uncertain request'; await app.send();
+  assert.match(app.status(),/may have partially completed/);
+  assert.match(app.status(),/draft is kept/);
+  assert.equal(app.get('workspace-input').value,'Uncertain request');
+  await app.send();
+  assert.equal(ids.length,2); assert.equal(ids[0],ids[1]);
+});
 test('editing a failed workspace request creates a new turn identity', async () => {
   const ids=[]; const app=setup(async (url,options) => {
     if(url==='/api/chat') { ids.push(JSON.parse(options.body).turn_id); return {ok:false}; }
@@ -121,6 +137,17 @@ test('returned reply survives failed refresh and persistence errors', async () =
     await app.view.open(agent,[]); app.get('workspace-input').value='Hi'; await app.send();
     assert.match(content(app.log()),/Received/); assert.match(app.status(),historyError ? /not fully saved/ : /refresh failed/);
   }
+});
+test('workspace reports unavailable memory capture and replay confirmation', async () => {
+  const app=setup(async url => url === '/api/chat'
+    ? reply({conversation_id:id,response:'Reply',conversation_history_error:'not saved',
+      memory_capture_error:'Automatic memory capture failed.',turn_state:'durability_unavailable'})
+    : reply({interactions:[]}));
+  await app.view.open(agent,[]); app.get('workspace-input').value='Remember this'; await app.send();
+  assert.match(content(app.log()),/Reply/);
+  assert.match(app.status(),/Safe replay confirmation is unavailable/);
+  assert.match(app.status(),/could not verify the memory update/);
+  assert.match(app.status(),/do not assume anything was saved or changed/);
 });
 test('temporary attachments pass only successful bounded analysis; unsupported images are not falsely attached', async () => {
   let analysis=null, payload; const app=setup(async (url,options) => {

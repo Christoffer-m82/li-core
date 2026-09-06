@@ -170,7 +170,12 @@
         const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message, turn_id: pendingTurnId, conversation_id: conversationId, workspace_specialist: agent.id,
             workspace_recipient: recipient.value, temporary_upload_context: attachment }) });
-        if (!response.ok) throw new Error(); const data = await response.json();
+        if (!response.ok) {
+          const problem = typeof response.json === 'function' ? await response.json().catch(() => ({})) : {};
+          const detail = typeof problem.detail === 'object' ? problem.detail.message : null;
+          throw new Error(detail || 'The request could not be confirmed. Check Refresh before retrying to avoid a duplicate.');
+        }
+        const data = await response.json();
         if (token !== version) return;
         if (!validId(data.conversation_id) || typeof data.response !== 'string') throw new Error();
         received = true;
@@ -198,9 +203,11 @@
           status.textContent = activity.ok ? 'Reply received and saved. Li remains included.' : 'Reply saved; specialist activity could not be refreshed. Use Refresh to retry.';
         } else { render(true); status.textContent = 'Reply received, but this exchange was not fully saved. Visible messages may disappear after refresh.'; }
         if (data.turn_state === 'durability_unavailable') status.textContent += ' Safe replay confirmation is unavailable; refresh before resending.';
+        if (data.memory_capture_error) status.textContent += ' Li could not verify the memory update; do not assume anything was saved or changed.';
         if (data.action_intents?.length) status.textContent += ' Any proposed action still requires its normal approval in Li’s main chat.';
-      } catch {
-        if (token === version) status.textContent = received ? 'Reply received. History refresh failed; the returned reply is still shown. Refresh before sending again.' : 'The request could not be confirmed. Your draft is kept. Check Refresh before retrying to avoid a duplicate.';
+      } catch (error) {
+        if (token === version) status.textContent = received ? 'Reply received. History refresh failed; the returned reply is still shown. Refresh before sending again.'
+          : `${error?.message || 'The request could not be confirmed. Check Refresh before retrying to avoid a duplicate.'} Your draft is kept.`;
       } finally { if (pendingSend === operation) { sending = false; pendingSend = null; controls(); } }
     });
     return {

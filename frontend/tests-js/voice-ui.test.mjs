@@ -59,6 +59,11 @@ class FakeElement {
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
 }
 
+const renderedText = (element) => [
+  element?.textContent || '',
+  ...(element?.children || []).map(renderedText),
+].join(' ');
+
 function loadApp({ geolocation, storageBlocked = false, storageWriteFails = false,
   chatResponses = [], endpointResponses = {}, sessionValues = new Map(),
   uuidValues = ['test-id'] } = {}) {
@@ -381,6 +386,37 @@ test('failed main-chat retry reuses the turn and does not duplicate the owner bu
     app.elements.get('#messages').children.filter((entry) => entry.className === 'message user').length,
     1,
   );
+});
+
+test('uncertain main-chat outcome shows recovery guidance and keeps its retry identity', async () => {
+  const uncertain = { ok: false, status: 409, json: async () => ({ detail: {
+    code: 'turn_outcome_uncertain',
+    message: 'This request may have partially completed. Refresh the conversation before deciding whether to retry.',
+  } }) };
+  const app = loadApp({ chatResponses: [uncertain, uncertain] });
+  await app.sendMessage('Potentially completed request.');
+  assert.match(renderedText(app.elements.get('#messages')), /may have partially completed/);
+  assert.equal(app.elements.get('#message-input').value, 'Potentially completed request.');
+  await app.sendMessage('Potentially completed request.');
+  const bodies = app.requests.filter(({ url }) => url === '/api/chat')
+    .map(({ options }) => JSON.parse(options.body));
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[0].turn_id, bodies[1].turn_id);
+});
+
+test('main chat shows unavailable memory capture and durability warnings without claiming success', async () => {
+  const app = loadApp({ chatResponses: [{ ok: true, status: 200, json: async () => ({
+    conversation_id: 'conversation-1', response: 'I have answered.', artifacts: [],
+    action_intents: [], memory_capture: [],
+    memory_capture_error: 'Automatic memory capture failed.',
+    turn_state: 'durability_unavailable',
+  }) }] });
+  await app.sendMessage('Remember this preference.');
+  const text = renderedText(app.elements.get('#messages'));
+  assert.match(text, /could not verify the memory update/);
+  assert.match(text, /do not assume anything was saved or changed/);
+  assert.match(text, /safe replay confirmation is unavailable/i);
+  assert.doesNotMatch(text, /Saved to Li’s memory/);
 });
 
 test('edited main-chat envelope gets a new turn identity', async () => {
