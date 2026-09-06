@@ -159,6 +159,29 @@ deployed and the signed-in read-only owner journey passed; see the
 [release record](releases/2026-09-06-2746421-staging.md). Physical-device, correction/forgetting and
 other authorized live data-integrity journeys remain open.
 
+## Historical recall privacy correction — 2026-09-06
+
+The Astra review reproduced a gap at baseline `9db644c`: historical search snippets lack recipient
+metadata, but a fresh Specialist Workspace could forward them through its untyped-history fallback.
+With existing shareable history, Li's recalled answer could instead be saved as shareable, allowing
+later disclosure. Four paired English/Swedish HTTP regressions failed before the correction.
+
+Search snippets now remain private to Li. The runtime receives explicit recent-message disclosure
+records even when that list is empty; raw legacy history is never a specialist-sharing permission.
+Selected historical context also restricts the derived answer and memory-capture privacy. Regression
+tests cover fresh and existing Workspaces, a subsequent turn, direct responses, and preservation of
+explicitly permitted history sharing.
+
+Validation: backend `pytest -q` passed 1,050 tests and Ruff passed. The existing upstream
+Starlette/AnyIO alias warning remains visible. Markdown targets and anchors passed. The complete
+diff review found no new authority, database schema, dependency, deployment or secret changes.
+
+This is synthetic local acceptance evidence, not proof of live-provider or device behavior. It does
+not reclassify previously saved answers or memories. The reviewed correction must be deployed and
+existing affected records assessed through an authorized privacy-preserving process before this
+finding can be treated as closed in staging. OM-003 remains gated by core stability and the other
+outstanding entry evidence; no voice provider or implementation was activated.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
