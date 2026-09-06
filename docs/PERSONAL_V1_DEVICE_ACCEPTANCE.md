@@ -76,13 +76,11 @@ stand-down test. The artifact-retention scheduler is separate from proactivity a
 
 ## Recovery and stability
 
-The encrypted pre-migration backup passed full authentication and archive-catalogue validation. A
-restore is still unproven. Complete the restore drill only in an isolated non-production database,
-with the owner entering the encryption passphrase outside chat. Record the source-backup hash,
-restore start/end time, schema version, validation queries, retrieval result, cleanup disposition, and
-RPO/RTO findings without recording personal data or secrets. Use the fail-closed
-[encrypted restore tool](../memory/backup-tools/README.md) so authenticated archive bytes stream
-directly into the empty target without creating a plaintext dump.
+The [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md) authenticated and
+restored the encrypted pre-migration backup, then advanced the disposable copy from schema 0.36 to
+0.39 while preserving canonical counts and authority boundaries. No plaintext dump was written.
+Recurring cadence and replacement of the exposed-passphrase backup remain operational work; this
+local result does not prove a production recovery or physical-device behavior.
 
 Stable-use acceptance requires an owner-observed period of ordinary use. Record the agreed start and
 end dates, devices used, completed journeys, errors, uncertain outcomes, unexpected duplicates,
@@ -101,7 +99,7 @@ normal-use evidence.
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
 | Critical findings | NOT ASSESSED |
-| Restore drill | NOT RUN |
+| Restore drill | PASS — local isolated restore and forward migration on 2026-09-06 |
 | Stable-use observation | NOT STARTED |
 
 Completion requires all applicable rows to pass or a residual limitation to be explicitly accepted
