@@ -7,8 +7,8 @@ param(
     [Parameter(Mandatory=$true)][string]$ImageUri,
     [Parameter(Mandatory=$true)][string]$OwnerEmail,
     [Parameter(Mandatory=$true)][string]$GoogleClientIdsJson,
-    [Parameter(Mandatory=$true)][string]$ApiTokenSecretVersion,
-    [Parameter(Mandatory=$true)][string]$SigningKeySecretVersion
+    [Parameter(Mandatory=$true)][ValidatePattern('^[1-9][0-9]*$')][string]$ApiTokenSecretVersion,
+    [Parameter(Mandatory=$true)][ValidatePattern('^[1-9][0-9]*$')][string]$SigningKeySecretVersion
 )
 
 $ErrorActionPreference = "Stop"

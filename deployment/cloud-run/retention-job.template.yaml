@@ -25,8 +25,8 @@ spec:
                 - name: LI_OS_DB_SSLMODE
                   value: require
                 - name: LI_OS_DB_HOST
-                  valueFrom: { secretKeyRef: { name: LI_RETENTION_DB_HOST, key: latest } }
+                  valueFrom: { secretKeyRef: { name: LI_RETENTION_DB_HOST, key: PINNED_LI_RETENTION_DB_HOST_VERSION } }
                 - name: LI_OS_DB_USER
-                  valueFrom: { secretKeyRef: { name: LI_RETENTION_DB_USER, key: latest } }
+                  valueFrom: { secretKeyRef: { name: LI_RETENTION_DB_USER, key: PINNED_LI_RETENTION_DB_USER_VERSION } }
                 - name: LI_OS_DB_PASSWORD
-                  valueFrom: { secretKeyRef: { name: LI_RETENTION_DB_PASSWORD, key: latest } }
+                  valueFrom: { secretKeyRef: { name: LI_RETENTION_DB_PASSWORD, key: PINNED_LI_RETENTION_DB_PASSWORD_VERSION } }

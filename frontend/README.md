@@ -96,10 +96,12 @@ From `frontend`, install the project with its `dev` extra, then run `ruff check 
 ## Staging deployment
 
 Build from the repository root with `frontend/Dockerfile`. Create a dedicated
-`li-os-web-runtime` service account, grant it Secret Manager access only to the four web
+`li-os-web-runtime` service account, grant it Secret Manager access only to the five web
 secrets in the template, and grant it Cloud Run Invoker on `li-os` only. Deploy the web
 service from `deployment/cloud-run/web-service.template.yaml`, substituting the project,
-image, and final frontend URL without committing the rendered manifest.
+image, final frontend URL, and every `PINNED_*_VERSION` placeholder with an exact numeric
+Secret Manager version. Reject an unresolved placeholder or `latest`; do not commit the rendered
+manifest.
 
 Create a Google OAuth 2.0 **Web application** client and add this exact authorized redirect
 URI: `https://FRONTEND_URL/auth/callback`. Store its ID and secret as

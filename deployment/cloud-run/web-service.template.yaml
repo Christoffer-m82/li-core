@@ -28,16 +28,16 @@ spec:
               value: Christoffer.Mellden@gmail.com
             - name: LI_WEB_LI_API_TOKEN
               valueFrom:
-                secretKeyRef: { name: LI_OS_API_TOKEN, key: latest }
+                secretKeyRef: { name: LI_OS_API_TOKEN, key: PINNED_LI_OS_API_TOKEN_VERSION }
             - name: LI_WEB_OWNER_API_TOKEN
               valueFrom:
-                secretKeyRef: { name: LI_OS_OWNER_API_TOKEN, key: latest }
+                secretKeyRef: { name: LI_OS_OWNER_API_TOKEN, key: PINNED_LI_OS_OWNER_API_TOKEN_VERSION }
             - name: LI_WEB_SESSION_SECRET
               valueFrom:
-                secretKeyRef: { name: LI_WEB_SESSION_SECRET, key: latest }
+                secretKeyRef: { name: LI_WEB_SESSION_SECRET, key: PINNED_LI_WEB_SESSION_SECRET_VERSION }
             - name: LI_WEB_GOOGLE_CLIENT_ID
               valueFrom:
-                secretKeyRef: { name: LI_WEB_GOOGLE_CLIENT_ID, key: latest }
+                secretKeyRef: { name: LI_WEB_GOOGLE_CLIENT_ID, key: PINNED_LI_WEB_GOOGLE_CLIENT_ID_VERSION }
             - name: LI_WEB_GOOGLE_CLIENT_SECRET
               valueFrom:
-                secretKeyRef: { name: LI_WEB_GOOGLE_CLIENT_SECRET, key: latest }
+                secretKeyRef: { name: LI_WEB_GOOGLE_CLIENT_SECRET, key: PINNED_LI_WEB_GOOGLE_CLIENT_SECRET_VERSION }

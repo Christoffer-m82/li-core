@@ -19,19 +19,6 @@ where applicable, Heimdall review.
 - **Next review:** Any migration automation or baseline rebuild must define and test the canonical
   handling of both historical 021 files without modifying them.
 
-## KR-002: Some deployment assets reference `latest` secret versions
-
-- **Evidence:** `deployment/cloud-run/web-service.template.yaml`,
-  `deployment/cloud-run/retention-job.template.yaml`, and
-  `deployment/cloud-run/provision-retention.ps1` contain `latest` secret references, while the Native
-  Gateway guide explicitly requires pinned numeric versions.
-- **Impact:** A new secret version may alter a future revision or job rollout without the reviewed
-  version being obvious in the repository release record.
-- **Current control:** Secret values stay outside Git; the deployment workflow requires inspected
-  references and an explicit release record.
-- **Next review:** Standardize a pinned-version rollout and rotation policy across services, then
-  update the authoritative deployment guides and templates together.
-
 ## KR-003: In-memory backend rate limiting is per instance
 
 - **Evidence:** The [backend deployment guide](../README.md#one-time-google-cloud-setup) describes the
@@ -110,6 +97,17 @@ where applicable, Heimdall review.
   release.
 
 ## Closed risks
+
+### KR-002: Mutable deployment secret references — resolved 2026-09-06
+
+- **Previous evidence:** Web and retention deployment assets referenced `latest`, while the Native
+  Gateway guidance required pinned numeric versions.
+- **Resolution:** All deployable Cloud Run YAML uses explicit `PINNED_*_VERSION` placeholders. The
+  retention and Native Gateway provisioning scripts accept only positive numeric version identifiers,
+  and the deployment workflow requires a reviewed new revision for rotation. A repository regression
+  test rejects `latest` from deployable YAML and PowerShell assets.
+- **Residual rule:** Repository templates do not prove the currently deployed version. Each release
+  record must still verify and record the rendered numeric references without exposing secret values.
 
 ### KR-010: Superseded pre-migration backup — resolved 2026-09-06
 
