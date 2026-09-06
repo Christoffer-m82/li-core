@@ -100,7 +100,14 @@ Rotate one Li token at a time: add a new Secret Manager version, deploy a new re
 referencing that version, update the client, verify it, and disable the old version. OAuth
 and provider credentials follow the same new-version/new-revision procedure.
 
-To roll back, shift 100% of Cloud Run traffic to the last known-good revision. Because
+Before rollback, verify that the target is both schema-compatible and safe for the current
+privacy and recovery requirements. Readiness or previous successful traffic alone is not
+proof of safety: a revision predating a security correction can reintroduce that defect.
+Do not restore affected chat or memory-write traffic to a known-vulnerable revision merely
+to recover availability. If no safe target exists, stop promotion and obtain an explicitly
+authorized containment or corrected-release plan; do not weaken IAM or other safeguards.
+
+For an authorized, validated target, shift 100% of Cloud Run traffic to that revision. Because
 deployments do not run database migrations, application rollback is independent of the
 database. After rollback, check `/health`, authenticated `/ready`, and a read-only provider
 operation. Keep the failed revision at zero traffic for diagnosis; delete it only after the
