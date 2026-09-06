@@ -46,6 +46,16 @@ operator, planned time, user impact, rollback target, and links to approval evid
   component with that route enabled until the target database reports schema 0.40 and the owner-only
   allow plus backend/Theo/direct-table denials have passed. This ordering note does not authorize the
   migration or deployment.
+- The chat memory-effect fencing correction requires migration 041 before deploying the matching
+  backend. Obtain exact staging authorization, verify no-additional-charge coverage, create and
+  authenticate a fresh pre-041 encrypted backup, confirm schema 0.40 and the tracked migration
+  checksum, and complete the disposable rehearsal before applying it once. Afterward verify schema
+  0.41, the Li/backend allow path, Theo/owner-confirmation/direct-table denials, and bounded English
+  and Swedish failure/retry behavior. Keep the prior immutable application revision available. A
+  pre-041 application remains schema-compatible but retains the defect; a corrected application on
+  schema 0.40 must fail closed for durable memory capture. Do not automatically retry uncertain
+  memory effects or treat application rollback as database rollback. This ordering note does not
+  authorize a migration, deployment, record inspection or reconciliation.
 - Build from the repository root using the component Dockerfile and retain the immutable digest.
 - Inspect rendered configuration without exposing values. Reject unresolved placeholders,
   unauthenticated backend access, wildcard production CORS, unpinned rollout inputs where pinning is
