@@ -21,6 +21,7 @@ Then use the operating documents that match the task:
 | Prepare or review database change | [Migration workflow](docs/MIGRATION_WORKFLOW.md) |
 | See unfinished or externally gated work | [Open milestones](docs/OPEN_MILESTONES.md) |
 | Choose and report validation | [Testing and audit](docs/TESTING_AND_AUDIT.md) |
+| Plan or determine eligibility for natural phone/tablet voice | [Real-time voice plan](docs/REALTIME_VOICE_PLAN.md) — late Package 6 scope after the documented core stability gate; provider and implementation pending |
 | Implement or verify the six improvement packages | [Improvement blueprint](docs/LI_OS_IMPROVEMENT_BLUEPRINT.md) and [acceptance record](docs/LI_OS_IMPROVEMENT_ACCEPTANCE.md) |
 | Resume corrections from the independent Phase 2 review | [Phase 2 implementation handover](docs/LI_OS_PHASE_2_HANDOVER.md) |
 | Find an existing decision | [Decision index](docs/DECISIONS.md) |

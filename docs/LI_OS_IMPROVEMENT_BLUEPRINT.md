@@ -82,7 +82,9 @@ but it is not a prerequisite for the first dependable installable-web release.
 3. Establish a local synthetic baseline using [Testing and audit](TESTING_AND_AUDIT.md). Read actual
    project manifests and test fixtures rather than assuming installed tools, credentials or services.
 4. Begin package 5's evaluation baseline and package 1's reproduction tests. Then execute packages 1–4,
-   expanding package 5's evidence throughout, and finish package 6's end-to-end acceptance.
+   expanding package 5's evidence throughout, and finish package 6's end-to-end acceptance. Within
+   package 6, start OM-003 only after its dependency gate below is satisfied; if voice remains blocked,
+   continue unrelated eligible acceptance work.
 5. Before each substantial change, state the invariant, the smallest intended change, affected interfaces,
    expected failure behavior and validation plan. This is a progress update, not a routine approval request.
 6. Prefer reviewable vertical slices. Keep policy, application, migration and deployment changes separately
@@ -578,7 +580,7 @@ each package.
 | 3. Recoverable execution | Add stable turn identity, bounded work and uncertain-outcome recovery | Before more autonomous workflows | Disconnect/restart/retry tests show no duplicate effects or false completion |
 | 4. Coherent delegation | Resolve intent and task state; generate focused registry-governed consultations | Uses packages 1–3 | EN/SV scenarios select appropriate capabilities with fewer unnecessary calls |
 | 5. Evidence of improvement | Extend evaluations, traces, latency and usage measurement | Baseline first; instrument all preceding packages | Reproducible comparison shows safety, quality and performance outcomes |
-| 6. Personal-use completion | Finish and verify existing end-to-end journeys | After P0 closure; requires package 5 evidence | Acceptance rows close only with the required local, live and device evidence |
+| 6. Personal-use completion | Finish and verify existing end-to-end journeys; place OM-003 after the stable core foundations and before enhanced-voice device acceptance and final sign-off | After P0 closure and package 5 evidence; OM-003 additionally requires the explicit entry criteria in its work package | Acceptance rows close only with the required local, live and device evidence; enhanced voice follows its own evaluation-to-acceptance sequence |
 
 # SOL IMPLEMENTATION HANDOFF
 
@@ -949,6 +951,37 @@ implemented, configured, deployed and verified states.
 ### Dependencies
 
 P0 packages closed, package 5 evidence, and separately authorized external activation where needed.
+
+### OM-003 dependency placement
+
+Use dependency evidence, not mention order or a target date. OM-003 is a late stream within package 6:
+
+1. **Core stability gate:** verify the current release's relevant chat/history, memory/privacy,
+   bilingual response and routing, tactile action-approval, and recoverable-turn behavior through
+   applicable automated checks, staged smoke checks and security/data-integrity review. Required
+   migrations must be applied and validated, rollback must remain available, and no blocking finding
+   may remain in those paths.
+2. **Voice delivery sequence:** complete provider and voice evaluation with cost-coverage verification,
+   record the architecture decision, implement behind the existing Li and approval boundaries, and
+   perform an explicitly authorized staged deployment. Follow the
+   [real-time voice plan](REALTIME_VOICE_PLAN.md); provider activation and metered trials retain their
+   own gates.
+3. **What follows voice:** complete the enhanced Swedish/English voice acceptance on the owner's
+   Android phone and tablet, run the Windows regression checks, record owner acceptance, and only then
+   include that experience in final personal-use release sign-off and stable-use evidence.
+
+The [improvement acceptance record](LI_OS_IMPROVEMENT_ACCEPTANCE.md) establishes that packages 1–5
+and the existing package 6 foundations are merged and locally verified, with migrations 037–039 and
+the earlier application release separately evidenced in staging. The
+[personal-use checklist](PERSONAL_V1_ACCEPTANCE.md) is the live completion ledger: current outstanding
+entry evidence includes the latest applicable staging rollout and smoke checks, migration 040 and its
+memory/privacy journey where included, physical-device checks, and stable-use observation. Therefore
+OM-003 is placed but is not automatically the next implementation task.
+
+Optional visual polish, owner profile photos, activation of every proactive rhythm, and standalone
+native-app completion are not entry criteria for installable-web voice. Work on unrelated eligible
+personal-use rows continues when voice is blocked by provider, cost, decision, deployment or device
+gates.
 
 ### Preserve
 

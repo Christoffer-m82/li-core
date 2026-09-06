@@ -62,6 +62,16 @@ installation-specific checks on each device where the matrix requires them.
 | Grant microphone permission and speak once in English and once in Swedish | The transcript is correct before submission, exactly one normal chat turn is sent, and spoken output can be stopped | NOT RUN |
 | Deny microphone permission, then cancel an active attempt | Li explains the denial/cancel state and typed chat remains usable | NOT RUN |
 
+## Planned enhanced voice acceptance gate
+
+The two microphone rows above test the existing voice foundation. They do not accept the planned
+real-time enhancement. After OM-003 completes its provider/cost evaluation, architecture decision,
+implementation and authorized staged deployment, apply the audio-specific criteria in the
+[real-time voice plan](REALTIME_VOICE_PLAN.md#evaluation-and-completion-criteria) on the Android phone
+and tablet, with Windows regression coverage. Record owner acceptance before final release sign-off
+includes enhanced voice. Until then this gate is **NOT ELIGIBLE / NOT RUN**, and unrelated device
+acceptance may continue.
+
 ## Proactivity and scheduled work
 
 The five proactive rhythm jobs were read-only verified as paused on 2026-09-05. Keep them paused until
