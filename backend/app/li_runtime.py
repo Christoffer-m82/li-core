@@ -462,12 +462,17 @@ def talk_to_li_with_outcome(
     current_message: ConversationContextMessage | None = None,
     temporary_upload_allowed_specialists: set[str] | None = None,
     temporary_upload_private_to_li: bool = False,
+    historical_context_private_to_li: bool = False,
 ) -> LiTurnOutcome:
     """
     Send a message to Li with relevant canonical memory context.
     """
 
     system_prompt = build_li_system_prompt()
+    private_source_context = (
+        temporary_upload_private_to_li or historical_context_private_to_li
+        or bool(conversation_context and conversation_messages is None)
+    )
 
     memories = _retrieve_relevant_memories(user_message, limit=8)
     memory_context = build_memory_context(user_message, memories=memories)
@@ -575,7 +580,7 @@ def talk_to_li_with_outcome(
         response_private, response_allowed = _response_disclosure(
             messages=source_messages,
             memories=memories,
-            upload_private_to_li=temporary_upload_private_to_li,
+            upload_private_to_li=private_source_context,
             candidate_specialists=[],
         )
         return LiTurnOutcome(
@@ -593,7 +598,6 @@ def talk_to_li_with_outcome(
     freshness_metadata: dict[str, dict[str, object]] = {}
     request_id: str = str(uuid4())
     if routing.specialists:
-        bounded_conversation = conversation_context[-6000:] if conversation_context else None
         specialist_requests: dict[str, SpecialistRequest] = {}
         for specialist in routing.specialists:
             disclosed_conversation = (
@@ -601,7 +605,7 @@ def talk_to_li_with_outcome(
                     conversation_messages, specialist, query=user_message,
                 )
                 if conversation_messages is not None
-                else bounded_conversation if workspace_specialist == specialist else None
+                else None  # Untyped history has no verified disclosure permissions.
             )
             specialist_conversation = disclosed_conversation
             specialist_upload = (
@@ -1009,7 +1013,7 @@ def talk_to_li_with_outcome(
         response_private, response_allowed = _response_disclosure(
             messages=source_messages,
             memories=memories,
-            upload_private_to_li=temporary_upload_private_to_li,
+            upload_private_to_li=private_source_context,
             candidate_specialists=[],
         )
         try:
@@ -1105,7 +1109,7 @@ def talk_to_li_with_outcome(
     response_private, response_allowed = _response_disclosure(
         messages=source_messages,
         memories=memories,
-        upload_private_to_li=temporary_upload_private_to_li,
+        upload_private_to_li=private_source_context,
         candidate_specialists=used_keys,
     )
     return LiTurnOutcome(

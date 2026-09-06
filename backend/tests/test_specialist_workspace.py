@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import require_api_token
+from app.governed_systems import ConversationContextMessage
 from app.li_runtime import talk_to_li
 from app.main import app
 from app.memory_capture import MemoryCaptureAnalysis
@@ -29,7 +30,10 @@ def test_workspace_routes_followup_to_selected_specialist_and_keeps_li(monkeypat
     monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
     monkeypatch.setattr("app.li_runtime.generate_claude_text", generate)
     response = talk_to_li("Hello", workspace_specialist="nora", workspace_recipient=recipient,
-                          conversation_context="user: Prior question", temporary_upload_context="File data")
+                          conversation_context="user: Prior question", temporary_upload_context="File data",
+                          conversation_messages=[ConversationContextMessage(
+                              role="user", content="Prior question", allowed_specialists=("nora",),
+                          )])
     assert response == "Li synthesis"
     assert observed["keys"] == ["nora"]
     assert observed["request"].conversation_context == "user: Prior question"
