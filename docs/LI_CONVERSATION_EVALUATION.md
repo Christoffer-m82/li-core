@@ -12,7 +12,11 @@ The existing [runtime](../backend/app/li_runtime.py) loads both documents into L
 prompt, including specialist synthesis and validation fallback. The
 [backend image](../backend/Dockerfile) already packages them. No new model, provider,
 permission, memory schema, automatic learning, or storage behaviour is introduced.
-Specialists retain their own identities; this change concerns Li's replies.
+Specialists retain their own identities; the original identity update concerns Li's replies. A later
+prompt-wiring correction asks human-readable specialist result values to follow the current or
+explicitly requested conversation language because recorded results are visible in Workspace. It
+does not give specialists a user-facing role or change their schema, routing, evidence, privacy or
+authority boundaries.
 
 Local automated checks verify prompt inclusion and response transport, **not** that an
 actual model now sounds natural. Provider-backed bilingual evaluation and owner acceptance
