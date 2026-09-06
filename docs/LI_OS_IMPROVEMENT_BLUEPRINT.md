@@ -973,12 +973,13 @@ Use dependency evidence, not mention order or a target date. OM-003 is a late st
 The [improvement acceptance record](LI_OS_IMPROVEMENT_ACCEPTANCE.md) establishes that packages 1–5
 and the existing package 6 foundations are merged and locally verified, with migrations 037–039 and
 the earlier application release separately evidenced in staging. The
-[personal-use checklist](PERSONAL_V1_ACCEPTANCE.md) is the live completion ledger. The schema-0.40
-rollout and read-only owner-proposal journey are now evidenced in the
-[2026-09-06 release record](releases/2026-09-06-2746421-staging.md). Outstanding entry evidence remains
-the provider-backed English/Swedish core-chat smoke journey, applicable owner mutation and physical-
-device checks, and stable-use observation. Therefore OM-003 is placed but is not automatically the
-next implementation task.
+[personal-use checklist](PERSONAL_V1_ACCEPTANCE.md) is the live completion ledger. The schema-0.41
+privacy and recovery rollout is now evidenced in the
+[2026-09-06 release record](releases/2026-09-06-8831381-staging.md), building on the earlier
+[schema-0.40 release](releases/2026-09-06-2746421-staging.md). Outstanding entry evidence remains the
+provider-backed English/Swedish core-chat and recovery smoke journey, applicable owner mutation and
+physical-device checks, and stable-use observation. Therefore OM-003 is placed but is not
+automatically the next implementation task.
 
 Optional visual polish, owner profile photos, activation of every proactive rhythm, and standalone
 native-app completion are not entry criteria for installable-web voice. Work on unrelated eligible
