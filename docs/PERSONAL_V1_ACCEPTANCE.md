@@ -21,7 +21,7 @@ required authorization. Secret entry and physical-device checks may require the 
 
 | Area | Acceptance checks | Evidence still required |
 | --- | --- | --- |
-| Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | Representative end-to-end journeys with controlled fixtures and an approved live smoke test |
+| Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey now covers bilingual Nora routing, completion, persisted history reload and idempotent replay; an approved live staging smoke test remains pending |
 | Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Complete UI journeys and authorized data-integrity/recovery tests |
 | Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | A synthetic HTTP-boundary lifecycle now covers the complete journey, owner-scoped not-found behavior, a recoverable storage outage and deletion; operator-verified scheduled expiry remains pending |
 | Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance and phone specialist entry implemented; agenda, owner-selected priorities and consolidated attention remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
@@ -98,6 +98,20 @@ artifact reached expiry and was deleted. The five proactive rhythm jobs remained
 backend configuration contained the required variable references for Anthropic, artifact storage,
 Brave research, Calendar and Gmail; no value was read. Configuration presence does not prove provider
 entitlement, correctness, successful calls, or owner-journey acceptance.
+
+## Controlled core-chat journey — 2026-09-06
+
+The permanent
+[`test_bilingual_specialist_chat_persists_reloads_and_replays_once`](../backend/tests/test_personal_v1_chat_acceptance.py)
+fixture drives the authenticated backend API with synthetic state. Both **Ask Nora to compare these
+options** and **Be Nora jämföra de här alternativen** select Nora under the same policy, produce one
+validated synthesis, persist one owner and one Li message, reload that history, and replay the same
+stable turn without rerunning Nora or adding a duplicate message. Existing failure-path tests cover
+in-progress, uncertain, conflicting, expired and unavailable turn states.
+
+This evidence uses no live model, provider, personal memory or external action. It closes the
+controlled-fixture portion of Core chat and routing, but it does not replace the pending approved
+staging smoke test or physical-device acceptance.
 
 ## Earlier baseline — 2026-09-04
 
