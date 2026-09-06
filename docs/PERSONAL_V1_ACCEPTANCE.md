@@ -32,8 +32,9 @@ migrations 037–039 and the earlier application release have separate staging e
 bilingual chat/retry journey also passes. These are satisfied prerequisites at their recorded layers,
 not proof that the full core stability gate is closed.
 
-The schema-0.40 staging rollout and read-only owner-proposal journey are now recorded in the
-[2026-09-06 release evidence](releases/2026-09-06-2746421-staging.md). Outstanding entry evidence is
+The schema-0.41 privacy and recovery rollout is now recorded in the
+[2026-09-06 release evidence](releases/2026-09-06-8831381-staging.md), building on the earlier
+[schema-0.40 release](releases/2026-09-06-2746421-staging.md). Outstanding entry evidence is
 the live English/Swedish core-chat smoke journey, applicable owner mutation and physical-device checks,
 and absence of blocking findings through the required stability period. Until those are recorded,
 OM-003 remains planned and is not automatically next. Unrelated eligible acceptance work continues
@@ -49,7 +50,7 @@ before the final release sign-off can include it.
 | Area | Acceptance checks | Evidence still required |
 | --- | --- | --- |
 | Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey now covers bilingual Nora routing, completion, persisted history reload and idempotent replay; an approved live staging smoke test remains pending |
-| Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Schema 0.40 and the matching application release are deployed; the signed-in read-only proposal journey passed without changing data. Physical-device, correction/forgetting and other authorized live data-integrity journeys remain open |
+| Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Schema 0.41 and the matching privacy/recovery application corrections are deployed after a fresh encrypted backup, full restore and rehearsal. The signed-in read-only paths passed without changing data. Provider-backed bilingual privacy, correction/forgetting, uncertain-effect reconciliation, and physical-device journeys remain open |
 | Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | A synthetic HTTP-boundary lifecycle now covers the complete journey, owner-scoped not-found behavior, a recoverable storage outage and deletion; operator-verified scheduled expiry remains pending |
 | Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance and phone specialist entry implemented; agenda, owner-selected priorities and consolidated attention remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
 | Specialists | All registry names/roles, selected portraits, original viewer, recorded interactions, honest unavailable states | A signed-in staging smoke check opened a Home specialist card directly into Workspace, loaded the three-party saved conversation, History and bounded Statistics, and opened the named full-resolution portrait without mutation. Physical-device, longer-running interaction and screen-reader checks remain open; system profiles remain read-only definitions. |
@@ -58,7 +59,7 @@ before the final release sign-off can include it.
 | Proactivity | Owner-approved schedule, grounded brief, quiet hours, duplicate prevention, delivery and stand-down | Exact per-rhythm activation approval plus coordinated database/scheduler verification; external notification delivery needs a design |
 | Voice | Existing foundation: transcript correctness, cancel, permission denial, unavailable service and spoken response stop. Planned late-Package-6 extension: expressive Swedish/English real-time conversation, natural turn timing, interruption and recovery; see the [real-time voice plan](REALTIME_VOICE_PLAN.md). | Close the core stability entry gate first. Then complete provider/cost evaluation, architecture decision, implementation, authorized staged deployment and measured Android phone/tablet owner acceptance with Windows regressions. The addition remains planning only. |
 | Installation | Install, launch, sign-in expiry, update, offline explanation, keyboard/touch navigation | Complete the [physical-device and owner checklist](PERSONAL_V1_DEVICE_ACCEPTANCE.md); native Android and gateway completion remains tracked separately |
-| Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | The original and replacement backups passed the [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md), and the superseded copy was then deleted with owner authorization while the validated replacement was preserved. The [schema-0.40 release](releases/2026-09-06-2746421-staging.md) retained private backend IAM, numeric secret-version references and application rollback. Recurring cadence and remaining acceptance evidence stay open. See [known risks](KNOWN_RISKS.md). |
+| Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | The [schema-0.41 release](releases/2026-09-06-8831381-staging.md) adds a fresh authenticated pre-migration backup, full schema-0.40 restore, migration rehearsal, live authority denials, pinned immutable images, unchanged runtime identities, safe logs and an immediate application rollback path. Recurring cadence and remaining live/device evidence stay open. See [known risks](KNOWN_RISKS.md). |
 | Release stability | All agreed journeys pass, no unresolved critical findings, normal use observation and rollback available | A stable-use observation period; no unsupported claim of 100% |
 
 ## Local browser accessibility evidence — 2026-09-05
@@ -203,7 +204,9 @@ The complete manifest through 0.41 passed on a fresh local container using the C
 PostgreSQL image. The rehearsal checked data preservation, replay rejection, function ownership,
 existing role separation, wrong hash/token and null-token rejection, expired-lease rejection,
 repeat guards, late writes after `response_ready`, and process-loss uncertainty. These are synthetic
-local results, not an applied staging migration or live memory acceptance.
+local results. Migration 041 and the matching application were subsequently deployed through the
+[recorded staging release](releases/2026-09-06-8831381-staging.md); provider-backed bilingual memory
+mutation and uncertain-effect acceptance remain open.
 
 Backend `pytest -q` passed 1,062 tests; Ruff passed for the backend and migration harness. The
 upstream Starlette/AnyIO alias warning remains visible. Run these commands from `backend/`, as the
@@ -250,11 +253,11 @@ A read-only Cloud Run check on 2026-09-06 confirmed backend `li-os-release-27464
 database schema; schema 0.40 remains the last recorded database evidence. No deployment, migration,
 provider call, backup access, or personal-record inspection occurred in this review.
 
-KR-011 remains open. Exact staging authorization, current bounded cost coverage, a fresh
-authenticated pre-041 backup **and full isolated schema-0.40 restore**, migration rehearsal and live
-bilingual validation are still required. Follow the existing deployment and migration workflows;
-do not substitute the older schema-0.39 backup or earlier release's credit check. OM-003 remains
-gated by the same core-stability and acceptance requirements.
+KR-011 remains open for provider-backed bilingual privacy and uncertain-effect acceptance, not for
+deployment. The fresh authenticated pre-041 backup, full isolated schema-0.40 restore, rehearsal,
+schema-0.41 migration, and matching application rollout are recorded in the
+[release evidence](releases/2026-09-06-8831381-staging.md). No personal records were inspected or
+reclassified. OM-003 remains gated by the outstanding core-stability and acceptance requirements.
 
 ## Local Home and Workspace recovery evidence — 2026-09-06
 
