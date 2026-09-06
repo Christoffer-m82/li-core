@@ -18,6 +18,40 @@ def _memory(memory_id: str = "old-id") -> dict[str, object]:
     }
 
 
+@pytest.mark.parametrize("action", ["store_explicit", "propose_for_theo", "correct_explicit", "forget"])
+@pytest.mark.parametrize("guard_fails", [False, True])
+def test_every_memory_mutation_is_guarded_immediately_before_write(monkeypatch, action, guard_fails):
+    events = []
+    monkeypatch.setattr("app.memory_capture.recall_memory", lambda **kwargs: [_memory()])
+
+    def write(**kwargs):
+        events.append("write")
+        return {"memory_id": "synthetic-id"}
+
+    for name in ["store_explicit_memory", "propose_memory"]:
+        monkeypatch.setattr(f"app.memory_capture.{name}",
+                            lambda **kwargs: events.append("write") or "synthetic-id")
+    for name in ["correct_explicit_memory", "forget_memory"]:
+        monkeypatch.setattr(f"app.memory_capture.{name}", write)
+
+    def guard():
+        events.append("guard")
+        if guard_fails:
+            raise MemoryCaptureError("Synthetic fence unavailable")
+
+    analysis = MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+        action=action, memory_class="explicit_preference", domain="preferences",
+        value="Synthetic preference", sensitivity="low", target_query="notebooks",
+    )])
+    if guard_fails:
+        with pytest.raises(MemoryCaptureError):
+            apply_memory_capture(analysis, before_write=guard)
+        assert events == ["guard"]
+    else:
+        apply_memory_capture(analysis, before_write=guard)
+        assert events == ["guard", "write"]
+
+
 def test_apply_memory_correction(monkeypatch) -> None:
     monkeypatch.setattr("app.memory_capture.recall_memory", lambda **kwargs: [_memory()])
     recorded = {}

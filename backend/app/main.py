@@ -143,7 +143,7 @@ from app.request_language import requests_history
 from app.runtime_data import (
     RuntimeDataCapabilityUnavailable, RuntimeDataError,
     begin_chat_turn, bind_chat_turn_conversation, finish_chat_turn,
-    finish_chat_turn_attempt, mark_chat_turn_progress,
+    finish_chat_turn_attempt, mark_chat_turn_progress, mark_chat_turn_effect_started,
     change_artifact, conversation_messages,
     finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
     list_interactions, reserve_artifact, set_retention, analytics_events,
@@ -1543,6 +1543,21 @@ def _execute_li_chat(
                 "provider_no_effect": "no_effect",
             }[stage]
 
+    def before_memory_write() -> None:
+        # Memory mutations are durable effects too, including deferred capture
+        # after response_ready. A stage-only lease cannot fence those writes.
+        if turn_id is not None:
+            if not durable or not isinstance(attempt_token, UUID):
+                raise MemoryCaptureError("Durable memory write fencing is unavailable.")
+            try:
+                mark_chat_turn_effect_started(
+                    turn_id=turn_id, request_hash=request_hash, attempt_token=attempt_token,
+                )
+            except RuntimeDataError as exc:
+                raise MemoryCaptureError("Durable memory write fencing failed.") from exc
+        progress["external_effect_possible"] = True
+        progress["external_effect_state"] = "dispatched"
+
     message_privacy_metadata = dict(payload.privacy_metadata)
     raw_private_to_li = message_privacy_metadata.get("private_to_li", False)
     private_to_li = (
@@ -1702,6 +1717,7 @@ def _execute_li_chat(
                     change_analysis,
                     source_reference=capture_reference,
                     source_private_to_li=capture_private_to_li,
+                    before_write=before_memory_write,
                 )
                 statuses = ", ".join(
                     outcome.status for outcome in capture_outcomes
@@ -1789,6 +1805,7 @@ def _execute_li_chat(
                         deferred_analysis,
                         source_reference=capture_reference,
                         source_private_to_li=capture_private_to_li,
+                        before_write=before_memory_write,
                     )
                 )
             except MemoryCaptureError:

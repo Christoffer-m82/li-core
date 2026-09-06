@@ -1,17 +1,103 @@
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import require_api_token
 from app.main import app
-from app.memory_capture import MemoryCaptureAnalysis
+from app.memory_capture import MemoryCandidate, MemoryCaptureAnalysis, MemoryCaptureOutcome
 from app.li_runtime import LiRuntimeError
 from app.runtime_data import RuntimeDataCapabilityUnavailable, RuntimeDataError
 from app.schemas import LiChatRequest, LiChatResponse
 
 
 ROOT = Path(__file__).parents[2]
+
+
+@pytest.mark.parametrize("message", [
+    "Actually, I prefer amber notebooks.", "Jag föredrar faktiskt bärnstensfärgade anteckningsböcker.",
+])
+def test_memory_change_then_model_failure_is_not_safe_to_repeat(monkeypatch, message):
+    turn_id, conversation_id, attempt_token = uuid4(), uuid4(), uuid4()
+    finished, fences = [], []
+    monkeypatch.setattr("app.main.begin_chat_turn", lambda **kwargs: {
+        "outcome": "accepted", "attempt_token": str(attempt_token),
+        "progress_stage": "accepted",
+    })
+    monkeypatch.setattr("app.main.create_conversation", lambda **kwargs: str(conversation_id))
+    monkeypatch.setattr("app.main.bind_chat_turn_conversation", lambda **kwargs: kwargs)
+    monkeypatch.setattr("app.main.get_recent_conversation_messages", lambda **kwargs: [])
+    monkeypatch.setattr("app.main.append_conversation_message", lambda **kwargs: "message")
+    monkeypatch.setattr("app.main.mark_chat_turn_progress", lambda **kwargs: {})
+    monkeypatch.setattr("app.main.mark_chat_turn_effect_started",
+                        lambda **kwargs: fences.append(kwargs) or {}, raising=False)
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs:
+                        MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+                            action="correct_explicit", target_query="notebooks",
+                            memory_class="explicit_preference", domain="preferences",
+                            value="Amber notebooks", sensitivity="low",
+                        )]))
+
+    def apply(*args, **kwargs):
+        if kwargs.get("before_write"):
+            kwargs["before_write"]()
+        return [MemoryCaptureOutcome(status="corrected")]
+
+    monkeypatch.setattr("app.main.apply_memory_capture", apply)
+    monkeypatch.setattr("app.main.talk_to_li", lambda *args, **kwargs:
+                        (_ for _ in ()).throw(LiRuntimeError("Synthetic model failure")))
+    monkeypatch.setattr("app.main.finish_chat_turn_attempt",
+                        lambda **kwargs: finished.append(kwargs) or {})
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        response = TestClient(app).post("/li/chat", json={
+            "message": message, "turn_id": str(turn_id),
+        })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 503
+    assert finished[-1]["state"] == "uncertain"
+    assert len(fences) == 1
+
+
+@pytest.mark.parametrize("fence_available", [False, True])
+def test_deferred_memory_capture_fences_after_response_ready_and_fails_closed(
+    monkeypatch, fence_available,
+):
+    from tests.test_personal_v1_chat_acceptance import _install_controlled_chat_fixture
+
+    fixture = _install_controlled_chat_fixture(monkeypatch)
+    turn_id = uuid4()
+    writes, stages = [], []
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs:
+                        MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+                            action="store_explicit", memory_class="explicit_preference",
+                            domain="preferences", value="Amber notebooks", sensitivity="low",
+                        )]))
+    monkeypatch.setattr("app.main.talk_to_li", lambda *args, **kwargs: "Synthetic answer.")
+
+    def fence(**kwargs):
+        stages.append(fixture["turns"][str(turn_id)]["progress_stage"])
+        if not fence_available:
+            raise RuntimeDataCapabilityUnavailable("Synthetic schema lacks effect fence")
+        return {}
+
+    monkeypatch.setattr("app.main.mark_chat_turn_effect_started", fence)
+    monkeypatch.setattr("app.memory_capture.store_explicit_memory",
+                        lambda **kwargs: writes.append(kwargs) or str(uuid4()))
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        response = TestClient(app).post("/li/chat", json={
+            "message": "I prefer amber notebooks.", "turn_id": str(turn_id),
+        })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert stages == ["response_ready"]
+    assert bool(writes) == fence_available
+    assert bool(response.json()["memory_capture_error"]) != fence_available
+    assert response.json()["diagnostics"]["recovery"]["external_effect_possible"] == fence_available
 
 
 def test_chat_contract_accepts_stable_turn_identity_and_reports_durability():

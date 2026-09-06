@@ -95,6 +95,15 @@ def finish_chat_turn_attempt(*, turn_id: UUID, request_hash: str, attempt_token:
     return dict(next(iter(rows[0].values())))
 
 
+def mark_chat_turn_effect_started(*, turn_id: UUID, request_hash: str,
+                                  attempt_token: UUID) -> dict[str, object]:
+    """Fence non-repeatable writes independently of model progress (schema 0.41)."""
+    rows = _call("mark_chat_turn_effect_started", (turn_id, request_hash, attempt_token))
+    if not rows:
+        raise RuntimeDataError("Chat turn effect fence returned no result.")
+    return dict(next(iter(rows[0].values())))
+
+
 def get_privacy_settings() -> dict[str, object]:
     rows = _call("get_privacy_settings")
     if not rows:

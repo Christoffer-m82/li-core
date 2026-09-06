@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Callable
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -400,6 +401,7 @@ def apply_memory_capture(
     *,
     source_reference: str | None = None,
     source_private_to_li: bool = False,
+    before_write: Callable[[], None] | None = None,
 ) -> list[MemoryCaptureOutcome]:
     """
     Apply a previously analyzed capture decision.
@@ -437,6 +439,8 @@ def apply_memory_capture(
                 )
 
             if candidate.action == "forget":
+                if before_write is not None:
+                    before_write()
                 try:
                     result = forget_memory(
                         memory_id=str(target["memory_id"]),
@@ -459,6 +463,8 @@ def apply_memory_capture(
             if candidate.value is None:
                 raise MemoryCaptureError("Correction has no new value.")
 
+            if before_write is not None:
+                before_write()
             try:
                 result = correct_explicit_memory(
                     memory_id=str(target["memory_id"]),
@@ -491,6 +497,8 @@ def apply_memory_capture(
             raise MemoryCaptureError("Memory candidate is incomplete.")
 
         if candidate.action == "store_explicit":
+            if before_write is not None:
+                before_write()
             try:
                 memory_id = store_explicit_memory(
                     memory_class=candidate.memory_class,
@@ -517,6 +525,8 @@ def apply_memory_capture(
             continue
 
         if candidate.action == "propose_for_theo":
+            if before_write is not None:
+                before_write()
             try:
                 proposal_id = propose_memory(
                     proposed_by_agent="li",
