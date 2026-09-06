@@ -226,6 +226,26 @@ After rollout, verify permitted and denied calls and bounded bilingual recovery 
 recording the finding as closed. Existing affected outcomes may need owner reconciliation, not an
 automatic retry. OM-003 remains gated; unrelated eligible personal-use work continues.
 
+## Local Home and Workspace recovery evidence — 2026-09-06
+
+Focused dependency-free browser regressions now cover the owner-visible recovery states in both
+chat surfaces. Home preserves one stable turn identity across a failed or uncertain retry, keeps the
+draft, displays the backend's partial-completion guidance, and renders separate warnings when memory
+capture or durable replay confirmation is unavailable. Specialist Workspace proves the same stable
+identity and draft behavior, now preserves the specific uncertainty guidance instead of replacing it
+with a generic failure, and reports both memory-capture and durability uncertainty without claiming
+that anything was saved or changed. Existing tests continue to cover changed-request identities,
+reload recovery without message content in browser storage, concurrent-submit suppression and
+unavailable saved history.
+
+The complete frontend checks passed: Ruff, 93 Python tests, compileall and 85 Node browser tests.
+The upstream Starlette/AnyIO alias warning remains visible. A local synthetic rendering of the
+Workspace uncertainty state was also measured at 390 × 844, 800 × 1280 and 1440 × 900 CSS pixels.
+At each size the status and draft remained visible, the page and chat log had no horizontal overflow,
+and the Send control remained at least 44 CSS pixels high. This is local simulated layout and
+contract evidence only; it is not staging, physical Android, installed-Windows, microphone or owner
+acceptance.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
