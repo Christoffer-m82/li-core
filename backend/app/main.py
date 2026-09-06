@@ -64,6 +64,7 @@ from app.database import (
     confirm_memory_proposal,
     create_conversation,
     database_health,
+    get_owner_memory_proposals,
     get_pending_memory_proposals,
     get_primary_user,
     get_recent_conversation_messages,
@@ -111,6 +112,7 @@ from app.schemas import (
     MemoryProposalReviewResult,
     OwnerMemoryConfirmation,
     OwnerMemoryConfirmationResult,
+    OwnerMemoryProposal,
     PendingMemoryProposal,
     RecalledMemory,
     TheoAutomatedReviewResult,
@@ -1160,6 +1162,25 @@ def owner_confirm_memory_proposal_endpoint(
         ) from exc
 
     return OwnerMemoryConfirmationResult.model_validate(result)
+
+
+@app.get(
+    "/owner/memory/proposals",
+    response_model=list[OwnerMemoryProposal],
+    tags=["owner"],
+    dependencies=[Depends(require_owner_api_token)],
+)
+def owner_memory_proposals_endpoint(
+    limit: int = Query(default=20, ge=1, le=50),
+) -> list[OwnerMemoryProposal]:
+    try:
+        proposals = get_owner_memory_proposals(limit=limit)
+    except OwnerConfirmationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Owner memory proposals are temporarily unavailable.",
+        ) from exc
+    return [OwnerMemoryProposal.model_validate(proposal) for proposal in proposals]
 
 
 @app.post(

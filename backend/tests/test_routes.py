@@ -14,6 +14,7 @@ EXPECTED_ROUTES = {
     ("POST", "/theo/memory/proposals/{proposal_id}/review"),
     ("POST", "/theo/memory/proposals/process-next"),
     ("POST", "/owner/memory/proposals/{proposal_id}/confirm"),
+    ("GET", "/owner/memory/proposals"),
     ("POST", "/owner/agents/recommendations/{recommendation_id}/execute"),
     ("POST", "/li/chat"),
     ("POST", "/artifacts/uploads"),
@@ -70,3 +71,4 @@ def test_owner_confirmation_route_exists() -> None:
         "POST",
         "/owner/memory/proposals/{proposal_id}/confirm",
     ) in routes
+    assert ("GET", "/owner/memory/proposals") in routes

@@ -42,6 +42,10 @@ operator, planned time, user impact, rollback target, and links to approval evid
   code against schema 0.37 can leave an uncertain provider write without its required durable state.
   Migration 039 adds the attempt token and progress functions used by the completed recovery path.
   This ordering note does not authorize any external operation.
+- The owner memory-proposal inspection API and History UI require migration 040. Do not deploy either
+  component with that route enabled until the target database reports schema 0.40 and the owner-only
+  allow plus backend/Theo/direct-table denials have passed. This ordering note does not authorize the
+  migration or deployment.
 - Build from the repository root using the component Dockerfile and retain the immutable digest.
 - Inspect rendered configuration without exposing values. Reject unresolved placeholders,
   unauthenticated backend access, wildcard production CORS, unpinned rollout inputs where pinning is
