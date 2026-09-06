@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory = $true)][ValidateRange(1, 65535)][int]$Port,
     [Parameter(Mandatory = $true)][string]$DatabaseName,
     [Parameter(Mandatory = $true)][string]$UserName,
-    [string]$ExpectedSchemaVersion = "0.39",
+    [Parameter(Mandatory = $true)][ValidatePattern('^0\.[0-9]+$')][string]$ExpectedSchemaVersion,
     [switch]$ConfirmIsolatedTarget
 )
 
@@ -118,17 +118,50 @@ if ([string]::IsNullOrWhiteSpace($databasePassword)) {
     throw "Target database password was empty."
 }
 
-$nonSystemTableCount = Invoke-PostgresQuery -Executable $psql -Password $databasePassword -Sql @"
-SELECT count(*)
-FROM pg_catalog.pg_class AS c
-JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
-WHERE c.relkind IN ('r', 'p')
-  AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-  AND n.nspname !~ '^pg_(toast|temp_)';
+$nonSystemObjectCount = Invoke-PostgresQuery -Executable $psql -Password $databasePassword -Sql @"
+SELECT
+    (SELECT count(*)
+       FROM pg_catalog.pg_namespace
+      WHERE nspname NOT IN ('pg_catalog', 'information_schema', 'public')
+        AND nspname !~ '^pg_(toast|temp_)')
+  + (SELECT count(*)
+       FROM pg_catalog.pg_class AS c
+       JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public');
 "@
-if ($nonSystemTableCount -ne "0") {
+if ($nonSystemObjectCount -ne "0") {
     $databasePassword = ""
-    throw "Refusing to restore because the isolated target already contains non-system tables."
+    throw "Refusing to restore because the isolated target already contains non-system schemas or public objects."
+}
+$pgcryptoAvailable = Invoke-PostgresQuery -Executable $psql -Password $databasePassword -Sql @"
+SELECT count(*) FROM pg_catalog.pg_available_extensions WHERE name = 'pgcrypto';
+"@
+if ($pgcryptoAvailable -ne "1") {
+    $databasePassword = ""
+    throw "The isolated PostgreSQL target does not provide the required pgcrypto extension."
+}
+
+$existingRestoreRoleCount = Invoke-PostgresQuery -Executable $psql -Password $databasePassword -Sql @'
+SELECT count(*)
+FROM pg_catalog.pg_roles
+WHERE rolname IN (
+    'li_memory_function_owner',
+    'li_memory_api',
+    'li_memory_theo',
+    'li_backend_runtime',
+    'li_theo_runtime',
+    'li_memory_owner_confirmation',
+    'li_owner_runtime',
+    'li_artifact_retention',
+    'li_retention_runtime',
+    'anon',
+    'authenticated',
+    'service_role'
+);
+'@
+if ($existingRestoreRoleCount -ne "0") {
+    $databasePassword = ""
+    throw "Refusing to restore because an expected Li or compatibility role already exists. Use a fresh dedicated disposable PostgreSQL cluster after any failed attempt."
 }
 
 $backupSecret = Read-Host "Enter the backup encryption passphrase" -AsSecureString
@@ -137,6 +170,80 @@ if ([string]::IsNullOrWhiteSpace($backupPassword)) {
     $databasePassword = ""
     throw "Backup passphrase was empty."
 }
+
+$null = Invoke-PostgresQuery -Executable $psql -Password $databasePassword -Sql @'
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+DO $postgres_owner$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'postgres') THEN
+        CREATE ROLE postgres NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+            NOINHERIT NOREPLICATION NOBYPASSRLS;
+    END IF;
+END
+$postgres_owner$;
+
+CREATE ROLE li_memory_function_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE li_memory_api NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE li_memory_theo NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE li_memory_owner_confirmation NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS;
+CREATE ROLE li_artifact_retention NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS;
+
+CREATE ROLE li_backend_runtime LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 10 PASSWORD NULL;
+CREATE ROLE li_theo_runtime LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 5 PASSWORD NULL;
+CREATE ROLE li_owner_runtime LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 3 PASSWORD NULL;
+CREATE ROLE li_retention_runtime LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 2 PASSWORD NULL;
+
+CREATE ROLE anon NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE authenticated NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE service_role NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOINHERIT NOREPLICATION NOBYPASSRLS;
+
+ALTER ROLE li_backend_runtime SET statement_timeout = '30s';
+ALTER ROLE li_backend_runtime SET lock_timeout = '5s';
+ALTER ROLE li_backend_runtime SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE li_backend_runtime SET search_path = li_api, pg_catalog;
+ALTER ROLE li_theo_runtime SET statement_timeout = '30s';
+ALTER ROLE li_theo_runtime SET lock_timeout = '5s';
+ALTER ROLE li_theo_runtime SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE li_theo_runtime SET search_path = li_api, pg_catalog;
+ALTER ROLE li_owner_runtime SET statement_timeout = '30s';
+ALTER ROLE li_owner_runtime SET lock_timeout = '5s';
+ALTER ROLE li_owner_runtime SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE li_owner_runtime SET search_path = li_api, pg_catalog;
+ALTER ROLE li_retention_runtime SET statement_timeout = '30s';
+ALTER ROLE li_retention_runtime SET lock_timeout = '5s';
+ALTER ROLE li_retention_runtime SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE li_retention_runtime SET search_path = li_api, pg_catalog;
+
+CREATE SCHEMA li_memory AUTHORIZATION postgres;
+CREATE SCHEMA li_api AUTHORIZATION postgres;
+CREATE SCHEMA li_conversation AUTHORIZATION postgres;
+CREATE SCHEMA li_runtime_data AUTHORIZATION postgres;
+CREATE SCHEMA li_tasks AUTHORIZATION postgres;
+
+GRANT USAGE ON SCHEMA li_memory, li_conversation, li_runtime_data, li_tasks
+TO li_memory_function_owner;
+GRANT USAGE ON SCHEMA li_api
+TO li_memory_api, li_memory_function_owner, li_memory_theo,
+   li_memory_owner_confirmation, li_artifact_retention;
+
+GRANT li_memory_api TO li_backend_runtime;
+GRANT li_memory_theo TO li_theo_runtime;
+GRANT li_memory_owner_confirmation TO li_owner_runtime;
+GRANT li_artifact_retention TO li_retention_runtime;
+SELECT 1;
+'@
 
 $encrypted = $null
 $key = $null
@@ -179,8 +286,11 @@ try {
         "--username", $UserName,
         "--no-password",
         "--exit-on-error",
-        "--no-owner",
-        "--no-privileges"
+        "--schema", "li_memory",
+        "--schema", "li_api",
+        "--schema", "li_conversation",
+        "--schema", "li_runtime_data",
+        "--schema", "li_tasks"
     )) {
         $restoreInfo.ArgumentList.Add($argument)
     }
@@ -225,8 +335,8 @@ try {
     }
 
     $restore.WaitForExit()
-    $restoreOutput = $restoreOutputTask.GetAwaiter().GetResult()
-    $restoreError = $restoreErrorTask.GetAwaiter().GetResult()
+    $null = $restoreOutputTask.GetAwaiter().GetResult()
+    $null = $restoreErrorTask.GetAwaiter().GetResult()
     if ($restore.ExitCode -ne 0) {
         throw "pg_restore failed with exit code $($restore.ExitCode). Output is suppressed because it may contain restored data."
     }
