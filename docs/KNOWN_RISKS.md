@@ -94,6 +94,12 @@ where applicable, Heimdall review.
   [memory effect guard](PERSONAL_V1_ACCEPTANCE.md#chat-memory-recovery-correction--2026-09-06)
   has a local migration rehearsal and explicit staging/rollback gates. No personal records were
   inspected or reclassified as part of these synthetic tests.
+- **Additional rollout finding:** The existing Theo proposal API cannot preserve private-source
+  metadata and its approval function creates shareable canonical memory. The
+  [private-proposal guard](PERSONAL_V1_ACCEPTANCE.md#private-proposal-rollout-review--2026-09-06)
+  blocks automatic proposals from private sources rather than silently dropping that restriction.
+  Private-source proposal support remains unavailable; this guard must join the pending backend
+  rollout. Existing proposals and memories were not inspected or changed.
 - **Next review:** Deploy the reviewed corrections with the required backup, authorization and cost
   evidence; validate live boundaries and assess existing affected records without automatic deletion
   or retry. Keep voice and final acceptance gated until the relevant core findings are closed.

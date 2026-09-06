@@ -100,6 +100,36 @@ def test_deferred_memory_capture_fences_after_response_ready_and_fails_closed(
     assert response.json()["diagnostics"]["recovery"]["external_effect_possible"] == fence_available
 
 
+@pytest.mark.parametrize("message", ["I prefer quiet rooms.", "Jag föredrar tysta rum."])
+def test_private_proposal_reports_capture_error_without_durable_effect(monkeypatch, message):
+    from tests.test_personal_v1_chat_acceptance import _install_controlled_chat_fixture
+
+    _install_controlled_chat_fixture(monkeypatch)
+    monkeypatch.setattr("app.main.analyze_memory_capture", lambda *args, **kwargs:
+                        MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+                            action="propose_for_theo", memory_class="explicit_preference",
+                            domain="preferences", value=message, sensitivity="personal",
+                        )]))
+    monkeypatch.setattr("app.main.talk_to_li", lambda *args, **kwargs: "Synthetic answer.")
+    effects = []
+    monkeypatch.setattr("app.main.mark_chat_turn_effect_started",
+                        lambda **kwargs: effects.append("fence") or {})
+    monkeypatch.setattr("app.memory_capture.propose_memory",
+                        lambda **kwargs: effects.append("proposal") or str(uuid4()))
+    app.dependency_overrides[require_api_token] = lambda: None
+    try:
+        response = TestClient(app).post("/li/chat", json={
+            "message": message, "turn_id": str(uuid4()),
+            "privacy_metadata": {"private_to_li": True},
+        })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["memory_capture_error"] == "Automatic memory capture failed."
+    assert response.json()["diagnostics"]["recovery"]["external_effect_possible"] is False
+    assert effects == []
+
+
 def test_chat_contract_accepts_stable_turn_identity_and_reports_durability():
     turn_id = uuid4()
     request = LiChatRequest(message="Hej", turn_id=turn_id)

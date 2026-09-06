@@ -226,6 +226,36 @@ After rollout, verify permitted and denied calls and bounded bilingual recovery 
 recording the finding as closed. Existing affected outcomes may need owner reconciliation, not an
 automatic retry. OM-003 remains gated; unrelated eligible personal-use work continues.
 
+## Private-proposal rollout review — 2026-09-06
+
+The Astra readiness review found that automatic Theo proposals did not carry `source_private_to_li`.
+The existing nine-argument proposal API has no such field, and the canonical approval function in
+migration 005 writes `private_to_li = FALSE`. This could turn private-source capture into shareable
+memory after review. No historical migration was changed.
+
+The application now rejects a private-source capture batch containing a Theo proposal before any
+write or effect marker. It does not bypass Theo with a direct store, silently discard privacy, or
+claim successful capture. Shared-source proposals retain their normal guarded path. Private-source
+proposal support is an explicit residual limitation pending a separate end-to-end privacy-preserving
+proposal design; existing proposal/memory records were not inspected or reclassified.
+
+Two synthetic English/Swedish private-proposal regressions reproduced the missing rejection before
+the fix. Shared-source controls and HTTP-level tests cover unchanged proposal behavior and a visible
+capture error without an external memory effect. Backend `pytest -q` passed 1,068 tests and Ruff
+passed; the upstream Starlette/AnyIO alias warning remains visible. These are local mocked results, not live-provider,
+physical-device, owner, or stability acceptance.
+
+A read-only Cloud Run check on 2026-09-06 confirmed backend `li-os-release-2746421` and web
+`li-os-web-release-2746421` remain Ready at 100% traffic. This does not independently verify current
+database schema; schema 0.40 remains the last recorded database evidence. No deployment, migration,
+provider call, backup access, or personal-record inspection occurred in this review.
+
+KR-011 remains open. Exact staging authorization, current bounded cost coverage, a fresh
+authenticated pre-041 backup **and full isolated schema-0.40 restore**, migration rehearsal and live
+bilingual validation are still required. Follow the existing deployment and migration workflows;
+do not substitute the older schema-0.39 backup or earlier release's credit check. OM-003 remains
+gated by the same core-stability and acceptance requirements.
+
 ## Local Home and Workspace recovery evidence — 2026-09-06
 
 Focused dependency-free browser regressions now cover the owner-visible recovery states in both
