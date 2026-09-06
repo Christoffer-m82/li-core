@@ -22,7 +22,7 @@ required authorization. Secret entry and physical-device checks may require the 
 | Area | Acceptance checks | Evidence still required |
 | --- | --- | --- |
 | Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey now covers bilingual Nora routing, completion, persisted history reload and idempotent replay; an approved live staging smoke test remains pending |
-| Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Complete UI journeys and authorized data-integrity/recovery tests |
+| Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Read-only canonical-memory search and visible chat outcomes are locally implemented and tested without exposing Theo or owner authority. Proposal inspection, deployed/device journeys and authorized data-integrity tests remain open |
 | Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | A synthetic HTTP-boundary lifecycle now covers the complete journey, owner-scoped not-found behavior, a recoverable storage outage and deletion; operator-verified scheduled expiry remains pending |
 | Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance and phone specialist entry implemented; agenda, owner-selected priorities and consolidated attention remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
 | Specialists | All registry names/roles, selected portraits, original viewer, recorded interactions, honest unavailable states | Longer-running interaction and accessibility checks; system profiles remain read-only definitions |
@@ -112,6 +112,20 @@ in-progress, uncertain, conflicting, expired and unavailable turn states.
 This evidence uses no live model, provider, personal memory or external action. It closes the
 controlled-fixture portion of Core chat and routing, but it does not replace the pending approved
 staging smoke test or physical-device acceptance.
+
+## Controlled memory UI journey — 2026-09-06
+
+The authenticated web History view now includes a bounded, read-only search of Li's existing
+`/memory/recall` boundary. It renders only the readable memory value and user-relevant status with
+DOM text nodes; it does not expose source references, memory identifiers, Theo's proposal queue,
+owner credentials, or a direct mutation route. Chat now renders the backend's actual `stored`,
+`proposed`, `corrected` or `forgotten` outcome, and gives an explicit uncertainty message when the
+memory update cannot be verified.
+
+Frontend regression tests prove authentication, query and result limits, URL encoding, Li read
+authority, absence of a memory mutation route, safe text rendering and the visible outcome contract.
+This is local implementation evidence only. Governed proposal inspection, a deployed staging
+journey, physical-device checks and authorized live data-integrity tests remain open.
 
 ## Earlier baseline — 2026-09-04
 

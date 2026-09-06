@@ -323,6 +323,48 @@ def test_artifact_library_is_proxied_from_governed_storage(monkeypatch):
     assert response.json() == {"artifacts": []}
 
 
+def test_memory_search_is_read_only_bounded_and_query_encoded(monkeypatch):
+    observed = []
+
+    async def backend(*args, **kwargs):
+        observed.append((args[1], args[2], kwargs.get("authority", "li")))
+        return httpx.Response(200, json=[])
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    client = signed_in_client()
+    response = client.get("/api/memory", params={"q": "green notebooks & Berlin", "limit": 20})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert observed == [("GET", "/memory/recall?q=green+notebooks+%26+Berlin&limit=20", "li")]
+    assert client.get("/api/memory", params={"q": "", "limit": 20}).status_code == 422
+    assert client.get("/api/memory", params={"q": "   ", "limit": 20}).status_code == 422
+    assert client.get("/api/memory", params={"q": "memory", "limit": 51}).status_code == 422
+    assert len(observed) == 1
+
+
+def test_memory_search_requires_authentication():
+    assert TestClient(app).get("/api/memory", params={"q": "notebook"}).status_code == 401
+
+
+def test_memory_ui_is_read_only_renders_text_safely_and_shows_chat_outcomes():
+    root = Path(__file__).parents[1]
+    html = (root / "static" / "index.html").read_text(encoding="utf-8")
+    javascript = (root / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    history = html.split('data-view-panel="history"', 1)[1].split("</section>", 1)[0]
+    for element_id in ("memory-search-form", "memory-search", "memory-search-status", "memory-results"):
+        assert f'id="{element_id}"' in history
+    assert "Search the current memory" in history
+    assert "tell Li exactly what should change in chat" in history
+    assert "fetch(`/api/memory?${params}`)" in javascript
+    assert "value.textContent = memory.value_text" in javascript
+    assert "Prepared for governed memory review" in javascript
+    assert "Li could not verify the memory update" in javascript
+    assert "data.memory_capture || []" in javascript
+    assert "clearMemoryView();" in javascript
+    assert "request !== state.memoryRequest" in javascript
+    assert "/api/memory', { method: 'POST'" not in javascript
+
+
 def test_artifact_ids_cannot_traverse_paths():
     response = signed_in_client().get("/api/artifacts/..%2Fsecret")
     assert response.status_code in {400, 404}

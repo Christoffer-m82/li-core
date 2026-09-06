@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 from uuid import UUID
 
 import httpx
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from google.auth.transport import requests as google_requests
@@ -535,6 +535,22 @@ async def specialist_interactions(
 @app.get("/api/conversations")
 async def conversations(_: str = Depends(require_user)) -> Response:
     return await proxy("GET", "/conversations")
+
+
+@app.get("/api/memory")
+async def memory_recall(
+    q: str = Query(..., min_length=1, max_length=500),
+    limit: int = Query(default=20, ge=1, le=50),
+    _: str = Depends(require_user),
+) -> Response:
+    """Expose Li's existing read-only recall boundary to the signed-in owner."""
+    q = q.strip()
+    if not q:
+        raise HTTPException(status_code=422, detail="Enter a memory search topic.")
+    query = urlencode({"q": q, "limit": limit})
+    response = await proxy("GET", f"/memory/recall?{query}")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/api/agents/analytics")
