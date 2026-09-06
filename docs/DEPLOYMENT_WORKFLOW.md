@@ -100,8 +100,10 @@ data changes, or inability to name a safe rollback target.
 
 ### 6. Roll back
 
-For an application-only failure, shift traffic to the last known-good immutable revision as
-described in the [README rollback guidance](../README.md#rotation-and-rollback). Database rollback is
+For an application-only failure, validate the target against the security and recovery gate in the
+[README rollback guidance](../README.md#rotation-and-rollback) before shifting traffic. A retained,
+Ready revision is a candidate, not proof of a safe rollback. Record any defects it would restore;
+if no safe target exists, obtain authorized containment or a corrected release instead. Database rollback is
 a separate, data-preserving decision: follow [Migration workflow](MIGRATION_WORKFLOW.md), do not edit
 or rerun historical SQL, and do not assume an application rollback reverses schema or data changes.
 

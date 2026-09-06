@@ -94,8 +94,10 @@ where applicable, Heimdall review.
   backed bilingual privacy and uncertain-effect journeys have not been exercised live. Previously
   affected personal records were not inspected or reclassified.
 - **Current control:** Historical recall fails closed, memory writes are attempt-fenced, uncertain
-  effects are never automatically retried, and `release-2746421` remains available for application
-  rollback without pretending that rollback removes schema 0.41.
+  effects are never automatically retried. Retained `release-2746421` is schema-compatible but
+  predates these fixes; it is not a safe automatic fallback for affected chat/memory traffic. Follow
+  the [rollback safety gate](../README.md#rotation-and-rollback), without pretending that application
+  rollback removes schema 0.41.
 - **Additional rollout finding:** The existing Theo proposal API cannot preserve private-source
   metadata and its approval function creates shareable canonical memory. The
   [private-proposal guard](PERSONAL_V1_ACCEPTANCE.md#private-proposal-rollout-review--2026-09-06)
