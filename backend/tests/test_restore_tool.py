@@ -1,4 +1,9 @@
 from pathlib import Path
+import json
+import shutil
+import subprocess
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +17,58 @@ def _tool_text() -> str:
 
 def _create_tool_text() -> str:
     return CREATE_TOOL.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("diagnostic", "expected"),
+    [
+        ('FATAL: password authentication failed for user "synthetic-private"', "AUTHENTICATION"),
+        ('error: aborting because of server version mismatch', "VERSION_MISMATCH"),
+        ('ERROR: permission denied for table synthetic_private', "PERMISSION"),
+        ('connection to server at "synthetic-private" failed: Connection refused', "CONNECTION"),
+        ('connection to server failed: timeout expired', "CONNECTION"),
+        ('could not translate host name "synthetic-private" to address', "CONNECTION"),
+        ('SSL error: certificate verify failed synthetic-private', "TLS"),
+        ('ERROR: query failed: synthetic-private unrecognized error', "UNKNOWN"),
+        ('', "UNKNOWN"),
+    ],
+)
+def test_dump_diagnostic_returns_only_fixed_categories(diagnostic: str, expected: str) -> None:
+    pwsh = shutil.which("pwsh")
+    if not pwsh:
+        pytest.skip("PowerShell 7 is required for executable backup-tool tests")
+    # Extract only the pure function: never execute backup code or secret prompts.
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    'memory/backup-tools/create-encrypted-backup.ps1', [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'PowerShell parse failed' }
+$fn = $ast.Find({param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Get-SafePgDumpFailure'
+}, $true)
+if ($null -eq $fn) { throw 'Missing safe diagnostic function' }
+. ([scriptblock]::Create($fn.Extent.Text))
+$inputText = [Console]::In.ReadToEnd() | ConvertFrom-Json
+Get-SafePgDumpFailure -Diagnostic $inputText
+"""
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-NonInteractive", "-Command", command],
+        cwd=ROOT, input=json.dumps(diagnostic), text=True, capture_output=True,
+        timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == expected
+    assert result.stderr == ""
+
+
+def test_dump_failure_stays_closed_and_does_not_render_raw_diagnostic() -> None:
+    text = _create_tool_text()
+    assert 'Get-SafePgDumpFailure -Diagnostic $dumpDiagnostic' in text
+    assert 'Category: $failureCategory. Raw output remains suppressed.' in text
+    assert 'throw $dumpDiagnostic' not in text
+    assert 'Write-Host $dumpDiagnostic' not in text
 
 
 def test_create_tool_never_accepts_secrets_as_parameters_or_overwrites_output() -> None:

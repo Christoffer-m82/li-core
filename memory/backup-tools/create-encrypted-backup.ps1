@@ -10,6 +10,29 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
+function Get-SafePgDumpFailure {
+    param([AllowEmptyString()][string]$Diagnostic)
+
+    # Never return matched text, object names, SQL, or connection details.
+    # These categories guide diagnosis; they do not prove a root cause.
+    if ($Diagnostic -match 'password authentication failed|no password supplied|SASL authentication failed') {
+        return 'AUTHENTICATION'
+    }
+    if ($Diagnostic -match 'server version mismatch') {
+        return 'VERSION_MISMATCH'
+    }
+    if ($Diagnostic -match 'permission denied|must be owner|must be superuser') {
+        return 'PERMISSION'
+    }
+    if ($Diagnostic -match 'SSL error|certificate verify failed|server does not support SSL') {
+        return 'TLS'
+    }
+    if ($Diagnostic -match 'Connection refused|timeout expired|could not translate host name|could not connect to server|server closed the connection unexpectedly') {
+        return 'CONNECTION'
+    }
+    return 'UNKNOWN'
+}
+
 function ConvertFrom-PrivateSecureString {
     param([Parameter(Mandatory = $true)][securestring]$Value)
 
@@ -108,6 +131,7 @@ try {
     $dumpInfo.RedirectStandardError = $true
     $dumpInfo.CreateNoWindow = $true
     $dumpInfo.Environment["PGPASSWORD"] = $databasePassword
+    $dumpInfo.Environment["LC_MESSAGES"] = "C"
     foreach ($argument in @(
         "--host", $HostName,
         "--port", $Port.ToString(),
@@ -182,10 +206,13 @@ try {
     }
 
     $dump.WaitForExit()
-    $null = $dumpErrorTask.GetAwaiter().GetResult()
+    $dumpDiagnostic = $dumpErrorTask.GetAwaiter().GetResult()
     if ($dump.ExitCode -ne 0) {
-        throw "pg_dump failed with exit code $($dump.ExitCode). Output is suppressed because it may expose source details."
+        $failureCategory = Get-SafePgDumpFailure -Diagnostic $dumpDiagnostic
+        $dumpDiagnostic = $null
+        throw "pg_dump failed with exit code $($dump.ExitCode). Category: $failureCategory. Raw output remains suppressed. No validated backup was created."
     }
+    $dumpDiagnostic = $null
 
     $restoreInfo = [Diagnostics.ProcessStartInfo]::new()
     $restoreInfo.FileName = $pgRestore
