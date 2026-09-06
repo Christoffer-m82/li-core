@@ -7,7 +7,7 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) and does not replace the
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
-is the later [schema-0.40 staging release](releases/2026-09-06-2746421-staging.md).
+is the later [schema-0.41 staging release](releases/2026-09-06-8831381-staging.md).
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -26,6 +26,26 @@ file, screenshots, issues, or pull requests.
   approval and safety gates.
 - For each failure, record the device, browser/app version, time, visible error, and whether retrying
   was safe. Do not repeatedly submit a request whose external outcome is uncertain.
+
+## Physical-device procedure
+
+Use the matrix below as the evidence record and follow this sequence on each named device:
+
+1. Record the device model, operating-system version, browser version, and test time without adding
+   account identifiers or private content.
+2. Open the verified staging address in the normal browser, install Li using that browser's
+   **Install app** or **Add to Home screen** control, and launch Li from the new icon. Record whether
+   it opens without normal browser chrome; do not count an ordinary browser tab as standalone mode.
+3. Complete the device-matrix rows in order. On Android, use the device's larger-text setting and
+   touch navigation. On Windows, use keyboard-only navigation and the browser's actual 200% zoom;
+   synthetic viewport or CSS-zoom results do not replace that check.
+4. For the offline row, finish any active request first, disconnect the device, relaunch Li, and
+   confirm the limited state is honest. Reconnect before submitting anything and verify that one
+   deliberate request creates only one turn. Do not retry a request with an uncertain external
+   outcome.
+5. Return to the installed app after an ordinary browser reload/update check, sign out, and record
+   `PASS`, `FAIL`, or `NOT RUN` for every applicable row. A failure needs the safe diagnostic details
+   listed above, not a screenshot containing private data.
 
 ## Device matrix
 
@@ -88,15 +108,20 @@ stand-down test. The artifact-retention scheduler is separate from proactivity a
 ## Recovery and stability
 
 The [2026-09-06 isolated restore drill](releases/2026-09-06-isolated-restore-drill.md) authenticated and
-restored the encrypted pre-migration backup, then advanced the disposable copy from schema 0.36 to
-0.39 while preserving canonical counts and authority boundaries. No plaintext dump was written.
-An independently encrypted replacement then passed authentication, catalogue validation, a full
-schema-0.39 restore, and the same authority checks. The superseded copy was subsequently deleted
-with owner authorization while the replacement was preserved. Recurring cadence remains operational
-work; this local result does not prove a production recovery or physical-device behavior. Migration
-040 was subsequently applied and validated in staging, and the matching application release passed
-its read-only owner journey. The schema-0.39 restore evidence remains correctly labelled as the
-pre-migration recovery point rather than being rewritten as a schema-0.40 restore.
+restored the earlier encrypted pre-migration backup, then advanced the disposable copy from schema
+0.36 to 0.39 while preserving canonical counts and authority boundaries. No plaintext dump was
+written. An independently encrypted replacement then passed authentication, catalogue validation, a
+full schema-0.39 restore, and the same authority checks. Migration 040 and its matching application
+were subsequently deployed and validated.
+
+Before migration 041, a fresh encrypted staging backup passed authenticated archive validation and a
+full isolated schema-0.40 restore and retrieval drill. Migration 041 then passed an isolated rehearsal
+before it was applied once in staging, and the matching application release passed bounded read-only
+validation. The complete evidence, authority checks, rollback target, and residual limitations are in
+the [schema-0.41 release record](releases/2026-09-06-8831381-staging.md). The disposable restore target
+was removed after review while encrypted release backups were preserved. Recurring recovery cadence
+remains operational work; these results do not prove a production recovery or physical-device
+behavior, and each restore remains labelled with the schema it actually restored.
 
 Stable-use acceptance requires an owner-observed period of ordinary use. Record the agreed start and
 end dates, devices used, completed journeys, errors, uncertain outcomes, unexpected duplicates,
@@ -107,16 +132,16 @@ normal-use evidence.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | `release-2746421` |
-| Backend revision | `li-os-release-2746421` |
-| Web revision | `li-os-web-release-2746421` |
-| Database schema | `0.40` |
-| Staging rollout | PASS — read-only smoke evidence recorded on 2026-09-06; this is not device acceptance |
+| Deployed release | `release-8831381` |
+| Backend revision | `li-os-release-8831381` |
+| Web revision | `li-os-web-release-8831381` |
+| Database schema | `0.41` |
+| Staging rollout | PASS — bounded read-only smoke evidence recorded on 2026-09-06; this is not device acceptance |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
 | Critical findings | NOT ASSESSED |
-| Restore drill | PASS — local isolated restore and forward migration on 2026-09-06 |
+| Restore drill | PASS — fresh pre-041 backup restored at schema 0.40 and migration 041 rehearsed locally on 2026-09-06 |
 | Stable-use observation | NOT STARTED |
 
 Completion requires all applicable rows to pass or a residual limitation to be explicitly accepted
