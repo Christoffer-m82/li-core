@@ -43,9 +43,11 @@ storage.objects.delete
 Bind that custom role to the retention service account on
 `gs://li-os-staging-private-artifacts`. Bind Secret Manager accessor separately on each of the
 three retention secrets. Deploy `retention-job.template.yaml` after replacing its explicit
-placeholders with the existing backend image, bucket, and retention service-account email.
-The parameterized `provision-retention.ps1` performs these steps without accepting or printing
-secret values; run it only after the owner-controlled database step and secret creation.
+placeholders with the existing backend image, bucket, retention service-account email, and exact
+numeric versions for all three retention secrets. Reject `latest` or unresolved
+`PINNED_*_VERSION` placeholders. The parameterized `provision-retention.ps1` requires the three
+numeric version identifiers and performs these steps without accepting or printing secret values;
+run it only after the owner-controlled database step and secret creation.
 
 Grant the scheduler service account `roles/run.invoker` on the deployed job, then create a
 daily Scheduler job named `li-os-artifact-retention-daily` in `europe-west1`. Its target is:

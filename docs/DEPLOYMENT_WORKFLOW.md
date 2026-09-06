@@ -50,6 +50,9 @@ operator, planned time, user impact, rollback target, and links to approval evid
 - Inspect rendered configuration without exposing values. Reject unresolved placeholders,
   unauthenticated backend access, wildcard production CORS, unpinned rollout inputs where pinning is
   required, and unexpected service-account or secret-reference changes.
+- Require an exact numeric Secret Manager version for every deployed secret reference. Reject
+  `latest` in deployable YAML and provisioning scripts; rotation creates a reviewed revision with
+  newly recorded version identifiers rather than silently changing an existing reference.
 
 ### 3. Deploy narrowly
 

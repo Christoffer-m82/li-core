@@ -1,5 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$BackendImage,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[1-9][0-9]*$')][string]$DbHostSecretVersion,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[1-9][0-9]*$')][string]$DbUserSecretVersion,
+    [Parameter(Mandatory = $true)][ValidatePattern('^[1-9][0-9]*$')][string]$DbPasswordSecretVersion,
     [string]$ProjectId = "li-os-staging",
     [string]$Region = "europe-west1",
     [string]$Bucket = "li-os-staging-private-artifacts"
@@ -39,7 +42,7 @@ Invoke-Gcloud run jobs deploy $jobName --project=$ProjectId --region=$Region `
     --image=$BackendImage --service-account=$runtimeAccount --command=python `
     --args=-m,app.retention_job --tasks=1 --max-retries=3 --task-timeout=10m `
     --set-env-vars="LI_OS_ENVIRONMENT=staging,LI_OS_ARTIFACT_BUCKET=$Bucket,LI_OS_DB_PORT=5432,LI_OS_DB_NAME=postgres,LI_OS_DB_SSLMODE=require" `
-    --set-secrets="LI_OS_DB_HOST=LI_RETENTION_DB_HOST:latest,LI_OS_DB_USER=LI_RETENTION_DB_USER:latest,LI_OS_DB_PASSWORD=LI_RETENTION_DB_PASSWORD:latest"
+    --set-secrets="LI_OS_DB_HOST=LI_RETENTION_DB_HOST:$DbHostSecretVersion,LI_OS_DB_USER=LI_RETENTION_DB_USER:$DbUserSecretVersion,LI_OS_DB_PASSWORD=LI_RETENTION_DB_PASSWORD:$DbPasswordSecretVersion"
 
 Invoke-Gcloud run jobs add-iam-policy-binding $jobName --project=$ProjectId --region=$Region `
     --member="serviceAccount:$schedulerAccount" --role=roles/run.invoker
