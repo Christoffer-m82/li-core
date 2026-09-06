@@ -102,6 +102,41 @@ permissions, owner-confirmation requirements, memory boundaries or security poli
 report the acceptance evidence and remaining limitations honestly; do not claim completion merely
 to close this authorization. Subsequent out-of-scope work requires a new owner request.
 
+## Codex model selection and batching
+
+This section governs the model used to work on this repository. It does not change Li's runtime
+model, provider configuration, authority, privacy boundary, deployment status, or spending rules.
+
+- Prefer **GPT-6 Astra with medium reasoning** for substantial batches involving complex or
+  cross-cutting architecture, real-time voice, security or privacy boundaries, migrations, backup
+  and recovery, staged deployment, multi-system acceptance, incident analysis, or difficult
+  debugging whose cause is not already isolated.
+- Prefer **GPT-5.6 Sol with high reasoning** for substantial batches that implement an established
+  design, routine frontend or backend work, focused bug fixes, tests, documentation, accessibility
+  corrections, review cleanup, Git and pull-request work, and ordinary CI repair. Sol high is the
+  default when conserving the owner's model allowance matters more than the likely speed or judgment
+  advantage of Astra medium.
+- Group adjacent work for the same preferred model into one batch when this preserves dependency
+  order and review quality. Do not alternate models for isolated minor steps, interrupt an active
+  safe operation merely to switch, or postpone a prerequisite just to make a larger batch.
+- At the start of a substantial batch, use reliable task or UI metadata to check the active Codex
+  model when that metadata is available. Never infer the model from writing style. If the active
+  model cannot be verified, continue model-neutral inspection and low-risk work; ask the owner to
+  check the model selector only before a model-sensitive batch where the switch would materially
+  improve the work.
+- If the verified active model is not the preferred model for the upcoming substantial batch, stop
+  at a safe handover boundary and tell the owner which model and reasoning level to select, why the
+  switch is worthwhile, what was completed, and the exact next batch. Supply a ready-to-paste resume
+  prompt that tells the new model to read `AGENTS.md`, inspect the current repository and Git state,
+  preserve existing work, and continue that named batch end-to-end under the existing authorization.
+- Do not request a switch when the current model can safely finish a small adjacent task, when the
+  switch would create more delay than value, or when the next step is actually blocked by owner
+  device use, secret entry, cost coverage, or a protected decision. A model change cannot be
+  presented as resolving such a blocker.
+- Model routing must never start paid API usage, consume an allowance known to create an additional
+  charge, or weaken review and validation. If the account's model availability or cost coverage is
+  uncertain, state that uncertainty rather than claiming the preferred model is available or free.
+
 ## Working method
 
 1. Read the relevant authoritative documents and the nearest component README before editing.
