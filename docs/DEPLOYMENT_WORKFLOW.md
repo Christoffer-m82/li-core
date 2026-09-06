@@ -49,7 +49,10 @@ operator, planned time, user impact, rollback target, and links to approval evid
 - The chat memory-effect fencing correction requires migration 041 before deploying the matching
   backend. Obtain exact staging authorization, verify no-additional-charge coverage, create and
   authenticate a fresh pre-041 encrypted backup, confirm schema 0.40 and the tracked migration
-  checksum, and complete the disposable rehearsal before applying it once. Afterward verify schema
+  checksum, and complete the disposable rehearsal before applying it once. The fresh backup must
+  also pass a full isolated restore and retrieval drill at expected schema 0.40 under the
+  [backup-tool procedure](../memory/backup-tools/README.md#operator-cadence); archive catalogue
+  validation and a synthetic migration rehearsal do not substitute for that restore. Afterward verify schema
   0.41, the Li/backend allow path, Theo/owner-confirmation/direct-table denials, and bounded English
   and Swedish failure/retry behavior. Keep the prior immutable application revision available. A
   pre-041 application remains schema-compatible but retains the defect; a corrected application on
