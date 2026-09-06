@@ -20,7 +20,7 @@ function clearRetry(key) { try { retryStorage?.removeItem(key); } catch { /* Exp
 function savePreference(key, value) {
   try { preferenceStorage.setItem(key, value); } catch { /* Controls still work for this visit. */ }
 }
-const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], capabilities: [], temporaryUploadContext: null, pendingTurn: null, theme: preferenceStorage.getItem('li-theme') || 'dark', voiceOutput: preferenceStorage.getItem('li-voice-output') === 'on', voiceSession: 0, voiceSendTimer: null, displayName: '', currentSpecialist: null, installPrompt: null };
+const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], capabilities: [], temporaryUploadContext: null, pendingTurn: null, theme: preferenceStorage.getItem('li-theme') || 'dark', voiceOutput: preferenceStorage.getItem('li-voice-output') === 'on', voiceSession: 0, voiceSendTimer: null, displayName: '', currentSpecialist: null, installPrompt: null, memoryRequest: 0 };
 const $ = (selector) => document.querySelector(selector);
 const COUNTRY_CODES = `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW`.split(' ');
 const countryNames = new Intl.DisplayNames([navigator.language || 'en'], {type: 'region'});
@@ -126,9 +126,41 @@ function setLiState(mode, intensity = 1) { $$('.li-orb').forEach((orb) => { orb.
 function attachmentChip(attachment) { const wrap = document.createElement('span'); wrap.className = 'chat-attachment'; const link = document.createElement(attachment.url ? 'a' : 'span'); link.textContent = `↧ ${attachment.filename}`; if (attachment.url) { link.href = attachment.url; link.download = attachment.filename; } wrap.append(link); if (attachment.artifact_id) { ['keep', 'delete'].forEach((action) => { const button = document.createElement('button'); button.type = 'button'; button.textContent = action === 'keep' ? 'Keep' : 'Delete'; button.addEventListener('click', async () => { const response = await fetch(`/api/artifacts/${attachment.artifact_id}/retention`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) }); if (response.ok && action === 'delete') { const parent = wrap.parentElement; if (parent?.classList.contains('artifact-row')) parent.remove(); else wrap.remove(); } if (response.ok && action === 'keep') { button.textContent = 'Kept'; const status = wrap.parentElement?.querySelector('small'); if (status) status.textContent = 'Kept permanently'; } }); wrap.append(button); }); } return wrap; }
 function addMessage(role, text, options = {}) { const row = document.createElement('div'); row.className = `message ${role}${options.temporary ? ' typing' : ''}`; if (role === 'assistant') { const avatar = document.createElement('span'); avatar.className = 'mini-avatar'; avatar.textContent = 'Li'; row.appendChild(avatar); } else if (role === 'user') row.appendChild(profilePhoto.avatar('owner-avatar')); const content = document.createElement('div'); if (text) { const body = document.createElement('p'); body.textContent = text; content.appendChild(body); } (options.attachments || []).forEach((item) => content.appendChild(attachmentChip(item))); const time = document.createElement('time'); time.textContent = 'Now'; content.appendChild(time); row.appendChild(content); $('#messages').appendChild(row); $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' }); return row; }
 
+function renderMemoryReceipts(outcomes, error) {
+  const labels = {
+    stored: 'Saved to Li’s memory', proposed: 'Prepared for governed memory review',
+    corrected: 'Li’s memory was corrected', forgotten: 'The requested memory was forgotten',
+    ignored: 'No memory change was made',
+  };
+  (outcomes || []).forEach((outcome) => {
+    const receipt = document.createElement('aside');
+    receipt.className = `memory-receipt ${outcome.status || 'ignored'}`;
+    const title = document.createElement('strong');
+    title.textContent = labels[outcome.status] || 'Memory outcome recorded';
+    receipt.appendChild(title);
+    const context = [outcome.domain, outcome.memory_class?.replaceAll('_', ' ')].filter(Boolean);
+    if (context.length || outcome.reason) {
+      const detail = document.createElement('small');
+      detail.textContent = [context.join(' · '), outcome.reason].filter(Boolean).join(' — ');
+      receipt.appendChild(detail);
+    }
+    $('#messages').appendChild(receipt);
+  });
+  if (error) {
+    const receipt = document.createElement('aside'); receipt.className = 'memory-receipt unavailable';
+    const title = document.createElement('strong'); title.textContent = 'Li could not verify the memory update';
+    const detail = document.createElement('small');
+    detail.textContent = 'The conversation can continue, but do not assume anything was saved or changed.';
+    receipt.append(title, detail); $('#messages').appendChild(receipt);
+  }
+  if ((outcomes || []).length || error) {
+    $('#messages').scrollTo({ top: $('#messages').scrollHeight, behavior: 'smooth' });
+  }
+}
+
 function renderActionIntent(intent) { const card = document.createElement('article'); card.className = `action-intent-card ${intent.approval_state}`; card.dataset.intentId = intent.intent_id; const eyebrow = document.createElement('small'); eyebrow.textContent = 'Approval required'; const title = document.createElement('strong'); title.textContent = intent.action_type.replaceAll('.', ' · '); const summary = document.createElement('p'); summary.textContent = intent.summary; const status = document.createElement('span'); status.className = 'intent-status'; status.textContent = intent.approval_state.replaceAll('_', ' '); const controls = document.createElement('div'); controls.className = 'intent-controls'; card.append(eyebrow, title, summary, status, controls); const update = (next) => { card.className = `action-intent-card ${next.approval_state}`; status.textContent = next.approval_state.replaceAll('_', ' '); controls.replaceChildren(); if (next.result?.message || next.result?.confirmation) { const result = document.createElement('p'); result.className = 'intent-result'; result.textContent = next.result.message || next.result.confirmation; card.appendChild(result); } if (['proposed', 'owner_confirmation_required'].includes(next.approval_state)) addControls(next); }; const decide = async (value, current) => { controls.querySelectorAll('button').forEach((button) => { button.disabled = true; }); const body = { decision: value }; if (value === 'approve' && current.owner_confirmation_required) { if (!window.confirm('Owner confirmation: continue to the existing governed execution boundary?')) { addControls(current); return; } body.owner_confirmation = 'confirm_permanent_agent_change'; } const response = await fetch(`/api/action-intents/${encodeURIComponent(current.intent_id)}/decision`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }); if (!response.ok) { status.textContent = 'Could not resolve safely'; addControls(current); return; } update(await response.json()); }; const addControls = (current) => { controls.replaceChildren(); [['approve', 'Approve'], ['deny', 'Deny']].forEach(([value, label]) => { const button = document.createElement('button'); button.type = 'button'; button.className = value === 'approve' ? 'primary-button' : 'secondary-button'; button.textContent = current.owner_confirmation_required && value === 'approve' ? 'Continue to owner confirmation' : label; button.addEventListener('click', () => decide(value, current)); controls.appendChild(button); }); }; if (['proposed', 'owner_confirmation_required'].includes(intent.approval_state)) addControls(intent); $('#messages').appendChild(card); }
 
-async function loadSession() { try { const response = await fetch('/api/session'); state.signedIn = response.ok; if (response.ok) { const session = await response.json(); state.displayName = session.display_name || ''; profilePhoto.setName(state.displayName || session.email); $('#page-title').textContent = greeting(); } } catch { state.signedIn = false; } $('#signed-out').classList.toggle('hidden', state.signedIn); $('#workspace').classList.toggle('hidden', !state.signedIn); updateConnectivity(); if (!state.signedIn) { closeSpecialistPortrait(); specialistView?.clear(); profilePhoto.clear(); $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Sign in required'; return; } await profilePhoto.load(); try { const ready = await fetch('/api/ready'); $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention'; } catch { $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Li is unreachable'; } await Promise.all([loadSpecialists(), loadAgentAnalytics(), loadHomeData()]); }
+async function loadSession() { try { const response = await fetch('/api/session'); state.signedIn = response.ok; if (response.ok) { const session = await response.json(); state.displayName = session.display_name || ''; profilePhoto.setName(state.displayName || session.email); $('#page-title').textContent = greeting(); } } catch { state.signedIn = false; } $('#signed-out').classList.toggle('hidden', state.signedIn); $('#workspace').classList.toggle('hidden', !state.signedIn); updateConnectivity(); if (!state.signedIn) { closeSpecialistPortrait(); specialistView?.clear(); profilePhoto.clear(); clearMemoryView(); $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Sign in required'; return; } await profilePhoto.load(); try { const ready = await fetch('/api/ready'); $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention'; } catch { $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Li is unreachable'; } await Promise.all([loadSpecialists(), loadAgentAnalytics(), loadHomeData()]); }
 
 async function sendMessage(message) {
   if (state.sending) return;
@@ -175,6 +207,7 @@ async function sendMessage(message) {
     state.conversationId = data.conversation_id;
     pending.remove();
     addMessage('assistant', data.response, { attachments: data.artifacts || [] });
+    renderMemoryReceipts(data.memory_capture || [], data.memory_capture_error);
     (data.action_intents || []).forEach(renderActionIntent);
     state.history.push({ role: 'assistant', text: data.response });
     renderHistory();
@@ -371,6 +404,52 @@ async function openSpecialist(item, initialTab = 'live') { state.currentSpeciali
   await specialistView.open(item, initialTab);
 }
 function renderHistory() { const list = $('#history-list'); list.replaceChildren(); state.history.forEach((entry) => { const item = document.createElement('div'); item.className = `history-item ${entry.role}`; const label = document.createElement('strong'); label.textContent = entry.role === 'user' ? 'You' : 'Li'; const text = document.createElement('p'); text.textContent = entry.text; item.append(label, text); list.appendChild(item); }); }
+
+function memoryStatus(memory) {
+  const truth = String(memory.truth_status || 'status unknown').replaceAll('_', ' ');
+  const time = String(memory.temporal_status || 'time unknown').replaceAll('_', ' ');
+  return `${truth} · ${time}${memory.confirmed_by_user ? ' · confirmed by you' : ''}`;
+}
+function renderMemoryResults(memories) {
+  const host = $('#memory-results'); host.replaceChildren();
+  if (!memories.length) {
+    $('#memory-search-status').textContent = 'No matching current memory was found.'; return;
+  }
+  $('#memory-search-status').textContent = `${memories.length} matching ${memories.length === 1 ? 'memory' : 'memories'} found.`;
+  memories.forEach((memory) => {
+    const card = document.createElement('article'); card.className = 'memory-result';
+    const heading = document.createElement('h3');
+    heading.textContent = memory.title || String(memory.domain || 'Memory').replaceAll('_', ' ');
+    const value = document.createElement('p');
+    value.textContent = memory.value_text || 'No readable memory value is available.';
+    const meta = document.createElement('small'); meta.className = 'memory-meta';
+    meta.textContent = `${String(memory.domain || 'general').replaceAll('_', ' ')} · ${memoryStatus(memory)}`;
+    card.append(heading, value, meta); host.appendChild(card);
+  });
+}
+function clearMemoryView() {
+  state.memoryRequest += 1;
+  $('#memory-search').value = '';
+  $('#memory-results').replaceChildren();
+  $('#memory-search-status').textContent = 'Enter a topic to inspect Li’s current memory.';
+}
+async function searchMemory(event) {
+  event.preventDefault();
+  const query = $('#memory-search').value.trim(); if (!query) return;
+  const request = ++state.memoryRequest;
+  $('#memory-search-status').textContent = 'Searching Li’s current memory…';
+  $('#memory-results').replaceChildren();
+  try {
+    const params = new URLSearchParams({q: query, limit: '20'});
+    const response = await fetch(`/api/memory?${params}`); if (!response.ok) throw new Error();
+    const memories = await response.json(); if (!Array.isArray(memories)) throw new Error();
+    if (request !== state.memoryRequest) return;
+    renderMemoryResults(memories);
+  } catch {
+    if (request !== state.memoryRequest) return;
+    $('#memory-search-status').textContent = 'Li’s memory is unavailable right now. No result should be treated as deleted.';
+  }
+}
 async function loadArtifacts() { const list = $('#artifact-list'); list.replaceChildren(); try { const response = await fetch('/api/artifacts'); if (!response.ok) throw new Error(); const data = await response.json(); if (!data.artifacts.length) { list.textContent = 'No saved files yet.'; return; } data.artifacts.forEach((artifact) => { const row = document.createElement('div'); row.className = 'artifact-row'; row.appendChild(attachmentChip({ ...artifact, filename: artifact.safe_filename, url: `/api/artifacts/${artifact.artifact_id}` })); const status = document.createElement('small'); status.className = 'muted'; status.textContent = artifact.retention_state === 'kept' ? 'Kept permanently' : `Expires ${new Date(artifact.expires_at).toLocaleString()}`; row.appendChild(status); list.appendChild(row); }); } catch { list.textContent = 'Private files are unavailable.'; } }
 async function loadConversations() { const list = $('#conversation-list'); list.replaceChildren(); try { const response = await fetch('/api/conversations'); const data = await response.json(); data.conversations.forEach((conversation) => { const row = document.createElement('div'); row.className = 'conversation-row'; const button = document.createElement('button'); button.className = 'history-item conversation-choice'; button.textContent = `${conversation.title} · ${new Date(conversation.updated_at).toLocaleString()}`; button.addEventListener('click', () => loadConversation(conversation.conversation_id)); const remove = document.createElement('button'); remove.className = 'text-button danger'; remove.textContent = 'Delete'; remove.setAttribute('aria-label', `Delete conversation ${conversation.title}`); remove.addEventListener('click', async () => { if (!window.confirm('Delete this private conversation and its linked specialist history? Active data is removed now; encrypted database backups age out under the documented provider schedule.')) return; remove.disabled = true; const deleted = await fetch(`/api/conversations/${encodeURIComponent(conversation.conversation_id)}/delete`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({confirmation: 'delete_private_conversation'}) }); if (deleted.ok) { if (state.conversationId === conversation.conversation_id) { state.conversationId = null; state.history = []; renderHistory(); } row.remove(); } else { remove.disabled = false; remove.textContent = 'Delete failed safely'; } }); row.append(button, remove); list.appendChild(row); }); } catch { list.textContent = 'Conversation history is unavailable.'; } await loadArtifacts(); }
 async function loadConversation(id) { const response = await fetch(`/api/conversations/${encodeURIComponent(id)}`); if (!response.ok) { $('#history-list').textContent = 'Conversation is unavailable or no longer retained.'; return; } const data = await response.json(); state.conversationId = id; state.history = data.messages.map((message) => ({ role: message.role, text: message.content })); renderHistory(); }
@@ -489,6 +568,7 @@ function initializeAppearance() {
 }
 
 $$('button[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
+$('#memory-search-form').addEventListener('submit', searchMemory);
 $('#back-home').addEventListener('click', () => setView('home')); $('#handoff-to-li').addEventListener('click', () => { const specialist = state.currentSpecialist; setView('home'); if (specialist) $('#message-input').value = `Continue with Li about my work with ${specialist.name}.`; $('#message-input').focus(); }); $('#composer').addEventListener('submit', (event) => { event.preventDefault(); const value = $('#message-input').value.trim(); if (value) sendMessage(value); }); $('#message-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#composer').requestSubmit(); } }); $('#message-input').addEventListener('input', (event) => { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`; if (!state.sending && $('#microphone-button').getAttribute('aria-pressed') !== 'true') setLiState('idle'); }); $('#attach-button').addEventListener('click', () => $('#file-input').click()); $('#file-input').addEventListener('change', (event) => { if (event.target.files[0]) handleFile(event.target.files[0]); event.target.value = ''; }); const drop = $('#conversation-panel'); ['dragenter', 'dragover'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.add('dragging'); })); ['dragleave', 'drop'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.remove('dragging'); })); drop.addEventListener('drop', (event) => { if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]); }); $$('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => activateTheme(button.dataset.themeChoice))); $('#logout-button').addEventListener('click', async () => { await fetch('/auth/logout', { method: 'POST' }); await loadSession(); }); $('#account-button').addEventListener('click', () => setView('settings')); matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (state.theme === 'auto') activateTheme('auto'); });
 $('#microphone-button').addEventListener('click', () => { if ($('#microphone-button').getAttribute('aria-pressed') === 'true') cancelVoiceInput(); else startVoiceInput(); }); $('#voice-cancel').addEventListener('click', cancelVoiceInput); $('#stop-speaking').addEventListener('click', stopSpeaking); $('#voice-output-toggle').addEventListener('click', () => { state.voiceOutput = !state.voiceOutput; savePreference('li-voice-output', state.voiceOutput ? 'on' : 'off'); if (!state.voiceOutput) stopSpeaking(); updateVoiceOutputControl(); });
 $('#install-app').addEventListener('click', installApp); window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); state.installPrompt = event; updateInstallControl(); }); window.addEventListener('appinstalled', () => { state.installPrompt = null; updateInstallControl('Li is installed on this device.'); });
