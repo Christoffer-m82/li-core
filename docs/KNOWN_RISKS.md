@@ -94,7 +94,8 @@ where applicable, Heimdall review.
   backed bilingual privacy and uncertain-effect journeys have not been exercised live. Previously
   affected personal records were not inspected or reclassified. A bounded live routing check also
   found that a prefixed English `Ask Nora` request invoked Nora while its Swedish `Be Nora`
-  equivalent did not; see the
+  equivalent did not. That narrow routing failure is now corrected and live-retested in the
+  [backend-only release](releases/2026-09-06-e46b509-staging.md); see the original
   [dated acceptance finding](PERSONAL_V1_ACCEPTANCE.md#live-bilingual-specialist-routing-finding--2026-09-06).
 - **Current control:** Historical recall fails closed, memory writes are attempt-fenced, uncertain
   effects are never automatically retried. Retained `release-2746421` is schema-compatible but
@@ -107,9 +108,9 @@ where applicable, Heimdall review.
   blocks automatic proposals from private sources rather than silently dropping that restriction.
   Private-source proposal support remains unavailable; the fail-closed guard is now deployed.
   Existing proposals and memories were not inspected or changed.
-- **Next review:** Deploy the reviewed bilingual-routing correction before rerunning that failed
-  Swedish check. Existing prepaid API coverage and disabled auto-reload were owner-verified for the
-  bounded check; recheck coverage before later provider calls. Then run the remaining bounded
+- **Next review:** The prefixed Swedish routing retest passed, without closing this risk.
+  Existing prepaid API coverage and disabled auto-reload were owner-verified for the
+  bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
   through a separately authorized privacy-preserving process, without automatic deletion or retry.
   Keep voice and final acceptance gated until the remaining relevant core evidence is complete.
