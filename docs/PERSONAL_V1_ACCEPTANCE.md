@@ -49,7 +49,7 @@ before the final release sign-off can include it.
 
 | Area | Acceptance checks | Evidence still required |
 | --- | --- | --- |
-| Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey covers bilingual Nora routing, completion, persisted history reload and idempotent replay. A bounded live check found that a prefixed English request routed to Nora while its Swedish `Be Nora` equivalent did not; the repository correction is locally verified but not deployed |
+| Core chat and routing | Typed request, specialist selection, final response, history reload, timeout/retry, no duplicate or unauthorized action | A controlled API journey covers bilingual Nora routing, completion, persisted history reload and idempotent replay. The [backend routing release](releases/2026-09-06-e46b509-staging.md) now verifies the previously failing prefixed Swedish request invoked Nora and produced a Swedish Li response; broader live recovery acceptance remains open |
 | Memory and history | Recall, inspect proposed memory, correction and forgetting through the documented confirmation boundaries; no cross-authority access | Schema 0.41 and the matching privacy/recovery application corrections are deployed after a fresh encrypted backup, full restore and rehearsal. The signed-in read-only paths passed without changing data. Provider-backed bilingual privacy, correction/forgetting, uncertain-effect reconciliation, and physical-device journeys remain open |
 | Files | Temporary upload, explicit save, reopen/download, permission denial, retention and failure recovery | A synthetic HTTP-boundary lifecycle now covers the complete journey, owner-scoped not-found behavior, a recoverable storage outage and deletion; operator-verified scheduled expiry remains pending |
 | Home | Useful real-data summary, clear freshness/unavailable states, working navigation; no invented agenda or priorities | Compact real-data glance and phone specialist entry implemented; agenda, owner-selected priorities and consolidated attention remain in the [Home recommendations](../frontend/APPEARANCE.md#home-template-analysis) |
@@ -326,6 +326,15 @@ fix. The corrected backend requires an authorized reviewed rollout, followed by 
 Swedish check and activity-record verification before bilingual live routing can pass. The two
 synthetic chat turns remain ordinary staging history; no destructive cleanup or personal-data
 operation was performed.
+
+## Live routing correction deployed — 2026-09-06
+
+The [backend-only release](releases/2026-09-06-e46b509-staging.md) supersedes the undeployed status
+in the earlier finding above. After authenticated candidate readiness and schema 0.41 verification,
+`li-os-release-e46b509` was promoted to 100% backend traffic. One synthetic Swedish Home retest
+produced an actual recorded Nora recommendation and a completed Swedish Li response. The web remains
+on `8831381`. This closes the narrow reproduced routing defect, not KR-011, full bilingual language
+quality, historical privacy, uncertain-effect reconciliation, device, owner or stability acceptance.
 
 ## Earlier baseline — 2026-09-04
 
