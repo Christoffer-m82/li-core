@@ -242,6 +242,45 @@ def test_shared_contract_and_specialist_profile_are_used(monkeypatch) -> None:
     assert "no tools and no database access" in observed["system"]
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Ask Nora to compare these options.",
+        "Be Nora jämföra de här alternativen.",
+    ],
+)
+def test_specialist_prompt_preserves_conversation_language_without_changing_authority(
+    monkeypatch, message,
+) -> None:
+    observed = {}
+
+    def fake_generate(**kwargs):
+        observed.update(kwargs)
+        return json.dumps({
+            "recommendation": "Bounded recommendation.",
+            "findings": [],
+            "confidence": 0.7,
+            "key_assumptions": [],
+            "sources_needed": False,
+            "follow_up_questions": [],
+            "research_request": None,
+        })
+
+    monkeypatch.setattr("app.specialist_runtime.generate_claude_text", fake_generate)
+    delegate_to_specialist("nora", SpecialistRequest(
+        current_user_message=message,
+        conversation_context="User: Vi tar det på svenska.\nLi: Absolut.",
+    ))
+
+    prompt = observed["system"]
+    assert "current or explicitly requested conversational language" in prompt
+    assert "natural contemporary Swedish for Swedish conversation" in prompt
+    assert "natural English for English conversation" in prompt
+    assert "use the bounded conversation_context" in prompt
+    assert "Keep JSON field names unchanged" in prompt
+    assert "it never changes evidence, privacy, routing, or authority" in prompt
+
+
 def test_multiple_specialists_are_collected_in_requested_order(monkeypatch) -> None:
     def fake_delegate(name, request, *, max_tokens=None):
         from app.specialist_runtime import SpecialistResult

@@ -336,6 +336,13 @@ produced an actual recorded Nora recommendation and a completed Swedish Li respo
 on `8831381`. This closes the narrow reproduced routing defect, not KR-011, full bilingual language
 quality, historical privacy, uncertain-effect reconciliation, device, owner or stability acceptance.
 
+The live retest also exposed that Nora's recorded structured recommendation was in English despite
+the Swedish conversation. Li's final response correctly remained Swedish, so this did not change the
+routing result. The specialist prompt now applies the established conversation-language rule to all
+human-readable JSON values while keeping field names, evidence, privacy, routing and authority
+unchanged. Paired English/Swedish prompt-wiring regressions cover the correction locally. Generated
+language quality and deployment of this follow-up remain unverified.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all

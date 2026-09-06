@@ -26,6 +26,7 @@ establish the state of a deployed service.
 | Place relevance | Reviewed Swedish local/weather/law/travel phrases | Country/town minimisation and existing place consent/storage rules unchanged |
 | Text artifacts | Create a text file/skapa en textfil | Existing file-generation/retention path; not permission for arbitrary filesystem writes |
 | Action proposals | Runtime and memory-classifier instructions explicitly cover EN/SV requests | Same typed action identifiers and confirmation flow; chat yes/ja is not execution approval |
+| Specialist activity language | Human-readable specialist result values follow the current or explicitly requested conversation language, using bounded conversation context for brief or mixed messages | JSON field names, citations, evidence rules, privacy, routing and authority remain unchanged |
 
 Freshness policy and provider coverage versions are 1.1; their schema versions remain 1.0.
 No provider, dependency, schema, migration, cloud resource or secret is added or changed.
@@ -51,7 +52,9 @@ all specialist names, representative natural requests and negative substring cas
 Endpoint tests use fake storage/providers to verify the history trigger receives the
 original text and Swedish ambiguous forgetting reaches the same blocked outcome.
 [Synthesis tests](../backend/tests/test_li_conversation_voice.py) cover both languages
-through the real router, including the independent-answer fallback.
+through the real router, including the independent-answer fallback. Specialist-runtime prompt tests
+also verify that English/Swedish output guidance reaches the structured internal adviser path without
+changing its typed schema or authority. These wiring tests do not prove generated-language quality.
 
 No test applies migrations, accesses production memories, calls live providers or executes
 real external actions. Follow [Testing and audit](TESTING_AND_AUDIT.md) for broader checks.
