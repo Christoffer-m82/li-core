@@ -89,6 +89,23 @@ storage, server composition, private hosting and physical-device checks remain p
 The CSP permits `blob:` only for image rendering; scripts and connections remain same-origin. This is needed
 for in-memory previews and saved-photo display and does not make profile URLs public.
 
+## Finance and Calendar workspaces
+
+Desktop navigation exposes both destinations directly. The five-item mobile rail keeps Home,
+Calendar, Finances, Specialists, and More; More preserves access to Briefs, History, Backend, and
+Settings without shrinking touch targets.
+
+Calendar sends one signed-in, bounded read request through the BFF to Li's existing governed Calendar
+adapter. The BFF constructs `calendar.search`; browser data cannot select `calendar.create`. The week
+starts Monday, weekends use a theme-aware tint, all-day dates preserve Google's exclusive end, and the
+month overview displays counts rather than event titles. There is no background polling.
+
+My Finances contains Avanza and Crypto account tabs. Values are owner-entered, timestamped, and totalled
+only within the same currency. Schema 0.42 is required for persistence. An unavailable schema is shown as
+unavailable rather than an empty portfolio. Browser storage contains no holding records, and the UI has no
+broker connection or trading operation. See the
+[Finance and Calendar architecture](../system/FINANCE_CALENDAR_ARCHITECTURE.md).
+
 From `frontend`, install the project with its `dev` extra, then run `ruff check app tests`,
 `pytest`, and `python -m compileall app`. Start with
 `uvicorn app.main:app --host 127.0.0.1 --port 8080`.
