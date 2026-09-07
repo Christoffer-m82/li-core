@@ -9,6 +9,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 RESTORE_TOOL = ROOT / "memory" / "backup-tools" / "restore-encrypted-backup.ps1"
 CREATE_TOOL = ROOT / "memory" / "backup-tools" / "create-encrypted-backup.ps1"
+REHEARSE_042_TOOL = ROOT / "memory" / "backup-tools" / "rehearse-migration-042.ps1"
 
 
 def _tool_text() -> str:
@@ -17,6 +18,10 @@ def _tool_text() -> str:
 
 def _create_tool_text() -> str:
     return CREATE_TOOL.read_text(encoding="utf-8")
+
+
+def _rehearse_042_tool_text() -> str:
+    return REHEARSE_042_TOOL.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -254,3 +259,49 @@ def test_restore_tool_keeps_supabase_platform_objects_out_but_restores_li_author
     assert '"--no-owner"' not in text
     assert '"--no-privileges"' not in text
     assert "Output is suppressed because it may contain restored data." in text
+
+
+def test_migration_042_rehearsal_is_local_hash_pinned_and_non_destructive() -> None:
+    text = _rehearse_042_tool_text()
+
+    assert "-not $ConfirmDisposableTarget" in text
+    assert "^li-os-migration-042-rehearsal-[a-z0-9-]+$" in text
+    assert "^li_os_restore_pre042_[a-z0-9_]+$" in text
+    assert "127.0.0.1:$Port`:5432" in text
+    assert "supabase/postgres:17.6.1.136@sha256:" in text
+    assert "--env 'POSTGRES_DB=postgres'" in text
+    assert '"CREATE DATABASE $DatabaseName;"' in text
+    assert '"GRANT CREATE ON DATABASE $DatabaseName TO postgres;' in text
+    assert "The new disposable cluster has an unexpected database inventory" in text
+    assert "DROP OWNED BY anon, authenticated, service_role;" in text
+    assert "DROP ROLE anon, authenticated, service_role;" in text
+    assert "dockerHost -notmatch '^(npipe:|unix:)'" in text
+    assert "ExpectedSchemaVersion '0.41'" in text
+    assert "ExpectedMigrationSha256" in text
+    assert "Refusing to overwrite an existing global restore-password handoff variable" in text
+    assert "Remove-Variable -Name $restorePasswordVariable -Scope Global" in text
+    assert "MIGRATION_042_READY" in text
+    assert "SET SESSION AUTHORIZATION li_backend_runtime" in text
+    assert "ROLLBACK;" in text
+    assert "docker rm" not in text
+    assert "Remove-Item" not in text
+    assert "Supabase database password" not in text
+
+
+def test_migration_042_rehearsal_checks_every_denied_authority() -> None:
+    text = _rehearse_042_tool_text()
+
+    for role in (
+        "li_memory_theo",
+        "li_memory_owner_confirmation",
+        "li_owner_runtime",
+        "li_artifact_retention",
+        "li_retention_runtime",
+        "anon",
+        "authenticated",
+        "service_role",
+    ):
+        assert role in text
+    assert "Backend direct portfolio table read" in text
+    assert "Protected canonical or conversation counts changed" in text
+    assert text.count("NOT has_function_privilege(role_name,") == 3

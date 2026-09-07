@@ -63,6 +63,13 @@ Before any external write:
 - have independent memory-integrity and security reviews for significant changes, as required by
   the storage policy.
 
+For migration 042 specifically, use the tracked
+[restore-and-rehearsal tool](../memory/backup-tools/rehearse-migration-042.ps1) only after a fresh
+`-RequirePre042` encrypted backup has authenticated successfully. It creates a digest-pinned,
+localhost-only disposable cluster, requires restored schema 0.41, applies the independently verified
+migration hash, checks the portfolio authority boundary and rolls back its synthetic holding. Its
+success remains local evidence and does not authorize the external migration.
+
 ## Application and validation
 
 Apply the complete reviewed file once through the owner-controlled process. Do not paste fragments

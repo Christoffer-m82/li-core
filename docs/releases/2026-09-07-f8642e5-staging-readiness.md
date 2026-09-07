@@ -30,6 +30,13 @@ charge.
   Android or installed-Windows behavior.
 - Migration `042_private_portfolio_workspace.sql` has SHA-256
   `6b8f905bc0d3bb2b2a9355d37e8ad6c330f63ea7f22d8ff51a06aed9f2dbe0c0`.
+- The tracked [migration-042 rehearsal tool](../../memory/backup-tools/rehearse-migration-042.ps1)
+  passed a local end-to-end test with a new synthetic schema-0.41 source and authenticated encrypted
+  archive. It restored into a digest-pinned localhost-only cluster, applied the exact migration hash,
+  proved backend function access plus all reviewed role/direct-table denials, exercised create, list,
+  update, duplicate rejection and archive inside a rolled-back transaction, and preserved protected
+  counts. The exact synthetic source, rehearsal container and temporary archive were then removed.
+  This is local synthetic evidence, not a restore of staging data or authorization to migrate it.
 
 ## Read-only external snapshot — 2026-09-07
 
@@ -43,8 +50,10 @@ changed.
 
 Schema 0.41 is the last recorded staging database evidence; it was not independently queried in this
 read-only snapshot because that requires private database credentials. Current Google Cloud credit
-coverage and forecast were not remeasured. They must be verified immediately before any metered
-build or deployment.
+coverage was remeasured in the signed-in billing report: it showed EUR 263.29 promotional credit
+remaining, EUR 0.00 charged for 1–6 September 2026, and a EUR 0.00 September forecast. No billing
+control was changed. This dated read-only evidence supports a bounded rollout but does not guarantee
+future cost state; recheck it immediately before any metered build or deployment.
 
 ## Ordered release gates
 
@@ -58,7 +67,9 @@ build or deployment.
    framed archive, record only path, size, SHA-256 and catalogue count, and keep its passphrase outside
    Git, chat, logs, and command arguments.
 4. Restore that backup into a new dedicated localhost-only disposable PostgreSQL cluster at schema
-   0.41. Record bounded counts and retrieval evidence, then rehearse the exact migration-042 hash.
+   0.41 with the tracked
+   [restore-and-rehearsal tool](../../memory/backup-tools/rehearse-migration-042.ps1). Record bounded
+   counts and retrieval evidence, then rehearse the exact migration-042 hash.
 5. Prove schema 0.42, function ownership, Li/backend execution, synthetic portfolio behavior, and all
    documented denied roles and direct-table paths. Remove only the exactly named disposable target
    after review and separate authorization.
