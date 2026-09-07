@@ -43,9 +43,15 @@ An isolated headless Chrome run loaded the real static application with every ne
 intercepted locally: all five new themes passed Enter-key selection and no-horizontal-overflow
 checks at 390×844, 800×1280 and 1440×900. Empty custom filtering and reload persistence passed;
 no JavaScript page errors occurred. Screenshots were visually inspected. The upstream
-Starlette/AnyIO alias warning remains visible. This is simulated/local evidence, not deployment,
-physical-device, assistive-technology or owner acceptance. Release requires the existing frontend
-deployment workflow; no database change, provider activation or paid font is needed.
+Starlette/AnyIO alias warning remains visible. This is simulated/local evidence, not physical-device,
+assistive-technology or owner acceptance.
+
+The reviewed web release was subsequently deployed to staging as
+`li-os-web-release-7527434`; see the
+[staging release record](../docs/releases/2026-09-07-7527434-web-staging.md). Staging health and the
+served theme/gallery assets passed after promotion. The deployment did not establish signed-in owner,
+physical-device or assistive-technology acceptance. No database change, provider activation or paid
+font was needed.
 
 Create another theme lets the owner name and save colours, a local font family, colour mode and
 card corners. Saving creates an additional choice; it does not replace a built-in. There is no
