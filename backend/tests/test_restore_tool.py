@@ -80,9 +80,58 @@ def test_pre041_gate_uses_same_password_before_encryption_prompts() -> None:
     assert "string_to_array(version, '.')::integer[] > ARRAY[0,40]" in text
     assert "user_key='christoffer' AND status='active'" in text
     assert "to_regprocedure('li_api.mark_chat_turn_effect_started(uuid,text,uuid)') IS NULL" in text
-    gate = text.index("$preflightOutput.Trim() -cne 'PRE041_READY'")
+    assert "$expectedPreflight = 'PRE041_READY'" in text
+    gate = text.index("$preflightOutput.Trim() -cne $expectedPreflight")
     assert gate < text.index('Read-Host "Create a new backup encryption passphrase"')
     assert gate < text.index('$dump.Start()')
+
+
+def test_pre042_gate_requires_clean_schema_041_portfolio_baseline() -> None:
+    text = _create_tool_text()
+
+    assert "[switch]$RequirePre042" in text
+    assert "$RequirePre041 -and $RequirePre042" in text
+    assert "WHERE version = '0.41'" in text
+    assert "string_to_array(version, '.')::integer[] > ARRAY[0,41]" in text
+    assert "to_regclass('li_runtime_data.portfolio_holdings') IS NULL" in text
+    assert "to_regprocedure('li_api.list_portfolio_holdings(text)') IS NULL" in text
+    assert "li_api.upsert_portfolio_holding(uuid,text,text,text,numeric,numeric,text,numeric,text)" in text
+    assert "to_regprocedure('li_api.archive_portfolio_holding(uuid)') IS NULL" in text
+    assert "$expectedPreflight = 'PRE042_READY'" in text
+
+
+def test_source_schema_gates_are_mutually_exclusive(tmp_path: Path) -> None:
+    pwsh = shutil.which("pwsh")
+    if not pwsh:
+        pytest.skip("PowerShell 7 is required for executable backup-tool tests")
+    command = r"""
+$ErrorActionPreference = 'Stop'
+$settings = [Console]::In.ReadToEnd() | ConvertFrom-Json
+$global:backupTestPromptCount = 0
+function Read-Host { $global:backupTestPromptCount++; throw 'Unexpected prompt' }
+try {
+    & ./memory/backup-tools/create-encrypted-backup.ps1 -HostName invalid.example -Port 5432 `
+        -DatabaseName synthetic -UserName synthetic -OutputPath $settings.output `
+        -RequirePre041 -RequirePre042
+    throw 'Unexpected completion'
+} catch {
+    if ($_.Exception.Message -notlike '*only one source-schema*') { throw }
+}
+if ($global:backupTestPromptCount -ne 0) { throw 'A secret prompt occurred before gate validation' }
+Write-Output 'SAFE_STOP'
+"""
+    result = subprocess.run(
+        [pwsh, "-NoProfile", "-NonInteractive", "-Command", command],
+        cwd=ROOT,
+        input=json.dumps({"output": str(tmp_path / "test.pgdump.liosenc")}),
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "SAFE_STOP"
+    assert result.stderr == ""
 
 
 def test_preflight_start_failure_stops_before_encryption_or_export(tmp_path: Path) -> None:

@@ -6,8 +6,11 @@ Use this checklist to record the remaining owner-observed evidence for the insta
 the owner's Android phone, Android tablet, and Windows laptop. It supplements the
 [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) and does not replace the
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
-[2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
-is the [specialist-language release](releases/2026-09-07-0fc39a7-staging.md), with web `8831381` and schema 0.41.
+[2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current backend
+device target is the [specialist-language release](releases/2026-09-07-0fc39a7-staging.md). A
+read-only check on 2026-09-07 found web `7527434` and schema 0.41 remains the last recorded database
+evidence. Finance and Calendar source `f8642e5` is prepared but not deployed; see its
+[staging-readiness record](releases/2026-09-07-f8642e5-staging-readiness.md).
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -80,6 +83,8 @@ installation-specific checks on each device where the matrix requires them.
 | Inspect memory and history | Recall and provenance are truthful; proposed memory is visibly distinct from confirmed memory; correction/forgetting retains its confirmation boundary | NOT RUN |
 | Switch among built-in and custom appearances, then export/import a custom appearance | Content does not change, contrast remains readable, and the custom appearance survives reload on that device | NOT RUN |
 | Read Calendar, Gmail, tasks, and current research using harmless queries | Configured reads return grounded results or an honest unavailable/stale state; Gmail does not send | NOT RUN |
+| Open the Calendar workspace, move between weeks, choose a month date, use Today, and refresh | Week starts Monday; Saturday/Sunday remain distinct without warning-like contrast; all-day events stay on their correct date; month cells reveal counts rather than private titles; unavailable reads are honest | BLOCKED — matching source is not deployed |
+| Open My Finances, switch between Avanza and Crypto, and use one clearly synthetic holding | Values remain separated by currency; unpriced/stale states are explicit; create/edit/archive affect only the synthetic holding; no broker login, market quote, trade, memory, or specialist sharing occurs | BLOCKED — schema 0.42 and matching source are not deployed |
 | Grant microphone permission and speak once in English and once in Swedish | The transcript is correct before submission, exactly one normal chat turn is sent, and spoken output can be stopped | NOT RUN |
 | Deny microphone permission, then cancel an active attempt | Li explains the denial/cancel state and typed chat remains usable | NOT RUN |
 
@@ -132,9 +137,9 @@ normal-use evidence.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend `release-0fc39a7`; web `release-8831381` |
+| Deployed release | Backend `release-0fc39a7`; web `release-7527434` |
 | Backend revision | `li-os-release-0fc39a7` |
-| Web revision | `li-os-web-release-8831381` |
+| Web revision | `li-os-web-release-7527434` |
 | Database schema | `0.41` |
 | Staging rollout | PASS — candidate health, denial and owner-reported readiness/schema evidence recorded on 2026-09-07; this is not device or generated-language acceptance |
 | Owner test start | NOT RECORDED |

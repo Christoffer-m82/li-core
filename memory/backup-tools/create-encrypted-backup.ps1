@@ -5,11 +5,16 @@ param(
     [Parameter(Mandatory = $true)][string]$DatabaseName,
     [Parameter(Mandatory = $true)][string]$UserName,
     [Parameter(Mandatory = $true)][ValidatePattern('\.pgdump\.liosenc$')][string]$OutputPath,
-    [switch]$RequirePre041
+    [switch]$RequirePre041,
+    [switch]$RequirePre042
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+
+if ($RequirePre041 -and $RequirePre042) {
+    throw "Choose only one source-schema preflight gate."
+}
 
 function Get-SafePgDumpFailure {
     param([AllowEmptyString()][string]$Diagnostic)
@@ -101,7 +106,7 @@ $databasePassword = ConvertFrom-PrivateSecureString $databaseSecret
 if ([string]::IsNullOrWhiteSpace($databasePassword)) {
     throw "Database password was empty."
 }
-if ($RequirePre041) {
+if ($RequirePre041 -or $RequirePre042) {
     # Use the same private credential and client installation as the export.
     # No password is requested a second time or passed on a command line.
     $preflightInfo = [Diagnostics.ProcessStartInfo]::new()
@@ -114,7 +119,8 @@ if ($RequirePre041) {
     $preflightInfo.Environment['PGPASSWORD'] = $databasePassword
     $preflightInfo.Environment['LC_MESSAGES'] = 'C'
     $preflightInfo.Environment['PGCONNECT_TIMEOUT'] = '15'
-    $preflightSql = @'
+    if ($RequirePre041) {
+        $preflightSql = @'
 BEGIN READ ONLY;
 SET LOCAL statement_timeout = '15s';
 SELECT CASE WHEN
@@ -126,6 +132,30 @@ SELECT CASE WHEN
 THEN 'PRE041_READY' ELSE 'PRE041_BLOCKED' END;
 ROLLBACK;
 '@
+        $expectedPreflight = 'PRE041_READY'
+        $preflightDescription = 'schema 0.40, no later schema, one active owner, effect function absent'
+    }
+    else {
+        $preflightSql = @'
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '15s';
+SELECT CASE WHEN
+  EXISTS (SELECT 1 FROM li_memory.schema_versions WHERE version = '0.41')
+  AND NOT EXISTS (SELECT 1 FROM li_memory.schema_versions
+                 WHERE string_to_array(version, '.')::integer[] > ARRAY[0,41])
+  AND (SELECT COUNT(*) FROM li_memory.users WHERE user_key='christoffer' AND status='active')=1
+  AND to_regclass('li_runtime_data.portfolio_holdings') IS NULL
+  AND to_regprocedure('li_api.list_portfolio_holdings(text)') IS NULL
+  AND to_regprocedure(
+        'li_api.upsert_portfolio_holding(uuid,text,text,text,numeric,numeric,text,numeric,text)'
+      ) IS NULL
+  AND to_regprocedure('li_api.archive_portfolio_holding(uuid)') IS NULL
+THEN 'PRE042_READY' ELSE 'PRE042_BLOCKED' END;
+ROLLBACK;
+'@
+        $expectedPreflight = 'PRE042_READY'
+        $preflightDescription = 'schema 0.41, no later schema, one active owner, portfolio objects absent'
+    }
     foreach ($argument in @('--no-psqlrc', '--no-password', '--host', $HostName,
         '--port', $Port.ToString(), '--dbname', $DatabaseName, '--username', $UserName,
         '--quiet', '--tuples-only', '--no-align', '--set', 'ON_ERROR_STOP=1',
@@ -145,7 +175,7 @@ ROLLBACK;
             $failureCategory = Get-SafePgDumpFailure -Diagnostic $preflightDiagnostic
             throw "Source preflight failed. Category: $failureCategory. Raw output remains suppressed. No backup was started."
         }
-        if ($preflightOutput.Trim() -cne 'PRE041_READY') {
+        if ($preflightOutput.Trim() -cne $expectedPreflight) {
             throw 'Source preflight prerequisites failed. No backup was started.'
         }
     }
@@ -155,7 +185,7 @@ ROLLBACK;
         $preflightInfo.Environment.Remove('PGPASSWORD') | Out-Null
         $preflight.Dispose()
     }
-    Write-Host 'PASS: schema 0.40, no later schema, one active owner, effect function absent.'
+    Write-Host "PASS: $preflightDescription."
     Write-Host 'The export will use the same database password. No second database password entry is needed.'
 }
 $backupSecret = Read-Host "Create a new backup encryption passphrase" -AsSecureString
