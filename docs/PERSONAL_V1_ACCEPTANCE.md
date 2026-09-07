@@ -35,7 +35,8 @@ not proof that the full core stability gate is closed.
 The schema-0.41 privacy and recovery rollout is now recorded in the
 [2026-09-06 release evidence](releases/2026-09-06-8831381-staging.md), building on the earlier
 [schema-0.40 release](releases/2026-09-06-2746421-staging.md). Outstanding entry evidence is
-the live English/Swedish core-chat smoke journey, applicable owner mutation and physical-device checks,
+the broader live privacy/recovery journey (bounded bilingual routing and Swedish specialist output
+are evidenced below), applicable owner mutation and physical-device checks,
 and absence of blocking findings through the required stability period. Until those are recorded,
 OM-003 remains planned and is not automatically next. Unrelated eligible acceptance work continues
 if voice is blocked.
@@ -350,6 +351,17 @@ synthetic Swedish Home turn invoked Nora and produced both her recorded recommen
 completed reply in natural Swedish. The release record contains the bounded evidence. This closes
 the narrow reproduced specialist-language mismatch, not universal bilingual quality, KR-011,
 physical-device, owner or stability acceptance.
+
+## Privacy and recovery acceptance review — 2026-09-07
+
+The existing focused privacy/recovery suites passed 112 synthetic tests on `4d9c67e`; the upstream
+Starlette/AnyIO warning remained visible. No new duplicate tests, live calls, personal-record reads,
+staging changes or backup access were needed. The
+[bounded acceptance procedure](TESTING_AND_AUDIT.md#kr-011-bounded-privacy-and-recovery-acceptance)
+maps the remaining gaps to existing tests and specifies isolation, exact authorization, cost limits,
+packet-level observations and uncertainty reconciliation before any future live trial. The isolated
+runner and live trial remain unimplemented/unexecuted; this is preparation, not closure of KR-011.
+OM-003 remains gated by the outstanding core privacy/recovery, owner/device and stability evidence.
 
 ## Earlier baseline — 2026-09-04
 

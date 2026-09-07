@@ -109,6 +109,9 @@ where applicable, Heimdall review.
   Private-source proposal support remains unavailable; the fail-closed guard is now deployed.
   Existing proposals and memories were not inspected or changed.
 - **Next review:** The prefixed Swedish routing retest passed, without closing this risk.
+  The [2026-09-07 specialist-language retest](releases/2026-09-07-0fc39a7-staging.md) also passed
+  narrowly. Use the [bounded acceptance procedure](TESTING_AND_AUDIT.md#kr-011-bounded-privacy-and-recovery-acceptance)
+  to separate synthetic coverage, isolated live testing and retrospective owner-record assessment.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
