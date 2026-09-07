@@ -6,9 +6,46 @@ The implementation lives in [themes.js](static/assets/themes.js), with shared co
 
 ## Using themes
 
-Settings → Appearance offers Dark, Light, Forest, and Auto. Forest adapts the owner-supplied design
+Settings → Appearance offers Dark, Light, Forest, Nordic Linen, Fjord, Midnight Brass, Rosewood,
+Porcelain & Ink, and Auto. Forest adapts the owner-supplied design
 kit's paper, pine, forest-text, green-panel and soft-card treatment. Auto retains the existing
 Light/Dark sunrise/system behaviour; it does not switch through custom themes.
+
+The gallery shows decorative miniature layouts and palette swatches without fetching conversations
+or photographs. Each native button has a visible selection label and `aria-pressed`; Tab followed by
+Enter/Space chooses a theme, while focus alone does not change it. A labelled filter offers all,
+built-in, light, dark and custom collections. Filtering never changes the current appearance; the
+status line still names it even when its card is filtered out. An empty custom collection explains
+how to create a theme. Saving a custom theme returns to All so the new selection is visible.
+
+The five owner-approved concept boards are adapted as presentation tokens, not new dashboards:
+
+| Theme | Treatment |
+| --- | --- |
+| Nordic Linen | Warm ivory, forest accents, serif headings and sans-serif reading text |
+| Fjord | Cool mist, navy/ocean accents, humanist type and subtle corners |
+| Midnight Brass | Charcoal surfaces, ivory text, brass accents and serif headings |
+| Rosewood | Warm porcelain, rosewood accents and soft editorial styling |
+| Porcelain & Ink | Crisp light surfaces, ink text, cobalt accents and compact corners |
+
+Palette shades are adjusted for the existing contrast requirements. Concept-board statistics,
+extra controls and decorative imagery are not added. Existing page hierarchy, chat sender colours,
+portrait assignments, content and permissions are preserved. Classic typography pairs local Georgia
+headings with Segoe UI/system body text; no paid or remote fonts are required. Exact concept-image
+fonts and pixel-for-pixel layouts are not promised. New `classic` font and `6` radius options remain
+allowlisted data and work in the existing transfer format; older app versions may reject these options
+until updated, without modifying their saved themes.
+
+### Gallery validation — 2026-09-07
+
+Local validation passed: 87 Node browser-logic tests, 93 frontend Python tests, Ruff and compileall.
+An isolated headless Chrome run loaded the real static application with every network request
+intercepted locally: all five new themes passed Enter-key selection and no-horizontal-overflow
+checks at 390×844, 800×1280 and 1440×900. Empty custom filtering and reload persistence passed;
+no JavaScript page errors occurred. Screenshots were visually inspected. The upstream
+Starlette/AnyIO alias warning remains visible. This is simulated/local evidence, not deployment,
+physical-device, assistive-technology or owner acceptance. Release requires the existing frontend
+deployment workflow; no database change, provider activation or paid font is needed.
 
 Create another theme lets the owner name and save colours, a local font family, colour mode and
 card corners. Saving creates an additional choice; it does not replace a built-in. There is no

@@ -5,12 +5,18 @@
     modern: 'Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif',
     humanist: 'Archivo, "Segoe UI", system-ui, sans-serif',
     editorial: 'Georgia, "Times New Roman", serif',
+    classic: '"Segoe UI", system-ui, sans-serif',
   });
   const colors = ['bg', 'surface', 'tile', 'text', 'muted', 'accent', 'onAccent'];
   const builtins = [
     { id: 'dark', name: 'Dark', mode: 'dark', bg: '#070812', surface: '#0e1120', tile: '#131729', text: '#f7f5ff', muted: '#a6a5bb', accent: '#a883ff', onAccent: '#171025', font: 'modern', radius: '22' },
     { id: 'light', name: 'Light', mode: 'light', bg: '#f5f4fa', surface: '#ffffff', tile: '#f3f1f9', text: '#191525', muted: '#706b7b', accent: '#7151c8', onAccent: '#ffffff', font: 'modern', radius: '22' },
     { id: 'forest', name: 'Forest', mode: 'light', bg: '#F6F4EF', surface: '#FFFFFF', tile: '#F7F5EF', text: '#14231D', muted: '#56655C', accent: '#1E5B44', onAccent: '#FFFFFF', font: 'humanist', radius: '20' },
+    { id: 'nordic-linen', name: 'Nordic Linen', mode: 'light', bg: '#F6F3EB', surface: '#FFFEFA', tile: '#EEECE3', text: '#203B32', muted: '#536157', accent: '#294E43', onAccent: '#FFFFFF', font: 'classic', radius: '20' },
+    { id: 'fjord', name: 'Fjord', mode: 'light', bg: '#F2F6F8', surface: '#FFFFFF', tile: '#E5EFF4', text: '#19394D', muted: '#4A6170', accent: '#355F78', onAccent: '#FFFFFF', font: 'humanist', radius: '12' },
+    { id: 'midnight-brass', name: 'Midnight Brass', mode: 'dark', bg: '#171B20', surface: '#252B32', tile: '#2D343C', text: '#F2ECE1', muted: '#B3BDC6', accent: '#C6A66A', onAccent: '#171B20', font: 'classic', radius: '12' },
+    { id: 'rosewood', name: 'Rosewood', mode: 'light', bg: '#FAF5F2', surface: '#FFFCFA', tile: '#F1E6E2', text: '#30282B', muted: '#705C61', accent: '#703F4B', onAccent: '#FFFFFF', font: 'classic', radius: '20' },
+    { id: 'porcelain-ink', name: 'Porcelain & Ink', mode: 'light', bg: '#FAFAF7', surface: '#FFFFFF', tile: '#EEEFF0', text: '#171C27', muted: '#59616F', accent: '#3559B8', onAccent: '#FFFFFF', font: 'modern', radius: '6' },
   ].map(Object.freeze);
   const key = 'li-custom-themes-v1';
   const transferLimit = 16 * 1024;
@@ -25,7 +31,7 @@
   }
   function validate(input) {
     if (!input || typeof input !== 'object' || typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 40) throw new Error('Choose a theme name of 1–40 characters.');
-    if (!['light', 'dark'].includes(input.mode) || !Object.hasOwn(fonts, input.font) || !['12', '20', '22', '28'].includes(input.radius)) throw new Error('Choose the supplied mode, font, and corner options.');
+    if (!['light', 'dark'].includes(input.mode) || !Object.hasOwn(fonts, input.font) || !['6', '12', '20', '22', '28'].includes(input.radius)) throw new Error('Choose the supplied mode, font, and corner options.');
     for (const color of colors) if (typeof input[color] !== 'string' || !/^#[0-9a-f]{6}$/i.test(input[color])) throw new Error('Use six-digit hex colours.');
     for (const surface of ['bg', 'surface', 'tile']) {
       for (const foreground of ['text', 'muted', 'accent']) {
@@ -86,7 +92,7 @@
       green: theme.accent, 'on-accent': theme.onAccent, 'bg-glow': theme.tile,
       line: `color-mix(in srgb, ${theme.text} 24%, ${theme.surface})`,
       shadow: theme.mode === 'dark' ? 'rgba(0,0,0,.35)' : 'rgba(20,35,29,.08)',
-      'font-body': fonts[theme.font], 'font-heading': theme.font === 'humanist' ? '"Archivo Expanded", Archivo, "Segoe UI", sans-serif' : fonts[theme.font],
+      'font-body': fonts[theme.font], 'font-heading': theme.font === 'classic' ? fonts.editorial : theme.font === 'humanist' ? '"Archivo Expanded", Archivo, "Segoe UI", sans-serif' : fonts[theme.font],
       'card-radius': `${theme.radius}px`, 'sidebar-surface': theme.id === 'forest' ? '#E7EFE7' : theme.bg,
     };
     for (const [name, value] of Object.entries(tokens)) style.setProperty(`--${name}`, value);
