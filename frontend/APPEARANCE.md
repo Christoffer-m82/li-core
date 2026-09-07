@@ -121,6 +121,12 @@ Backend/System. Recent conversations and files stay below the main workspace. On
 Home shows the first three active-first specialist cards and a **View all specialists** control; the
 full roster remains present on larger screens and on the Specialists page.
 
+For the next specialist-list iteration, active specialists should always sort first. All remaining
+specialists should sort by their latest recorded activity, newest first, so a just-finished
+specialist stays near the top until a newer interaction displaces it. Specialists with no recorded
+activity fall back to registry order. This is a planned ordering rule, not evidence that the current
+deployed list already implements it.
+
 Recommended remaining Home work:
 
 1. Agenda and up to three owner-selected priorities, drawn only from connected real data.

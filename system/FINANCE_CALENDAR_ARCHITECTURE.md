@@ -1,8 +1,10 @@
 # Finance and Calendar workspace architecture
 
 **Status:** Accepted repository design; Calendar read UI and private portfolio foundation are
-implemented in source. Portfolio schema 0.42 is not applied and these changes are not deployed merely
-because this document or code is merged.
+implemented. Schema 0.42 and the matching backend/web application are deployed to staging with
+partial acceptance evidence in the
+[dated release record](../docs/releases/2026-09-07-a7601b7-staging.md). Physical-device acceptance
+and a successful provider-backed Calendar display remain open.
 
 ## Context
 
@@ -51,8 +53,8 @@ different day. Event descriptions are not shown in the overview; month cells sho
 
 “Avanza” is an owner-defined account view, not a direct Avanza integration. Li must never ask for,
 store, or automate entry of an Avanza password, bank credential, wallet private key, seed phrase, or
-recovery phrase. No unofficial brokerage API, browser scraping, or trade execution is permitted by
-this design.
+recovery phrase. The deployed foundation performs no brokerage API call, browser scraping, or trade
+execution.
 
 Schema 0.42 adds one owner-scoped table behind `SECURITY DEFINER` functions. Row-level security is
 enabled and forced. The normal Li database capability can list, create/update, and archive holdings
@@ -84,6 +86,20 @@ A later quote adapter must identify source, price time, delay/freshness class, c
 state; cache boundedly; avoid background polling; and never enable overages. Provider activation and
 any metered operation require current no-additional-charge evidence and the external-action approval
 required by [AGENTS.md](../AGENTS.md).
+
+The owner-selected direction for a later Avanza quote extension is **low-frequency caching, normally
+once every seven days**, limited to held or explicitly watched instruments rather than market-wide
+scanning. Instrument resolution should retain a stable source identifier and direct public instrument
+URL, while the cached observation retains price, quote currency, source market time when available,
+retrieval time, and a current/delayed/stale/unavailable classification. A bounded manual refresh may
+be added with rate limiting. Manual price entry remains the fallback.
+
+This direction is planned, not implemented or activated. It does not by itself authorize scraping.
+Before implementation, verify that the chosen public page or API permits automated retrieval and
+that its data licensing, robots guidance, technical behavior, attribution, freshness, and no-
+additional-charge coverage fit this boundary. Do not use an Avanza login, session cookie, private
+endpoint, anti-bot bypass, or stored brokerage credential. If permission or reliability cannot be
+established, retain manual entry or select another reviewed source.
 
 ## Security and privacy consequences
 

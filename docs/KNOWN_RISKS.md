@@ -135,8 +135,10 @@ where applicable, Heimdall review.
   aggregated without a reviewed FX source.
 - **Current control:** The UI labels the valuation mode, timestamp, missing prices, unlike currencies,
   and unrealized result. It never claims live quotes and cannot place trades.
-- **Next review:** Select a normalized instrument model and a source that exposes freshness, exchange,
-  currency, licensing, and bounded no-additional-charge coverage before implementing automatic
+- **Next review:** Follow the proposed weekly-cached direction in the
+  [market-data provider position](../system/FINANCE_CALENDAR_ARCHITECTURE.md#market-data-provider-position),
+  then select a normalized instrument model and a source that exposes freshness, exchange, currency,
+  permission/licensing, and bounded no-additional-charge coverage before implementing automatic
   quotes. Keep manual entry as the fail-safe fallback.
 
 ## Closed risks
