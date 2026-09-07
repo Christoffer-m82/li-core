@@ -102,6 +102,9 @@ node_modules/
 tmp/
 temp/
 
+# Non-secret write-ahead trial ledgers; retained locally to prevent accidental reruns.
+output/acceptance/
+
 
 # ============================================================
 # IMPORTANT
