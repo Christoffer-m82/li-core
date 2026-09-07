@@ -341,7 +341,13 @@ the Swedish conversation. Li's final response correctly remained Swedish, so thi
 routing result. The specialist prompt now applies the established conversation-language rule to all
 human-readable JSON values while keeping field names, evidence, privacy, routing and authority
 unchanged. Paired English/Swedish prompt-wiring regressions cover the correction locally. Generated
-language quality and deployment of this follow-up remain unverified.
+language quality and deployment of this follow-up remained unverified at that point.
+
+The [2026-09-07 backend release](releases/2026-09-07-0fc39a7-staging.md) subsequently deployed this
+specialist-language correction after candidate denial, health, authenticated readiness and schema
+checks. Generated-language quality remains unverified: the single synthetic Swedish retest is
+pending current prepaid-credit verification. This deployment does not close KR-011 or device,
+owner and stability acceptance.
 
 ## Earlier baseline — 2026-09-04
 

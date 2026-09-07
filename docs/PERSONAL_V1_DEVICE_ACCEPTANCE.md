@@ -7,7 +7,7 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) and does not replace the
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
-is the [backend routing release](releases/2026-09-06-e46b509-staging.md), with web `8831381` and schema 0.41.
+is the [specialist-language release](releases/2026-09-07-0fc39a7-staging.md), with web `8831381` and schema 0.41.
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -132,11 +132,11 @@ normal-use evidence.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend `release-e46b509`; web `release-8831381` |
-| Backend revision | `li-os-release-e46b509` |
+| Deployed release | Backend `release-0fc39a7`; web `release-8831381` |
+| Backend revision | `li-os-release-0fc39a7` |
 | Web revision | `li-os-web-release-8831381` |
 | Database schema | `0.41` |
-| Staging rollout | PASS — bounded read-only smoke evidence recorded on 2026-09-06; this is not device acceptance |
+| Staging rollout | PASS — candidate health, denial and owner-reported readiness/schema evidence recorded on 2026-09-07; this is not device or generated-language acceptance |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
