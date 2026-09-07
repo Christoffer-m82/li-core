@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime
 from typing import Annotated, Literal, Protocol
 
@@ -6,8 +7,44 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from app.action_instrumentation import ActionAttribution
 
 
+_FAILURE_CATEGORIES = frozenset({
+    "unknown", "configuration", "authentication", "scope", "api_disabled",
+    "access_denied", "not_found_or_inaccessible", "invalid_request", "rate_limited",
+    "unavailable", "malformed_response", "timeout", "network", "conflict",
+})
+_FAILURE_STAGES = frozenset({"configuration", "oauth", "api", "validation", "unknown"})
+_logger = logging.getLogger("li.calendar")
+
+
 class CalendarProviderError(RuntimeError):
-    """Raised when a calendar provider cannot complete an operation."""
+    """Provider failure with allowlisted diagnostics; never log the exception itself."""
+
+    def __init__(
+        self, message: str, *, category: str = "unknown", stage: str = "unknown",
+        http_status: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.stage = stage
+        self.http_status = http_status
+
+
+def _record_failure(error: Exception, action: str) -> None:
+    # Revalidate at the logging boundary, including errors from alternate adapters.
+    category, stage, status = "unknown", "unknown", None
+    if isinstance(error, CalendarProviderError):
+        if type(error.category) is str and error.category in _FAILURE_CATEGORIES:
+            category = error.category
+        if type(error.stage) is str and error.stage in _FAILURE_STAGES:
+            stage = error.stage
+        if type(error.http_status) is int and 100 <= error.http_status <= 599:
+            status = error.http_status
+    elif isinstance(error, ValidationError):
+        category, stage = "malformed_response", "validation"
+    _logger.warning(
+        "Calendar failure action=%s category=%s stage=%s http_status=%s",
+        action, category, stage, status,
+    )
 
 
 class CalendarEvent(BaseModel):
@@ -117,10 +154,14 @@ class CalendarProvider(Protocol):
 
 class UnavailableCalendarProvider:
     def search_events(self, request: SearchCalendarAction) -> list[object]:
-        raise CalendarProviderError("No calendar provider is configured.")
+        raise CalendarProviderError(
+            "No calendar provider is configured.", category="configuration", stage="configuration",
+        )
 
     def create_event(self, request: CreateCalendarAction) -> object:
-        raise CalendarProviderError("No calendar provider is configured.")
+        raise CalendarProviderError(
+            "No calendar provider is configured.", category="configuration", stage="configuration",
+        )
 
 
 def configured_calendar_provider(settings: object) -> CalendarProvider:
@@ -172,7 +213,8 @@ def execute_calendar_action(
     if isinstance(request, SearchCalendarAction):
         try:
             raw_events = provider.search_events(request)
-        except Exception:  # noqa: BLE001 - provider adapters must fail closed
+        except Exception as exc:  # noqa: BLE001 - provider adapters must fail closed
+            _record_failure(exc, request.action)
             return CalendarActionOutcome(
                 status="failed",
                 action=request.action,
@@ -190,6 +232,9 @@ def execute_calendar_action(
             except (ValidationError, ValueError, TypeError):
                 failed_items += 1
         if not events and failed_items:
+            _record_failure(CalendarProviderError(
+                "Invalid events.", category="malformed_response", stage="validation",
+            ), request.action)
             return CalendarActionOutcome(
                 status="failed",
                 action=request.action,
@@ -207,7 +252,8 @@ def execute_calendar_action(
     try:
         raw_event = provider.create_event(request)
         event = CalendarEvent.model_validate(raw_event)
-    except Exception:  # noqa: BLE001 - creation must never claim success on adapter failure
+    except Exception as exc:  # noqa: BLE001 - creation must never claim success on adapter failure
+        _record_failure(exc, request.action)
         return CalendarActionOutcome(
             status="failed",
             action=request.action,

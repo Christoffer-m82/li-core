@@ -235,3 +235,135 @@ def test_configuration_requires_all_oauth_secrets() -> None:
         google_calendar_timeout_seconds=5.0,
     )
     assert isinstance(configured_calendar_provider(complete), GoogleCalendarProvider)
+
+
+@pytest.mark.parametrize("stage,status,body,category", [
+    ("oauth", 400, {"error": "invalid_grant"}, "authentication"),
+    ("oauth", 401, {"error": "invalid_client"}, "configuration"),
+    ("api", 401, {}, "authentication"),
+    ("api", 403, {"error": {"errors": [{"reason": "insufficientPermissions"}]}}, "scope"),
+    ("api", 403, {"error": {"details": [{"reason": "SERVICE_DISABLED"}]}}, "api_disabled"),
+    ("api", 403, {"error": {"errors": [{"reason": "userRateLimitExceeded"}]}}, "rate_limited"),
+    ("api", 403, {}, "access_denied"),
+    ("api", 404, {}, "not_found_or_inaccessible"),
+    ("api", 400, {}, "invalid_request"),
+    ("api", 429, {}, "rate_limited"),
+    ("api", 503, {}, "unavailable"),
+    ("oauth", 400, {"error": ["untrusted"]}, "unknown"),
+])
+@pytest.mark.parametrize("query", ["PRIVATE_QUERY meeting", "PRIVATE_QUERY möte"])
+def test_sanitized_failure_categories(stage, status, body, category, query, caplog) -> None:
+    from app.calendar_runtime import CalendarActionEnvelope, execute_calendar_action
+
+    calls = []
+
+    def handler(request):
+        calls.append(request.method)
+        if stage == "api" and request.url.host == "oauth2.googleapis.com":
+            return _token_response(request)
+        return httpx.Response(status, json={**body, "message": "PRIVATE_SENTINEL"})
+
+    outcome = execute_calendar_action(CalendarActionEnvelope(request=SearchCalendarAction(
+        action="calendar.search", time_min=START, time_max=END, query=query,
+    )), _provider(handler))
+    assert outcome.status == "failed"
+    assert outcome.events == []
+    assert f"category={category}" in caplog.text
+    assert f"stage={stage}" in caplog.text
+    assert f"http_status={status}" in caplog.text
+    assert "PRIVATE" not in caplog.text + outcome.model_dump_json()
+    assert len(calls) == (1 if stage == "oauth" else 2)
+    assert all(record.exc_info is None for record in caplog.records)
+
+
+@pytest.mark.parametrize("payload", [[], None, {}, {"access_token": "token", "scope": []}])
+def test_malformed_token_is_classified_without_api_call(payload, caplog) -> None:
+    from app.calendar_runtime import CalendarActionEnvelope, execute_calendar_action
+
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(200, json=payload)
+
+    outcome = execute_calendar_action(CalendarActionEnvelope(request=SearchCalendarAction(
+        action="calendar.search", time_min=START, time_max=END,
+    )), _provider(handler))
+    assert outcome.status == "failed"
+    assert "category=malformed_response" in caplog.text
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("stage", ["oauth", "api"])
+@pytest.mark.parametrize("error,category", [
+    (httpx.ReadTimeout, "timeout"), (httpx.ConnectError, "network"),
+])
+def test_transport_diagnostics_never_log_exception(stage, error, category, caplog) -> None:
+    from app.calendar_runtime import CalendarActionEnvelope, execute_calendar_action
+
+    def handler(request):
+        if stage == "api" and request.url.host == "oauth2.googleapis.com":
+            return _token_response(request)
+        raise error("PRIVATE_SENTINEL", request=request)
+
+    outcome = execute_calendar_action(CalendarActionEnvelope(request=SearchCalendarAction(
+        action="calendar.search", time_min=START, time_max=END,
+    )), _provider(handler))
+    assert outcome.status == "failed"
+    assert f"category={category}" in caplog.text
+    assert f"stage={stage}" in caplog.text
+    assert "PRIVATE_SENTINEL" not in caplog.text
+
+
+@pytest.mark.parametrize("body", [
+    {"error": {"errors": [{"reason": ["PRIVATE_SENTINEL"]}]}},
+    {"error": {"errors": [{"reason": "PRIVATE_SENTINEL"}]}},
+    {"error": {"details": "PRIVATE_SENTINEL"}},
+    {"error": {"errors": [{"reason": "SERVICE_DISABLED"}], "message": "x" * 17_000}},
+])
+def test_untrusted_or_oversized_error_uses_status_only(body, caplog) -> None:
+    from app.calendar_runtime import CalendarActionEnvelope, execute_calendar_action
+
+    def handler(request):
+        if request.url.host == "oauth2.googleapis.com":
+            return _token_response(request)
+        return httpx.Response(403, json=body)
+
+    execute_calendar_action(CalendarActionEnvelope(request=SearchCalendarAction(
+        action="calendar.search", time_min=START, time_max=END,
+    )), _provider(handler))
+    assert "category=access_denied" in caplog.text
+    assert "PRIVATE_SENTINEL" not in caplog.text
+
+
+def test_oauth_conflict_never_triggers_create_reconciliation() -> None:
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(409, text="PRIVATE_SENTINEL")
+
+    with pytest.raises(CalendarProviderError):
+        _provider(handler).create_event(CreateCalendarAction(
+            action="calendar.create", title="Synthetic", start=START, end=END,
+        ))
+    assert len(calls) == 1
+
+
+def test_missing_required_scope_is_diagnostic_not_permission_expansion(caplog) -> None:
+    from app.calendar_runtime import CalendarActionEnvelope, execute_calendar_action
+
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(200, json={
+            "access_token": "synthetic", "scope": "https://www.googleapis.com/auth/calendar",
+        })
+
+    result = execute_calendar_action(CalendarActionEnvelope(request=SearchCalendarAction(
+        action="calendar.search", time_min=START, time_max=END,
+    )), _provider(handler))
+    assert result.status == "failed"
+    assert "category=scope stage=oauth" in caplog.text
+    assert len(calls) == 1
