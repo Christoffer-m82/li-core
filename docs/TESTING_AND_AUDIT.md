@@ -144,7 +144,8 @@ Use [Security boundaries](SECURITY_BOUNDARIES.md) and the authoritative
 
 ## KR-011 bounded privacy and recovery acceptance
 
-**Reviewed 2026-09-07; procedure only, not live-test authorization or completion.** Use the
+**Reviewed 2026-09-07; local synthetic harness implemented, not live-test authorization or
+completion.** Use the
 [personal-use checklist](PERSONAL_V1_ACCEPTANCE.md) as the completion ledger and
 [KR-011](KNOWN_RISKS.md#kr-011-chat-privacy-and-memory-retry-live-acceptance-remains-incomplete)
 as the risk record. The [current release](releases/2026-09-07-0fc39a7-staging.md) proves rollout and
@@ -154,21 +155,34 @@ one Swedish specialist exchange, not the privacy/recovery cases below.
 
 | Boundary | Existing executable evidence | Still required |
 | --- | --- | --- |
-| Historical recall and later Workspace disclosure | `test_historical_recall_stays_private_in_workspace_and_derived_outputs` in [chat acceptance tests](../backend/tests/test_personal_v1_chat_acceptance.py): EN/SV, fresh/shared history, subsequent turn, private answer/capture metadata | Provider-backed synthetic run with packet-boundary inspection, not merely an answer that omits a marker |
+| Historical recall and later Workspace disclosure | `test_historical_recall_stays_private_in_workspace_and_derived_outputs` in [chat acceptance tests](../backend/tests/test_personal_v1_chat_acceptance.py), plus the opt-in [local acceptance harness](../backend/tests/test_local_acceptance_harness.py): EN/SV, real disposable database history/recall/capture paths, fake-provider packet inspection, private answer/capture metadata, and idempotent replay | Provider-backed synthetic run with the same packet-boundary observation; local fake-provider evidence does not establish provider-backed behavior |
 | Private-source proposals | `test_proposal_cannot_drop_source_privacy` and `test_every_memory_mutation_is_guarded_immediately_before_write` in [capture tests](../backend/tests/test_memory_capture.py), plus HTTP capture-error tests | Preserve rejection before writes/markers; live classifier behavior is separate. Full private-proposal support remains unavailable |
-| Failure after memory write | `test_memory_change_then_model_failure_is_not_safe_to_repeat`, deferred-capture and uncertain-retry tests in [recovery tests](../backend/tests/test_recoverable_turns.py) | Isolated integrated application/database failure observation and provider-backed uncertainty wording; no live failure induced in the owner's environment |
+| Failure after memory write | `test_memory_change_then_model_failure_is_not_safe_to_repeat`, deferred-capture and uncertain-retry tests in [recovery tests](../backend/tests/test_recoverable_turns.py), plus the opt-in [local acceptance harness](../backend/tests/test_local_acceptance_harness.py): EN/SV, real disposable database correction/write, injected post-write fake-model failure, uncertain response, and zero additional writes or fake-provider calls on exact replay | Provider-backed uncertainty wording and reconciliation remain; no live failure was induced in the owner's environment |
 | Process loss and authority fencing | `validate_memory_effect_fence` in the [migration harness](../memory/tests/validate_migrations.py): invalid/stale identities, expired lease, uncertainty, permitted/denied roles | Preserve existing rehearsal evidence; do not relabel it as a live provider failure or rerun a personal backup restore solely for this check |
 | Previously affected records | No retrospective assessment performed | Separate exact authorization and owner-controlled privacy-preserving assessment, or explicit residual-risk decision; new tests cannot certify old records |
 
-The current focused local run passed 112 tests with the upstream Starlette/AnyIO warning visible:
+The combined focused local regression run passed 117 tests; its mocked complete-request budget
+subset also passed all 5 tests when run alone. The full normal backend suite passed 1,084 tests and
+skipped the four deliberately opt-in database cases, with the upstream Starlette/AnyIO warning
+visible:
 
 ```text
 cd backend
-python -m pytest tests/test_personal_v1_chat_acceptance.py tests/test_recoverable_turns.py tests/test_memory_capture.py tests/test_conversation_history.py tests/test_li_orchestration.py tests/test_governed_systems.py tests/test_context_privacy_migration.py -q
+python -m pytest tests/test_personal_v1_chat_acceptance.py tests/test_recoverable_turns.py tests/test_memory_capture.py tests/test_conversation_history.py tests/test_li_orchestration.py tests/test_governed_systems.py tests/test_context_privacy_migration.py tests/test_complete_request_budget.py -q
+python -m pytest tests/test_complete_request_budget.py -q
+python -m pytest -q
 ```
 
-This reused existing synthetic tests; no provider call, personal-record read, database migration or
-deployment was performed. It is not an integrated live-environment result.
+The opt-in runner then passed four integrated EN/SV cases against a dedicated localhost-only
+`li_os_kr011_acceptance` database after the complete tracked migration manifest reached schema 0.41.
+It used fake specialist, classifier and synthesis providers. The runner verified that selected private
+history reached Li but not the complete specialist packet; derived history and memory stayed private;
+one real disposable correction/write followed by a fake-model failure became uncertain; and exact
+replay made no additional writes or fake-provider calls. The named disposable container and its
+synthetic data were removed after the run. CI repeats this harness only after creating the dedicated
+database and applying the manifest. No live provider call, personal-record read, staging migration,
+deployment or backup access occurred. This is local integration evidence, not a provider-backed or
+deployed-environment result.
 
 ### Entry controls for a future trial
 
@@ -183,9 +197,12 @@ deployment was performed. It is not an integrated live-environment result.
    separate EN/SV cases. Seed only the disposable store; verify its fixture IDs before any mutation.
    Capture specialist packets only inside this synthetic environment. Record marker-presence booleans,
    source hashes, status codes and counts rather than raw prompts or private content.
-4. A reviewed isolated runner and per-call budget guard are prerequisites, not existing capabilities
-   claimed by this procedure. It must count all classifier, specialist, synthesis and fallback calls,
-   enforce input/output ceilings and stop before the next call would exceed the approved allowance.
+4. Reuse the reviewed opt-in local runner for isolation and packet/effect observations. Its fake
+   providers deliberately make no network calls. Before a future provider-backed run, add or verify a
+   reviewed per-trial call/token guard that counts classifier, specialist, synthesis and fallback
+   calls, enforces input/output ceilings, and stops before the next call would exceed the approved
+   allowance. The existing complete-request budget guard and five mocked regressions cover each
+   individual model request, but do not by themselves impose the proposed whole-trial call ceiling.
    No automatic network retries. Do not modify the live runtime to add diagnostic packet logging.
 5. Obtain exact approval for that environment, synthetic seeding/mutations, fault point and live
    calls before execution. Verify current prepaid balance, disabled auto-reload, provider/model terms

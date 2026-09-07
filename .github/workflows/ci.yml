@@ -272,7 +272,7 @@ jobs:
     env:
       PGHOST: localhost
       PGPORT: 5432
-      PGDATABASE: postgres
+      PGDATABASE: li_os_kr011_acceptance
       PGUSER: supabase_admin
       PGPASSWORD: ci-synthetic-postgres-password
     steps:
@@ -282,8 +282,56 @@ jobs:
         with:
           python-version: "3.12.14"
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.9"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Create isolated acceptance database
+        run: |
+          psql --no-psqlrc --set ON_ERROR_STOP=1 --command "CREATE DATABASE li_os_kr011_acceptance;"
+          psql --no-psqlrc --set ON_ERROR_STOP=1 --dbname li_os_kr011_acceptance \
+            --command "GRANT CREATE ON DATABASE li_os_kr011_acceptance TO postgres; GRANT CREATE ON SCHEMA public TO postgres;"
+        env:
+          PGDATABASE: postgres
+          PGUSER: supabase_admin
+
       - name: Apply and audit migration history
         run: python memory/tests/validate_migrations.py
+
+      - name: Install locked backend acceptance dependencies
+        run: uv sync --locked --extra dev
+        working-directory: backend
+
+      - name: Run synthetic application/database privacy and recovery acceptance
+        run: uv run --locked pytest tests/test_local_acceptance_harness.py -q
+        working-directory: backend
+        env:
+          LI_OS_SYNTHETIC_ACCEPTANCE: "1"
+          LI_OS_ENVIRONMENT: development
+          LI_OS_API_TOKEN: ci-synthetic-api-token
+          LI_OS_THEO_API_TOKEN: ci-synthetic-theo-token
+          LI_OS_OWNER_API_TOKEN: ci-synthetic-owner-token
+          LI_OS_ANTHROPIC_API_KEY: ci-synthetic-provider-disabled
+          LI_OS_BRAVE_SEARCH_API_KEY: ""
+          LI_OS_GOOGLE_CALENDAR_CLIENT_ID: ""
+          LI_OS_GOOGLE_CALENDAR_CLIENT_SECRET: ""
+          LI_OS_GOOGLE_CALENDAR_REFRESH_TOKEN: ""
+          LI_OS_GOOGLE_GMAIL_CLIENT_ID: ""
+          LI_OS_GOOGLE_GMAIL_CLIENT_SECRET: ""
+          LI_OS_GOOGLE_GMAIL_REFRESH_TOKEN: ""
+          LI_OS_DB_HOST: localhost
+          LI_OS_DB_PORT: "5432"
+          LI_OS_DB_NAME: li_os_kr011_acceptance
+          LI_OS_DB_USER: li_backend_runtime
+          LI_OS_DB_PASSWORD: ci-synthetic-backend-password
+          LI_OS_DB_SSLMODE: disable
+          LI_OS_THEO_DB_USER: li_theo_runtime
+          LI_OS_THEO_DB_PASSWORD: ci-synthetic-theo-password
+          LI_OS_OWNER_DB_USER: li_owner_runtime
+          LI_OS_OWNER_DB_PASSWORD: ci-synthetic-owner-password
 
   android-native:
     name: Android native checks
