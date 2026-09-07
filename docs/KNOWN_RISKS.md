@@ -116,6 +116,9 @@ where applicable, Heimdall review.
   [bounded acceptance procedure](TESTING_AND_AUDIT.md#kr-011-bounded-privacy-and-recovery-acceptance)
   to separate this local synthetic coverage, provider-backed isolated testing and retrospective
   owner-record assessment.
+  The [bounded provider-trial preparation](TESTING_AND_AUDIT.md#provider-trial-preparation--2026-09-07)
+  now adds a local write-ahead budget and rehearsed synthetic runner, but has made no live calls.
+  Do not treat guard implementation or a fake-provider rehearsal as closing this risk.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
