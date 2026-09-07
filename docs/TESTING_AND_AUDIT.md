@@ -128,6 +128,12 @@ history, representative data preservation, RLS, ownership, allowed API access, d
 access, and replay rejection. This isolated rehearsal does not prove the state of any external
 database; record separately whether an authorized target-specific rehearsal was run.
 
+Before an authorized migration-042 backup, add `-RequirePre042` to the encrypted-backup creation
+command. The gate must pass against schema 0.41 before the encryption prompts appear. Its success is
+only source preflight evidence: archive authentication, a full isolated restore at schema 0.41, the
+exact migration rehearsal, post-migration authority tests, and target-specific validation remain
+separate required results.
+
 ## Security and privacy audit
 
 Use [Security boundaries](SECURITY_BOUNDARIES.md) and the authoritative

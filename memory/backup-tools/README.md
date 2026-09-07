@@ -20,6 +20,14 @@ pwsh -NoProfile -File .\memory\backup-tools\create-encrypted-backup.ps1 `
   -OutputPath '.\output\backups\li-os-memory-yyyyMMddTHHmmssZ.pgdump.liosenc'
 ```
 
+For the reviewed migration 042 rollout, add `-RequirePre042`. The tool then uses the same privately
+entered database password for a read-only preflight and the export, and it refuses to ask for an
+encryption passphrase unless the source has schema 0.41, no later schema, exactly one active owner,
+and none of the portfolio table or API functions. `-RequirePre041` preserves the equivalent
+historical schema-0.40 gate for migration 041. The two switches are mutually exclusive. These gates
+verify source shape, not the migration checksum, restore result, rehearsal, authorization, or cost
+coverage.
+
 Creating a backup is a database read and may consume provider egress. Confirm authorization and
 no-additional-charge coverage before running it. Never record its passphrase in Git, chat, logs, or
 the release evidence.

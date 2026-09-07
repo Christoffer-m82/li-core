@@ -59,6 +59,17 @@ operator, planned time, user impact, rollback target, and links to approval evid
   schema 0.40 must fail closed for durable memory capture. Do not automatically retry uncertain
   memory effects or treat application rollback as database rollback. This ordering note does not
   authorize a migration, deployment, record inspection or reconciliation.
+- The Finance and Calendar workspaces require migration 042 before deploying their matching backend
+  and web revisions. Obtain exact staging authorization and verify no-additional-charge coverage;
+  create a fresh encrypted backup with the schema-0.41 `-RequirePre042` source gate; authenticate the
+  archive; complete a full isolated schema-0.41 restore; and rehearse the exact tracked migration and
+  its Li/backend allow plus Theo, owner-confirmation, retention, client, service-role and direct-table
+  denials. Apply the migration once, then deploy backend and web as separately validated zero-normal-
+  traffic candidates from the same reviewed commit. A prior application remains schema-compatible
+  after migration 042 but does not expose the new workspaces. Application traffic rollback leaves
+  schema 0.42 and any portfolio rows in place; database recovery is a separate restore or corrective-
+  migration decision. No market-data or brokerage provider is part of this rollout. This ordering
+  note does not authorize a backup, migration, deployment, provider call or personal-record read.
 - Build from the repository root using the component Dockerfile and retain the immutable digest.
 - Inspect rendered configuration without exposing values. Reject unresolved placeholders,
   unauthenticated backend access, wildcard production CORS, unpinned rollout inputs where pinning is
