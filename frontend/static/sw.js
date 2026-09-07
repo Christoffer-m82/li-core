@@ -1,4 +1,4 @@
-const CACHE = 'li-shell-v23';
+const CACHE = 'li-shell-v24';
 // Public fictional portraits are fetched only when displayed, never during shell installation.
 const PORTRAITS = ['sofia', 'marco', 'elena', 'amelia', 'freja', 'oliver', 'james', 'victor', 'nora', 'milo', 'iris', 'clara', 'ada', 'theo', 'heimdall'].map((id) => `/assets/portraits/${id}.png`);
 const SHELL = [
@@ -11,6 +11,9 @@ const SHELL = [
   '/assets/specialists.js',
   '/assets/workspace.js',
   '/assets/specialists.css',
+  '/assets/planning.css',
+  '/assets/calendar.js',
+  '/assets/finances.js',
   '/assets/voice.js',
   '/assets/app.js',
   '/assets/icon.svg',

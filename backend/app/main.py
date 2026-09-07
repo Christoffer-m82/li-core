@@ -36,6 +36,13 @@ from app.calendar_runtime import (
     configured_calendar_provider,
     execute_calendar_action,
 )
+from app.finance import (
+    HoldingArchiveConfirmation,
+    PortfolioHolding,
+    PortfolioHoldingInput,
+    PortfolioOverview,
+    build_portfolio_overview,
+)
 from app.proactive_watchers import (
     unread_important_email_candidates,
     upcoming_calendar_candidates,
@@ -163,6 +170,9 @@ from app.runtime_data import (
     search_conversation_history,
     list_skills_overview,
     list_model_registry_overview,
+    archive_portfolio_holding,
+    list_portfolio_holdings,
+    upsert_portfolio_holding,
 )
 from app.task_runtime import (
     DatabaseTaskProvider,
@@ -359,6 +369,57 @@ def update_privacy_settings(payload: PrivacySettingsUpdate) -> dict[str, int]:
         return {"artifact_retention_days": set_retention(payload.artifact_retention_days)}
     except RuntimeDataError as exc:
         raise HTTPException(status_code=503, detail="Privacy settings update failed.") from exc
+
+
+@app.get(
+    "/finance/portfolio",
+    response_model=PortfolioOverview,
+    dependencies=[Depends(require_api_token)],
+)
+def finance_portfolio(
+    account: Literal["avanza", "crypto"] | None = Query(default=None),
+) -> PortfolioOverview:
+    """Return owner-scoped holdings and honest same-currency valuation totals."""
+    try:
+        return build_portfolio_overview(list_portfolio_holdings(account))
+    except RuntimeDataCapabilityUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Private portfolio storage is not installed.") from exc
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Private portfolio is unavailable.") from exc
+
+
+@app.post(
+    "/finance/holdings",
+    response_model=PortfolioHolding,
+    dependencies=[Depends(require_api_token)],
+)
+def save_finance_holding(payload: PortfolioHoldingInput) -> PortfolioHolding:
+    """Store an owner-entered position; this path has no trading authority."""
+    try:
+        return PortfolioHolding.model_validate(upsert_portfolio_holding(payload))
+    except RuntimeDataCapabilityUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Private portfolio storage is not installed.") from exc
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Portfolio holding was not saved.") from exc
+
+
+@app.post(
+    "/finance/holdings/{holding_id}/archive",
+    dependencies=[Depends(require_api_token)],
+)
+def archive_finance_holding(
+    holding_id: UUID, payload: HoldingArchiveConfirmation,
+) -> dict[str, object]:
+    """Hide an owner-confirmed holding without deleting its audit record."""
+    del payload
+    try:
+        if not archive_portfolio_holding(holding_id):
+            raise HTTPException(status_code=404, detail="Portfolio holding not found.")
+    except RuntimeDataCapabilityUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Private portfolio storage is not installed.") from exc
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Portfolio holding was not archived.") from exc
+    return {"holding_id": holding_id, "state": "archived"}
 
 
 @app.get("/settings/place", dependencies=[Depends(require_api_token)])

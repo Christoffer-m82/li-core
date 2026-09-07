@@ -20,6 +20,7 @@ Heimdall review, threat model, or operator verification of live controls.
 | Retention job to data/objects | Private Cloud Run Job | Dedicated retention DB capability and get/delete object role | Li API tokens, broad backend DB secrets, create/list bucket authority |
 | Proactivity scheduler to backend | Private rhythm-run endpoint | Dedicated Cloud Run Invoker identity | Database, provider, Li API, or Secret Manager access |
 | Repository to runtime | Reviewed deployment/migration process | Explicit operator action | Treating a merge as an automatic live mutation |
+| Finance workspace to portfolio data | Signed-in browser → BFF → Li database functions | Owner session and narrow Li runtime function capability | Brokerage/wallet credentials, direct table access, specialist auto-sharing, price scraping, or trade authority |
 
 Implementation-specific detail lives in the [frontend README](../frontend/README.md),
 [Native Gateway ADR](../system/NATIVE_GATEWAY_ARCHITECTURE.md),

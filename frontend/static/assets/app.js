@@ -43,12 +43,21 @@ const profilePhoto = window.LiProfilePhoto.create({ document, fetch, URL, FormDa
   previewImage: $('#profile-photo-preview'), previewFallback: $('#profile-photo-fallback'),
 } });
 profilePhoto.register($('#account-button'));
+const calendarView = window.LiCalendar.create({ document, fetch, onAskLi: () => {
+  setView('home'); $('#message-input').value = 'Help me schedule something in my calendar.'; $('#message-input').focus();
+} });
+const financeView = window.LiFinances.create({ document, fetch, onAskJames: () => {
+  setView('home'); $('#message-input').value = `Ask James to help me review my ${financeView.state.account === 'avanza' ? 'Avanza' : 'crypto'} portfolio.`; $('#message-input').focus();
+} });
 
 function greeting() { const hour = new Date().getHours(); const salutation = `Good ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}`; return state.displayName ? `${salutation}, ${state.displayName.split(/\s+/)[0]}` : salutation; }
 const VIEW_COPY = Object.freeze({
   home: { title: greeting, context: 'Talk with Li, continue recent work, or open a specialist.' },
   inbox: { title: 'Li Briefs', context: 'Review private proactive briefs and useful suggestions from Li.' },
   agents: { title: 'Agent Status & Analytics', context: 'See specialist roles, measured activity, and recommendations.' },
+  finances: { title: 'My Finances', context: 'Track owner-entered holdings and clearly dated values without trading authority.' },
+  calendar: { title: 'Calendar', context: 'See your detailed week and scan the month below it.' },
+  more: { title: 'More', context: 'Open history, settings, system information, and Li Briefs.' },
   backend: { title: 'Backend Overview', context: 'Review Li’s read-only capabilities, permissions, and freshness.' },
   history: { title: 'Conversation history', context: 'Revisit private conversations and saved files.' },
   settings: { title: 'Settings', context: 'Manage appearance, devices, profile, voice, and privacy.' },
@@ -59,8 +68,10 @@ function setView(view) {
   closeSpecialistPortrait();
   $$('.view').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === view));
   const navigationView = ['specialist', 'system-agent'].includes(view) ? 'agents' : view;
+  const overflowView = ['inbox', 'history', 'backend', 'settings'].includes(view);
   $$('.nav-item').forEach((button) => {
-    const current = button.dataset.view === navigationView;
+    const target = button.closest('.bottom-nav') && overflowView ? 'more' : navigationView;
+    const current = button.dataset.view === target;
     button.classList.toggle('active', current);
     button.setAttribute('aria-current', current ? 'page' : 'false');
   });
@@ -70,6 +81,8 @@ function setView(view) {
   if (view === 'home') setTimeout(() => $('#message-input').focus(), 100);
   if (view === 'inbox') loadProactiveBriefs();
   if (view === 'agents') loadAgentAnalytics();
+  if (view === 'finances') financeView.load();
+  if (view === 'calendar') calendarView.load();
   if (view === 'backend') { loadCapabilities(); loadFreshnessPolicies(); loadProviderCoverage(); loadGovernedWorkStatus(); }
   if (view === 'history') { loadConversations(); loadMemoryProposals(); }
   if (view === 'settings') { loadPrivacy(); loadPlace(); profilePhoto.load(); }
@@ -160,7 +173,7 @@ function renderMemoryReceipts(outcomes, error) {
 
 function renderActionIntent(intent) { const card = document.createElement('article'); card.className = `action-intent-card ${intent.approval_state}`; card.dataset.intentId = intent.intent_id; const eyebrow = document.createElement('small'); eyebrow.textContent = 'Approval required'; const title = document.createElement('strong'); title.textContent = intent.action_type.replaceAll('.', ' · '); const summary = document.createElement('p'); summary.textContent = intent.summary; const status = document.createElement('span'); status.className = 'intent-status'; status.textContent = intent.approval_state.replaceAll('_', ' '); const controls = document.createElement('div'); controls.className = 'intent-controls'; card.append(eyebrow, title, summary, status, controls); const update = (next) => { card.className = `action-intent-card ${next.approval_state}`; status.textContent = next.approval_state.replaceAll('_', ' '); controls.replaceChildren(); if (next.result?.message || next.result?.confirmation) { const result = document.createElement('p'); result.className = 'intent-result'; result.textContent = next.result.message || next.result.confirmation; card.appendChild(result); } if (['proposed', 'owner_confirmation_required'].includes(next.approval_state)) addControls(next); }; const decide = async (value, current) => { controls.querySelectorAll('button').forEach((button) => { button.disabled = true; }); const body = { decision: value }; if (value === 'approve' && current.owner_confirmation_required) { if (!window.confirm('Owner confirmation: continue to the existing governed execution boundary?')) { addControls(current); return; } body.owner_confirmation = 'confirm_permanent_agent_change'; } const response = await fetch(`/api/action-intents/${encodeURIComponent(current.intent_id)}/decision`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }); if (!response.ok) { status.textContent = 'Could not resolve safely'; addControls(current); return; } update(await response.json()); }; const addControls = (current) => { controls.replaceChildren(); [['approve', 'Approve'], ['deny', 'Deny']].forEach(([value, label]) => { const button = document.createElement('button'); button.type = 'button'; button.className = value === 'approve' ? 'primary-button' : 'secondary-button'; button.textContent = current.owner_confirmation_required && value === 'approve' ? 'Continue to owner confirmation' : label; button.addEventListener('click', () => decide(value, current)); controls.appendChild(button); }); }; if (['proposed', 'owner_confirmation_required'].includes(intent.approval_state)) addControls(intent); $('#messages').appendChild(card); }
 
-async function loadSession() { try { const response = await fetch('/api/session'); state.signedIn = response.ok; if (response.ok) { const session = await response.json(); state.displayName = session.display_name || ''; profilePhoto.setName(state.displayName || session.email); $('#page-title').textContent = greeting(); } } catch { state.signedIn = false; } $('#signed-out').classList.toggle('hidden', state.signedIn); $('#workspace').classList.toggle('hidden', !state.signedIn); updateConnectivity(); if (!state.signedIn) { closeSpecialistPortrait(); specialistView?.clear(); profilePhoto.clear(); clearMemoryView(); $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Sign in required'; return; } await profilePhoto.load(); try { const ready = await fetch('/api/ready'); $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention'; } catch { $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Li is unreachable'; } await Promise.all([loadSpecialists(), loadAgentAnalytics(), loadHomeData()]); }
+async function loadSession() { try { const response = await fetch('/api/session'); state.signedIn = response.ok; if (response.ok) { const session = await response.json(); state.displayName = session.display_name || ''; profilePhoto.setName(state.displayName || session.email); $('#page-title').textContent = greeting(); } } catch { state.signedIn = false; } $('#signed-out').classList.toggle('hidden', state.signedIn); $('#workspace').classList.toggle('hidden', !state.signedIn); updateConnectivity(); if (!state.signedIn) { closeSpecialistPortrait(); specialistView?.clear(); profilePhoto.clear(); calendarView.clear(); financeView.clear(); clearMemoryView(); $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Sign in required'; return; } await profilePhoto.load(); try { const ready = await fetch('/api/ready'); $('#connection-label').textContent = ready.ok ? 'Li is online' : 'Li needs attention'; } catch { $('#connection-label').textContent = navigator.onLine === false ? 'Offline · private data unavailable' : 'Li is unreachable'; } await Promise.all([loadSpecialists(), loadAgentAnalytics(), loadHomeData()]); }
 
 async function sendMessage(message) {
   if (state.sending) return;

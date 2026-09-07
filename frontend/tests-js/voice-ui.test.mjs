@@ -49,6 +49,7 @@ class FakeElement {
   before() {}
   after() {}
   click() { return this.events.get('click')?.({ target: this, preventDefault() {} }); }
+  closest() { return null; }
   focus() {}
   getAttribute(name) { return this.attributes.get(name) ?? null; }
   hasAttribute(name) { return this.attributes.has(name); }
@@ -152,6 +153,8 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   };
   const window = {
     SpeechRecognition: FakeRecognition,
+    LiCalendar: { create: () => ({ load() {}, clear() {} }) },
+    LiFinances: { create: () => ({ load() {}, clear() {} }) },
     addEventListener(name, handler) { windowEvents.set(name, handler); },
     clearTimeout,
     confirm: () => false,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -15,8 +15,11 @@ class CalendarEvent(BaseModel):
 
     event_id: str = Field(min_length=1, max_length=500)
     title: str = Field(min_length=1, max_length=500)
-    start: datetime
-    end: datetime
+    start: datetime | None = None
+    end: datetime | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    all_day: bool = False
     timezone: str | None = Field(default=None, max_length=100)
     location: str | None = Field(default=None, max_length=1000)
     description: str | None = Field(default=None, max_length=4000)
@@ -25,6 +28,16 @@ class CalendarEvent(BaseModel):
 
     @model_validator(mode="after")
     def end_must_follow_start(self) -> "CalendarEvent":
+        if self.all_day:
+            if self.start is not None or self.end is not None:
+                raise ValueError("All-day calendar events cannot contain timed values.")
+            if self.start_date is None or self.end_date is None or self.end_date <= self.start_date:
+                raise ValueError("All-day calendar events require a valid exclusive date range.")
+            return self
+        if self.start_date is not None or self.end_date is not None:
+            raise ValueError("Timed calendar events cannot contain all-day dates.")
+        if self.start is None or self.end is None:
+            raise ValueError("Timed calendar events require start and end values.")
         if (
             self.start.tzinfo is None or self.start.utcoffset() is None
             or self.end.tzinfo is None or self.end.utcoffset() is None

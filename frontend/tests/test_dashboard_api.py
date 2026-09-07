@@ -478,7 +478,12 @@ def test_phone_navigation_keeps_all_primary_views_reachable():
     bottom_navigation = html.split('<nav class="bottom-nav"', 1)[1].split("</nav>", 1)[0]
 
     assert bottom_navigation.count('class="nav-item') == 5
-    assert 'data-view="history"' in bottom_navigation
+    for primary in ('data-view="calendar"', 'data-view="finances"', 'data-view="agents"'):
+        assert primary in bottom_navigation
+    assert 'data-view="more"' in bottom_navigation
+    more_view = html.split('data-view-panel="more"', 1)[1].split("</section>", 1)[0]
+    for overflow in ('data-view="history"', 'data-view="settings"', 'data-view="backend"'):
+        assert overflow in more_view
     assert ".bottom-nav .nav-item:nth-child(4){display:none}" not in css
 
 

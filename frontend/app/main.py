@@ -1,5 +1,7 @@
 import base64
 import json
+from datetime import datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlencode
@@ -11,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
@@ -49,6 +51,30 @@ class ChatRequest(BaseModel):
         "james", "nora", "victor", "milo", "iris", "clara",
     ] | None = None
     workspace_recipient: Literal["group", "specialist"] = "group"
+
+
+class PortfolioHoldingRequest(BaseModel):
+    holding_id: UUID | None = None
+    account: Literal["avanza", "crypto"]
+    symbol: str = Field(min_length=1, max_length=24, pattern=r"^[A-Za-z0-9][A-Za-z0-9.\-]{0,23}$")
+    asset_name: str = Field(min_length=1, max_length=120)
+    quantity: Decimal = Field(gt=0, max_digits=30, decimal_places=12)
+    average_unit_cost: Decimal = Field(ge=0, max_digits=30, decimal_places=8)
+    cost_currency: str = Field(min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
+    current_unit_price: Decimal | None = Field(default=None, ge=0, max_digits=30, decimal_places=8)
+    quote_currency: str | None = Field(
+        default=None, min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$"
+    )
+
+    @model_validator(mode="after")
+    def quote_fields_are_consistent(self) -> "PortfolioHoldingRequest":
+        if (self.current_unit_price is None) != (self.quote_currency is None):
+            raise ValueError("current_unit_price and quote_currency must be supplied together")
+        return self
+
+
+class ArchiveHoldingRequest(BaseModel):
+    confirmation: Literal["archive_portfolio_holding"]
 
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -668,6 +694,64 @@ async def record_place_visit(request: Request, _: str = Depends(require_user)) -
 @app.post("/api/settings/place/mobile/revoke")
 async def revoke_mobile_place_provider(request: Request, _: str = Depends(require_user)) -> Response:
     return await proxy("POST", "/settings/place/mobile/revoke", json_body=await request.json())
+
+
+@app.get("/api/calendar/events")
+async def calendar_events(
+    time_min: datetime = Query(...),
+    time_max: datetime = Query(...),
+    _: str = Depends(require_user),
+) -> Response:
+    """Expose only Li's governed read action; browser input cannot request a mutation."""
+    if (
+        time_min.tzinfo is None
+        or time_min.utcoffset() is None
+        or time_max.tzinfo is None
+        or time_max.utcoffset() is None
+        or time_max <= time_min
+        or time_max - time_min > timedelta(days=43)
+    ):
+        raise HTTPException(status_code=422, detail="Calendar range must be 43 days or less.")
+    return await proxy("POST", "/li/actions/calendar", json_body={
+        "request": {
+            "action": "calendar.search",
+            "time_min": time_min.isoformat(),
+            "time_max": time_max.isoformat(),
+            "max_results": 100,
+        },
+        "approved": False,
+    })
+
+
+@app.get("/api/finances/portfolio")
+async def finance_portfolio(
+    account: Literal["avanza", "crypto"] | None = Query(default=None),
+    _: str = Depends(require_user),
+) -> Response:
+    suffix = f"?account={account}" if account else ""
+    return await proxy("GET", f"/finance/portfolio{suffix}")
+
+
+@app.post("/api/finances/holdings")
+async def save_finance_holding(
+    payload: PortfolioHoldingRequest, _: str = Depends(require_user),
+) -> Response:
+    return await proxy(
+        "POST", "/finance/holdings", json_body=payload.model_dump(mode="json")
+    )
+
+
+@app.post("/api/finances/holdings/{holding_id}/archive")
+async def archive_finance_holding(
+    holding_id: UUID,
+    payload: ArchiveHoldingRequest,
+    _: str = Depends(require_user),
+) -> Response:
+    return await proxy(
+        "POST",
+        f"/finance/holdings/{holding_id}/archive",
+        json_body=payload.model_dump(),
+    )
 
 
 async def proxy(method: str, path: str, json_body: dict | None = None,

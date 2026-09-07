@@ -116,6 +116,26 @@ def set_retention(days: int) -> int:
     return int(next(iter(rows[0].values())))
 
 
+def list_portfolio_holdings(account: str | None = None) -> list[dict[str, object]]:
+    return _call("list_portfolio_holdings", (account,))
+
+
+def upsert_portfolio_holding(value: object) -> dict[str, object]:
+    rows = _call("upsert_portfolio_holding", (
+        value.holding_id, value.account, value.symbol, value.asset_name, value.quantity,
+        value.average_unit_cost, value.cost_currency, value.current_unit_price,
+        value.quote_currency,
+    ))
+    if not rows:
+        raise RuntimeDataError("Portfolio holding was not returned.")
+    return dict(next(iter(rows[0].values())))
+
+
+def archive_portfolio_holding(holding_id: UUID) -> bool:
+    rows = _call("archive_portfolio_holding", (holding_id,))
+    return bool(rows and next(iter(rows[0].values())))
+
+
 def get_place_settings() -> dict[str, object]:
     rows = _call("get_place_settings")
     if not rows:

@@ -125,6 +125,20 @@ where applicable, Heimdall review.
   through a separately authorized privacy-preserving process, without automatic deletion or retry.
   Keep voice and final acceptance gated until the remaining relevant core evidence is complete.
 
+## KR-012: Portfolio values are owner-entered and may become stale
+
+- **Evidence:** The [Finance and Calendar workspace design](../system/FINANCE_CALENDAR_ARCHITECTURE.md)
+  deliberately excludes unofficial brokerage access and unreviewed or chargeable market-data
+  activation. Schema 0.42 stores an optional owner-entered current price and its timestamp.
+- **Impact:** Current value and unrealized gain/loss are estimates as of the displayed entry time, not
+  a live brokerage balance, tax record, or guaranteed market price. Mixed currencies cannot be
+  aggregated without a reviewed FX source.
+- **Current control:** The UI labels the valuation mode, timestamp, missing prices, unlike currencies,
+  and unrealized result. It never claims live quotes and cannot place trades.
+- **Next review:** Select a normalized instrument model and a source that exposes freshness, exchange,
+  currency, licensing, and bounded no-additional-charge coverage before implementing automatic
+  quotes. Keep manual entry as the fail-safe fallback.
+
 ## Closed risks
 
 ### KR-001: Duplicate migration number and schema version — resolved 2026-09-06

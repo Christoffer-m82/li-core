@@ -206,6 +206,20 @@ The backend keeps Calendar unavailable unless all three OAuth secrets are config
 
 Calendar reads do not require approval. Creates still require `approved=true` at Li's executor boundary. The provider is held only in application state and is never available to specialists.
 
+## Finance and Calendar workspaces
+
+The signed-in web interface includes first-class My Finances and Calendar destinations. Calendar
+reuses the governed provider above through a bounded read-only BFF route; the browser cannot turn
+that route into an event mutation. It shows a Monday-to-Sunday week, all-day events without timezone
+shifts, and a six-week month overview. Reads occur only on opening, navigation, Today, or Refresh.
+
+The finance foundation is defined by migration 042. It stores owner-entered Avanza-category and
+Crypto-category holdings behind private database functions and calculates same-currency current
+value, cost basis, and unrealized gain/loss. It does not connect to Avanza, request brokerage or
+wallet credentials, fetch automatic quotes, convert currencies, or place trades. See the
+[Finance and Calendar workspace architecture](system/FINANCE_CALENDAR_ARCHITECTURE.md) for its
+security, provider, migration, deployment, and acceptance boundaries.
+
 ## Gmail provider setup
 
 Li's Gmail boundary supports search, individual message retrieval, thread retrieval,
