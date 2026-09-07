@@ -354,13 +354,20 @@ physical-device, owner or stability acceptance.
 
 ## Privacy and recovery acceptance review — 2026-09-07
 
-The existing focused privacy/recovery suites passed 112 synthetic tests on `4d9c67e`; the upstream
-Starlette/AnyIO warning remained visible. No new duplicate tests, live calls, personal-record reads,
-staging changes or backup access were needed. The
+The combined focused privacy/recovery/budget suite passed 117 synthetic tests, including all 5
+budget cases. The full normal backend suite passed 1,084 tests and skipped the four deliberately
+opt-in database cases; the upstream Starlette/AnyIO warning remained visible. A new opt-in local acceptance
+harness passed four EN/SV integration cases against a dedicated localhost-only disposable database
+at schema 0.41 with fake providers. It exercised real application/database history, recall, capture,
+correction and turn-recovery paths; inspected the complete fake-provider specialist packet; and
+proved exact replay after a post-write failure caused no additional write or fake-provider call. The
+disposable container and synthetic records were removed after the run. No live calls, personal-record
+reads, staging changes or backup access occurred. The
 [bounded acceptance procedure](TESTING_AND_AUDIT.md#kr-011-bounded-privacy-and-recovery-acceptance)
 maps the remaining gaps to existing tests and specifies isolation, exact authorization, cost limits,
-packet-level observations and uncertainty reconciliation before any future live trial. The isolated
-runner and live trial remain unimplemented/unexecuted; this is preparation, not closure of KR-011.
+packet-level observations and uncertainty reconciliation before any future live trial. The local
+fake-provider portion is implemented and executed; provider-backed acceptance and retrospective
+owner-record decision remain unexecuted. This is evidence progress, not closure of KR-011.
 OM-003 remains gated by the outstanding core privacy/recovery, owner/device and stability evidence.
 
 ## Earlier baseline — 2026-09-04
