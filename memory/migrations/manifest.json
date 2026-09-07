@@ -42,7 +42,8 @@
     { "file": "038_recoverable_turns_and_actions.sql", "logical_version": "0.38" },
     { "file": "039_phase_2_truth_and_turn_recovery.sql", "logical_version": "0.39" },
     { "file": "040_owner_memory_proposal_inspection.sql", "logical_version": "0.40" },
-    { "file": "041_chat_memory_effect_fencing.sql", "logical_version": "0.41" }
+    { "file": "041_chat_memory_effect_fencing.sql", "logical_version": "0.41" },
+    { "file": "042_private_portfolio_workspace.sql", "logical_version": "0.42" }
   ],
   "intentionally_skipped": [
     {

@@ -104,7 +104,7 @@ def isolated_synthetic_database() -> Iterator[None]:
 
     from app.database import database_health
 
-    assert database_health()["schema_version"] == "0.41"
+    assert database_health()["schema_version"] == "0.42"
     yield
 
 

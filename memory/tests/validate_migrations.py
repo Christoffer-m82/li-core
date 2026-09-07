@@ -182,6 +182,17 @@ def validate_result() -> None:
             "AND NOT has_function_privilege('li_memory_theo', "
             "'li_api.list_owner_memory_proposals(integer)', 'EXECUTE');"
         ),
+        "private portfolio boundary is installed": (
+            "SELECT to_regprocedure('li_api.list_portfolio_holdings(text)') IS NOT NULL "
+            "AND to_regprocedure('li_api.upsert_portfolio_holding(uuid,text,text,text,numeric,numeric,text,numeric,text)') IS NOT NULL "
+            "AND to_regprocedure('li_api.archive_portfolio_holding(uuid)') IS NOT NULL "
+            "AND has_function_privilege('li_backend_runtime', "
+            "'li_api.list_portfolio_holdings(text)', 'EXECUTE') "
+            "AND NOT has_function_privilege('li_memory_theo', "
+            "'li_api.list_portfolio_holdings(text)', 'EXECUTE') "
+            "AND NOT has_table_privilege('li_backend_runtime', "
+            "'li_runtime_data.portfolio_holdings', 'SELECT');"
+        ),
         "chat turns record progress and external-effect uncertainty": (
             "SELECT count(*)=3 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid "
             "JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='li_runtime_data' "
@@ -591,6 +602,63 @@ def validate_memory_effect_fence() -> None:
             raise RuntimeError("Effect fence role denial was not enforced")
 
 
+def validate_private_portfolio_boundary() -> None:
+    created = json.loads(psql(
+        "-tA", "-c", "SET SESSION AUTHORIZATION li_backend_runtime; "
+        "SELECT li_api.upsert_portfolio_holding(NULL,'avanza','TEST-B',"
+        "'Synthetic Holding',10,25,'SEK',30,'SEK');",
+        capture=True, user="supabase_admin",
+    ).stdout.strip().splitlines()[-1])
+    holding_id = created["holding_id"]
+    if created["quote_source"] != "owner_manual" or created["price_as_of"] is None:
+        raise RuntimeError("Portfolio manual quote lost its source or timestamp")
+    listed = json.loads(psql(
+        "-tA", "-c", "SET SESSION AUTHORIZATION li_backend_runtime; "
+        "SELECT jsonb_agg(to_jsonb(h)) FROM li_api.list_portfolio_holdings('avanza') h;",
+        capture=True, user="supabase_admin",
+    ).stdout.strip().splitlines()[-1])
+    if len(listed) != 1 or listed[0]["symbol"] != "TEST-B":
+        raise RuntimeError("Portfolio list did not return the owner-scoped synthetic holding")
+    psql(
+        "-c", "SET SESSION AUTHORIZATION li_backend_runtime; "
+        f"SELECT li_api.upsert_portfolio_holding('{holding_id}','avanza','TEST-B',"
+        "'Synthetic Holding',12,25,'SEK',31,'SEK');",
+        capture=True, user="supabase_admin",
+    )
+    if scalar(
+        "SELECT count(*)=1 AND min(quantity)=12 FROM li_runtime_data.portfolio_holdings "
+        "WHERE symbol='TEST-B' AND archived_at IS NULL;"
+    ) != "t":
+        raise RuntimeError("Portfolio update duplicated or lost the synthetic holding")
+    duplicate = psql(
+        "-c", "SET SESSION AUTHORIZATION li_backend_runtime; "
+        "SELECT li_api.upsert_portfolio_holding(NULL,'avanza','TEST-B',"
+        "'Duplicate',1,1,'SEK',NULL,NULL);",
+        capture=True, check=False, user="supabase_admin",
+    )
+    if duplicate.returncode == 0:
+        raise RuntimeError("Portfolio accepted a duplicate active account symbol")
+    for sql in (
+        "SET SESSION AUTHORIZATION li_memory_theo; "
+        "SELECT * FROM li_api.list_portfolio_holdings(NULL);",
+        "SET SESSION AUTHORIZATION li_backend_runtime; "
+        "SELECT count(*) FROM li_runtime_data.portfolio_holdings;",
+    ):
+        denied = psql("-c", sql, capture=True, check=False, user="supabase_admin")
+        if denied.returncode == 0 or "permission denied" not in denied.stderr.lower():
+            raise RuntimeError("Portfolio role or direct-table denial was not enforced")
+    archived = psql(
+        "-tA", "-c", "SET SESSION AUTHORIZATION li_backend_runtime; "
+        f"SELECT li_api.archive_portfolio_holding('{holding_id}');",
+        capture=True, user="supabase_admin",
+    ).stdout.strip().splitlines()[-1]
+    if archived != "t" or scalar(
+        "SELECT archived_at IS NOT NULL FROM li_runtime_data.portfolio_holdings "
+        f"WHERE id='{holding_id}';"
+    ) != "t":
+        raise RuntimeError("Portfolio archive did not retain an inactive audit record")
+
+
 def main() -> None:
     validate_manifest()
     validate_inventory()
@@ -598,6 +666,7 @@ def main() -> None:
     apply_history()
     validate_result()
     validate_memory_effect_fence()
+    validate_private_portfolio_boundary()
     print("Disposable database migration validation passed.")
 
 
