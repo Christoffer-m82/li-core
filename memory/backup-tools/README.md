@@ -124,3 +124,32 @@ advanced through the immutable migration sequence.
 Record start/end time, the backup hash, schema version, validation result, RTO, separately calculated
 RPO, and cleanup disposition in a dated release or recovery record. Do not record passwords,
 passphrases, private memory values, or provider tokens.
+
+## Rehearse migration 042 after restore
+
+[`rehearse-migration-042.ps1`](rehearse-migration-042.ps1) combines the full restore above with the
+exact migration-042 rehearsal in a new digest-pinned, localhost-only Supabase PostgreSQL container.
+It generates its disposable database password internally, asks only for the backup encryption
+passphrase at the masked prompt, verifies the independently recorded backup and migration hashes,
+requires restored schema 0.41, and exercises the real portfolio functions and denied roles. Its
+synthetic holding transaction is rolled back. It never connects to Supabase or deletes its target.
+The pinned image starts three Supabase compatibility roles with platform grants. After verifying the
+new cluster contains exactly its expected administrative and rehearsal databases, the script removes
+only those fresh grants and roles so the restore tool can recreate and audit their restricted archive
+boundary from scratch.
+
+Use a unique exact container and database name for each authorized rehearsal:
+
+```powershell
+pwsh -NoProfile -File .\memory\backup-tools\rehearse-migration-042.ps1 `
+  -BackupPath '.\output\release-backups\li-os-pre-042-yyyyMMddTHHmmssZ.pgdump.liosenc' `
+  -ExpectedBackupSha256 '<64-character recorded backup SHA-256>' `
+  -ExpectedMigrationSha256 '<64-character reviewed migration SHA-256>' `
+  -ContainerName 'li-os-migration-042-rehearsal-yyyyMMdd' `
+  -DatabaseName 'li_os_restore_pre042_yyyymmdd' `
+  -ConfirmDisposableTarget
+```
+
+The script retains the exact isolated target after success or failure. Review its fixed summary,
+then remove only that named container through a separately authorized cleanup step. A passing
+rehearsal does not authorize or prove the staging migration.

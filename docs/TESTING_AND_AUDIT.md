@@ -134,6 +134,12 @@ only source preflight evidence: archive authentication, a full isolated restore 
 exact migration rehearsal, post-migration authority tests, and target-specific validation remain
 separate required results.
 
+The tracked [migration-042 restore-and-rehearsal tool](../memory/backup-tools/rehearse-migration-042.ps1)
+combines the full isolated restore with the exact migration hash and synthetic portfolio behavior.
+It must run against a uniquely named localhost-only disposable target and retain that target for
+explicit review. A pass proves only the supplied encrypted archive and isolated target; it does not
+prove or authorize staging state.
+
 ## Security and privacy audit
 
 Use [Security boundaries](SECURITY_BOUNDARIES.md) and the authoritative
