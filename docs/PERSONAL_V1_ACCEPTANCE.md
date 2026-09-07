@@ -345,9 +345,11 @@ language quality and deployment of this follow-up remained unverified at that po
 
 The [2026-09-07 backend release](releases/2026-09-07-0fc39a7-staging.md) subsequently deployed this
 specialist-language correction after candidate denial, health, authenticated readiness and schema
-checks. Generated-language quality remains unverified: the single synthetic Swedish retest is
-pending current prepaid-credit verification. This deployment does not close KR-011 or device,
-owner and stability acceptance.
+checks. After read-only verification of USD 12.02 prepaid credit and disabled auto-reload, one
+synthetic Swedish Home turn invoked Nora and produced both her recorded recommendation and Li's
+completed reply in natural Swedish. The release record contains the bounded evidence. This closes
+the narrow reproduced specialist-language mismatch, not universal bilingual quality, KR-011,
+physical-device, owner or stability acceptance.
 
 ## Earlier baseline — 2026-09-04
 
