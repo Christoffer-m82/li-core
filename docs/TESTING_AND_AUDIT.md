@@ -331,6 +331,72 @@ rollout and bounded bilingual routing are evidenced, but live privacy/recovery, 
 checks and stability evidence remain outstanding. Voice is still planned and gated. Optional themes,
 photos, all proactive rhythms and standalone native completion do not become voice prerequisites.
 
+## Calendar sanitized diagnosis — 2026-09-07
+
+The [a7601b7 staging read](releases/2026-09-07-a7601b7-staging.md) failed safely but its
+generic outcome did not identify the upstream cause. Read-only checks in this batch confirmed
+backend `li-os-release-a7601b7` Ready at 100% traffic, three numeric Calendar secret references,
+and Calendar API (`calendar-json.googleapis.com`) enabled among 33 enabled staging-project
+services. No secret value, event or personal record was read. These observations do **not** prove
+OAuth credential validity, granted scopes, calendar access, or that the OAuth client belongs to
+the staging project. The actual provider failure remains unclassified.
+
+Local [adapter tests](../backend/tests/test_google_calendar.py) reproduced 20 missing-diagnostic
+cases before the change. Fixed-category diagnostics now separate OAuth/API stages, authentication,
+client configuration rejection, required-scope mismatch, explicit API-disabled reasons, access
+denial, not-found-or-inaccessible resources, invalid requests, rate limits, unavailability,
+timeouts, network failures and malformed responses. An unclassified 403 stays access-denied;
+a 404 cannot distinguish a wrong ID from inaccessible data. Unknown codes remain unknown.
+No permission is inferred or changed. See Google's
+[Calendar error reference](https://developers.google.com/workspace/calendar/api/guides/errors).
+
+Diagnostics contain only fixed action/category/stage and a validated HTTP status, alongside the
+existing request correlation. They never log exceptions, raw bodies, URLs, search strings,
+calendar identifiers, event content, headers or credentials. Error-code parsing is bounded to
+16 KiB and allowlisted machine codes; unexpected or oversized bodies fall back to status-only
+classification. User-facing outcomes remain unchanged. No automatic retry was added. Existing
+approved-create conflict reconciliation remains limited to an API-stage 409 and the same event ID;
+an OAuth-stage 409 cannot enter it.
+
+Synthetic integrated checks also reproduced HTTPX INFO request logging containing a search query.
+The backend now disables verbose HTTPX/HTTPCore transport messages and replaces any remaining
+transport log body with a fixed privacy notice while retaining severity. Calendar's safe diagnostic
+remains visible. This is not suppression of the upstream Starlette/AnyIO warning or proof that
+historical logs contain no private data; see [KR-013](KNOWN_RISKS.md#kr-013-provider-transport-log-privacy).
+
+Validation on the local branch: **74 focused tests passed**, **1,167 full backend tests passed**,
+four existing opt-in database cases skipped; Ruff and compileall passed. The upstream
+Starlette/AnyIO warning remained visible. Tests used synthetic EN/SV search strings, malformed and
+oversized responses, unknown adapter attributes, timeouts and denied responses. They verified no
+additional calls, no leaked sentinel, unchanged create approval and conflict behavior. No live
+provider call, migration or deployment was performed. All 56 tracked Markdown files passed link
+and anchor validation; the tracked-file secret audit passed. Local tests do not establish Calendar
+provider-backed or device acceptance. Runtime correction commit: `8a56a00`.
+
+### Next authorized Calendar diagnostic rollout
+
+1. After review, merge and green CI, obtain exact authorization for a **backend-only** staging
+   rollout of the resulting immutable commit, with verified existing cost coverage. This record
+   does not grant that authorization. No web, database, OAuth, IAM, secret, scheduler or billing
+   change is required by these diagnostics.
+2. Follow [Deployment workflow](DEPLOYMENT_WORKFLOW.md): tracked-only image, zero-normal-traffic
+   candidate, public denial, IAM health, masked application readiness/schema-0.42 validation,
+   identity and numeric-reference continuity, then authorized promotion. Assess `a7601b7` as the
+   immediate compatibility rollback candidate, explicitly noting that it restores the transport
+   logging risk; do not call any older revision privacy-safe without that review. Do not trigger
+   Calendar reads on a rolled-back vulnerable revision merely to verify health.
+3. Obtain a bounded read authorization that permits the secure runtime to access the owner's
+   Calendar but exposes only safe diagnostics to the operator. Perform at most one deliberate
+   read; no event creation, raw-result capture or repeated blind retries. Calendar uses no model
+   call. Recheck applicable coverage before the external operation.
+4. Inspect only `li.calendar` fixed diagnostic fields for that request, never arbitrary log bodies
+   or event results. If it succeeds, record successful read separately from owner-verified event
+   display. If it fails, record the category and stop that test. OAuth renewal, enabling an API,
+   changing calendar ID/scope or other provider settings needs its own exact authorization.
+5. Leave OM-010, physical-device/owner/stability acceptance and the exact `LIOS42` archive step
+   open until their own evidence exists. Archive requires fresh action-time owner confirmation.
+   Weekly Avanza quotes and specialist recency ordering remain planned and out of this batch.
+
 ## Pre-commit audit
 
 Run and report:

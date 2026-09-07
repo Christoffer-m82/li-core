@@ -109,6 +109,21 @@ def test_provider_total_failure_is_closed(operation) -> None:
     assert outcome.events == []
 
 
+def test_diagnostics_revalidate_untrusted_adapter_attributes(caplog) -> None:
+    from app.calendar_runtime import CalendarProviderError
+
+    error = CalendarProviderError(
+        "PRIVATE_SENTINEL", category="PRIVATE_SENTINEL", stage="PRIVATE_SENTINEL",
+        http_status="PRIVATE_SENTINEL",
+    )
+    outcome = execute_calendar_action(CalendarActionEnvelope(request=SearchCalendarAction(
+        action="calendar.search", time_min=START, time_max=END,
+    )), RecordingProvider(failure=error))
+    assert outcome.status == "failed"
+    assert "category=unknown stage=unknown http_status=None" in caplog.text
+    assert "PRIVATE_SENTINEL" not in caplog.text + outcome.model_dump_json()
+
+
 def test_partial_provider_failure_quarantines_malformed_event() -> None:
     provider = RecordingProvider(search_result=[_event(), {"bad": "record"}])
     outcome = execute_calendar_action(

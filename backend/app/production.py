@@ -20,7 +20,12 @@ SENSITIVE = re.compile(r"(?i)(authorization|api[-_]?key|token|secret|password)")
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        message = SENSITIVE.sub("[REDACTED]", record.getMessage())
+        if record.name.split(".", 1)[0] in {"httpx", "httpcore"}:
+            # Transport messages can contain URLs, queries, headers and exception details.
+            # Keep severity visible; provider adapters supply allowlisted diagnostics.
+            message = "HTTP transport diagnostic omitted for privacy."
+        else:
+            message = SENSITIVE.sub("[REDACTED]", record.getMessage())
         return json.dumps(
             {
                 "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%SZ"),
@@ -39,6 +44,8 @@ def configure_logging(level: str) -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):

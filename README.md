@@ -206,6 +206,14 @@ The backend keeps Calendar unavailable unless all three OAuth secrets are config
 
 Calendar reads do not require approval. Creates still require `approved=true` at Li's executor boundary. The provider is held only in application state and is never available to specialists.
 
+Calendar failures retain the generic fail-closed user message. Backend `li.calendar` warnings
+contain only allowlisted diagnostic categories, stages and status codes, never provider bodies or
+event data. HTTPX/HTTPCore transport log bodies are omitted to protect request URLs and queries.
+Use the [bounded diagnostic procedure](docs/TESTING_AND_AUDIT.md#calendar-sanitized-diagnosis--2026-09-07)
+to distinguish authentication, scope, configuration, access and transport failures without changing
+permissions or retrying uncertain writes. Configured secrets and successful readiness do not prove
+Calendar access.
+
 ## Finance and Calendar workspaces
 
 The signed-in web interface includes first-class My Finances and Calendar destinations. Calendar

@@ -95,3 +95,16 @@ def test_json_formatter_redacts_sensitive_names() -> None:
     rendered = json.loads(JsonFormatter().format(record))
     assert "api_token" not in rendered["message"]
     assert "[REDACTED]" in rendered["message"]
+
+
+@pytest.mark.parametrize("name", ["httpx", "httpcore", "httpcore.connection"])
+def test_transport_logs_omit_values_at_every_severity(name) -> None:
+    import logging
+
+    for level in (logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR):
+        record = logging.LogRecord(
+            name, level, __file__, 1, "PRIVATE_QUERY %s", ("PRIVATE_CREDENTIAL",), None,
+        )
+        rendered = json.loads(JsonFormatter().format(record))
+        assert "PRIVATE" not in rendered["message"]
+        assert rendered["level"] == logging.getLevelName(level)
