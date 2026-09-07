@@ -198,8 +198,8 @@ deployed-environment result.
    Capture specialist packets only inside this synthetic environment. Record marker-presence booleans,
    source hashes, status codes and counts rather than raw prompts or private content.
 4. Reuse the reviewed opt-in local runner for isolation and packet/effect observations. Its fake
-   providers deliberately make no network calls. Before a future provider-backed run, add or verify a
-   reviewed per-trial call/token guard that counts classifier, specialist, synthesis and fallback
+   providers deliberately make no network calls. The [provider trial preparation](#provider-trial-preparation--2026-09-07)
+   adds a test-only per-trial call/token guard; recheck it before live use. It counts classifier, specialist, synthesis and fallback
    calls, enforces input/output ceilings, and stops before the next call would exceed the approved
    allowance. The existing complete-request budget guard and five mocked regressions cover each
    individual model request, but do not by themselves impose the proposed whole-trial call ceiling.
@@ -213,6 +213,70 @@ deployed-environment result.
 6. Secret entry must use a reviewed masked local prompt; no secret values in chat, arguments, logs
    or Git. If any infrastructure provisioning or deployment is needed, obtain its exact approval
    separately. No new paid service or automatic billing is authorized by this plan.
+
+### Provider trial preparation — 2026-09-07
+
+The owner separately authorized one combined isolated EN/SV privacy/recovery batch with **4 new
+chat identities, 16 underlying model calls and USD 0.50 maximum prepaid consumption**. This is not
+standing live-test or deployment authorization. The read-only Anthropic billing page showed **USD
+11.99, auto-reload off**, on 2026-09-07; remeasure before execution if that observation is stale.
+No metered call was made during preparation.
+
+The opt-in [runner](../backend/acceptance/run_provider_trial.py) reuses the tracked migration validator
+and CI-pinned Supabase PostgreSQL image. It creates only `li-os-kr011-provider-trial-20260907`,
+publishes PostgreSQL on `127.0.0.1:55443`, and uses `li_os_kr011_provider_acceptance` with three distinct
+synthetic runtime-role passwords. It refuses an existing container, uses no host data mounts or
+backups, ignores `.env` and inherited provider/database/proxy settings, and removes only its returned
+container ID and disposable volume in `finally`. An interrupted process may require exact-ID cleanup;
+never infer that cleanup ran after a hard process kill.
+
+The [case driver](../backend/acceptance/provider_trial.py) uses the real classifier, specialist,
+synthesis, HTTP and database paths. A synthetic identity prompt replaces the owner's identity;
+this tests runtime privacy composition, not production personality or general language quality.
+The four-turn authorization is allocated to **one historical-privacy and one recovery turn per
+language**. Subsequent Workspace turns and derived capture remain covered by the existing local
+harness; this smaller provider batch does not establish their provider-backed acceptance. The
+recovery fault is local response-delivery failure after a real provider response and a verified
+synthetic correction, not a provider outage or a staging fault. Exact replay must cause no provider
+call and no canonical-schema fingerprint change, including proposal/version/audit tables. Capture
+the fingerprint immediately around replay, before reconciliation reads add their legitimate audit
+entries. Never reset uncertain identities to obtain a passing outcome.
+
+The [write-ahead guard](../backend/acceptance/trial_budget.py) exclusively creates a fixed live ledger
+at `output/acceptance/kr011-provider-20260907.jsonl`; an existing ledger blocks a fresh run. Preserve
+it even after failure and reconcile before any further authorization. The ledger contains only
+hashes, counts, reservations and usage, not keys, requests or responses. All SDK retries are disabled.
+Only first-party `claude-sonnet-5` text requests are allowed; tools, streaming, caching, extended
+thinking, custom endpoints and premium request options are excluded. Each call is limited to 100,000
+serialized UTF-8 bytes and 2,048 output tokens. Reservations use bytes plus 16,384 envelope tokens,
+at conservative USD 3/15 per million input/output tokens, and are durably recorded before dispatch.
+Successful validated usage reduces a reservation; unknown outcomes retain it and stop the trial.
+These are conservative client-side reservations, not an account-level billing limit or a guarantee
+against future provider pricing changes. Recheck terms before live use. The provider's
+[pricing table](https://platform.claude.com/docs/en/about-claude/pricing) on 2026-09-07 lists Sonnet 5
+at USD 2/10 per million tokens. Existing app chars/4 estimates are not used as the trial's cost bound.
+
+Run the default fake-provider rehearsal from the repository using the existing isolated Python:
+
+```powershell
+& "$env:TEMP\li-core-httpx2-backend\Scripts\python.exe" .\backend\acceptance\run_provider_trial.py
+```
+
+Live execution additionally requires `--live --prepaid-usd <fresh-observed-balance>` plus
+`--balance-verified-at <UTC-ISO-timestamp> --auto-reload-off`. These flags attest read-only evidence;
+they do not change billing settings. Coverage must be at least USD 1.00 and less than one hour old.
+The script requests the existing Anthropic API key through a private masked terminal prompt only
+after local preparation. It never reads the key from Git, `.env`, cloud secrets, or chat, nor sends
+it to a model; the SDK uses it only for normal authenticated Anthropic HTTPS requests. No raw SDK
+exceptions or tracebacks are printed. Run in a private terminal, not a captured assistant terminal.
+
+Preparation evidence: 29 guard/isolation tests passed; the four-case fake-provider runner passed
+with 10 mock model calls after the full migration manifest passed. Early dry rehearsals exposed
+an overly long recall fixture and an audit fingerprint taken after a reconciliation read; both
+test-harness issues were corrected before any live calls. Each disposable container was removed.
+The full backend suite passed 1,113 tests, with four existing opt-in tests skipped and the upstream
+Starlette/AnyIO warning visible. Fake usage/cost numbers are simulated, not actual spend. The runner
+is **locally implemented and rehearsed, not provider-backed or deployed acceptance**.
 
 ### Execution and stop conditions
 
@@ -229,6 +293,8 @@ deployed-environment result.
   rejection probe belongs only to this isolated test and must show zero further writes/provider calls;
   it is not permission to retry an uncertain owner turn. A live-provider version needs its own exact
   fault-point and call budget approval; do not consume the privacy batch allowance for it.
+  The explicitly combined 2026-09-07 authorization and narrower allocation above are an exception
+  for that single batch, not permission to combine or repeat future trials automatically.
 - **Reconciliation:** compare the synthetic before/after record IDs and turn status through the
   scoped test authority. Classify effect observed, no effect proven, or unresolved. Do not reset the
   turn, issue a fresh identity, overwrite data or claim safe retry merely because an HTTP call failed.

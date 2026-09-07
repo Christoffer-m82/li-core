@@ -370,6 +370,19 @@ fake-provider portion is implemented and executed; provider-backed acceptance an
 owner-record decision remain unexecuted. This is evidence progress, not closure of KR-011.
 OM-003 remains gated by the outstanding core privacy/recovery, owner/device and stability evidence.
 
+## Provider trial preparation — 2026-09-07
+
+The [bounded provider trial](TESTING_AND_AUDIT.md#provider-trial-preparation--2026-09-07) is locally
+implemented and fake-provider rehearsed against a fresh disposable schema-0.41 database. Its four
+EN/SV cases passed with 10 mock calls; 29 guard/isolation tests and the full backend suite (1,113
+passed, four opt-in skips) passed. The existing Starlette/AnyIO warning remains visible. This adds
+whole-trial spend/call/turn controls and canonical-schema replay fingerprints, not new live evidence.
+Read-only billing showed USD 11.99 prepaid and auto-reload off. No provider calls, deployment,
+staging migration, personal-record inspection, or backup access occurred. The live trial awaits
+private credential entry and fresh coverage at execution. KR-011 remains open; subsequent Workspace
+provider acceptance, the historical-record decision, device/owner evidence and stability remain
+distinct outstanding requirements. OM-003 remains gated.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
