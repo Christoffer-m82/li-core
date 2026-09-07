@@ -47,11 +47,12 @@ class FakeElement {
   showModal() { this.open = true; }
   close() { this.open = false; this.events.get('close')?.(); }
   before() {}
+  after() {}
   click() { return this.events.get('click')?.({ target: this, preventDefault() {} }); }
   focus() {}
   getAttribute(name) { return this.attributes.get(name) ?? null; }
   hasAttribute(name) { return this.attributes.has(name); }
-  querySelector() { return null; }
+  querySelector(selector) { return this.children.find(child => `.${child.className}` === selector) || null; }
   querySelectorAll() { return []; }
   remove() {}
   replaceChildren(...children) { this.children = children; }
@@ -94,12 +95,17 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
 
   const document = {
     body: new FakeElement(),
-    createElement: () => new FakeElement(),
+    createElement: () => {
+      const element = new FakeElement();
+      Object.defineProperty(element, 'id', { set(value) { elements.set(`#${value}`, element); }, configurable: true });
+      return element;
+    },
     createTextNode: (text) => ({ textContent: text }),
     documentElement: new FakeElement(),
     querySelector: getElement,
     querySelectorAll: (selector) => selector === '.li-orb' ? [getElement('#li-orb')]
-      : selector === '.nav-item' ? navItems : [],
+      : selector === '.nav-item' ? navItems
+      : selector === '#theme-library [data-theme-choice]' ? getElement('#theme-library').children : [],
   };
   const localStorage = {
     values: new Map(),
@@ -233,16 +239,40 @@ test('blocked storage does not prevent startup, theme selection, or voice contro
   assert.equal(app.elements.get('#voice-output-toggle').getAttribute('aria-pressed'), 'false');
 });
 
+test('gallery previews, selection state and filters never call owner APIs', async () => {
+  const app = loadApp(); await app.settle(); const before = app.requests.length;
+  const gallery = app.elements.get('#theme-library');
+  assert.equal(gallery.children.length, 9);
+  for (const button of gallery.children) {
+    assert.equal(button.querySelector('.theme-preview').getAttribute('aria-hidden'), 'true');
+    await button.click();
+    assert.equal(button.getAttribute('aria-pressed'), 'true');
+    assert.equal(button.querySelector('.theme-selected').textContent, '✓ Selected');
+    assert.equal(gallery.children.filter(item => item.getAttribute('aria-pressed') === 'true').length, 1);
+    assert.equal(app.localStorage.getItem('li-theme'), button.dataset.themeChoice);
+  }
+  const filter = app.elements.get('#theme-filter');
+  filter.value = 'dark'; filter.events.get('change')();
+  assert.deepEqual(gallery.children.map(button => button.dataset.themeChoice), ['dark', 'midnight-brass']);
+  filter.value = 'custom'; filter.events.get('change')();
+  assert.equal(gallery.children.length, 0);
+  assert.equal(app.elements.get('#theme-gallery-empty').hidden, false);
+  filter.value = 'all'; filter.events.get('change')();
+  assert.equal(gallery.children.length, 9);
+  assert.equal(app.elements.get('#theme-gallery-empty').hidden, true);
+  assert.equal(app.requests.length, before);
+});
+
 test('theme editor updates a custom theme without duplicating it; cancel preserves saved values', async () => {
   const app = loadApp(); await app.settle();
   await app.elements.get('#theme-copy-selected').click();
   app.elements.get('#theme-name').value = 'My theme';
   const submit = () => app.elements.get('#theme-editor').events.get('submit')({preventDefault(){}});
-  submit(); assert.equal(app.themeLibrary.all().length, 4);
+  submit(); assert.equal(app.themeLibrary.all().length, app.themes.builtins.length + 1);
   assert.equal(app.elements.get('#theme-edit-selected').disabled, false);
   await app.elements.get('#theme-edit-selected').click();
   app.elements.get('#theme-name').value = 'Edited theme'; submit();
-  assert.equal(app.themeLibrary.all().length, 4);
+  assert.equal(app.themeLibrary.all().length, app.themes.builtins.length + 1);
   assert.equal(app.themeLibrary.find('custom-test-id').name, 'Edited theme');
   app.elements.get('#theme-name').value = 'Discarded';
   await app.elements.get('#theme-editor-cancel').click();
@@ -256,7 +286,7 @@ test('theme file import validates before opening a draft and does not save or ca
   const text = app.themes.serialize(app.themes.builtins[2]);
   await input.events.get('change')({target:{files:[{size:text.length, text:async()=>text}],value:'selected'}});
   assert.equal(app.elements.get('#theme-name').value, 'Forest');
-  assert.equal(app.themeLibrary.all().length,3);
+  assert.equal(app.themeLibrary.all().length,app.themes.builtins.length);
   assert.equal(app.document.documentElement.dataset.theme,'dark');
   assert.equal(app.requests.length,count);
   assert.match(app.elements.get('#theme-transfer-status').textContent,/editor only/);

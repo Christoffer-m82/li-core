@@ -7,6 +7,20 @@ const context = {};
 vm.runInNewContext(readFileSync(new URL('../static/assets/themes.js', import.meta.url), 'utf8'), context);
 const themes = context.LiThemes;
 const forest = themes.builtins.find(theme => theme.id === 'forest');
+test('five new concepts are additive, portable and keep serif headings separate from body text', () => {
+  assert.deepEqual(Array.from(themes.builtins, theme => theme.id), [
+    'dark', 'light', 'forest', 'nordic-linen', 'fjord', 'midnight-brass', 'rosewood', 'porcelain-ink',
+  ]);
+  for (const theme of themes.builtins) {
+    assert.equal(themes.parseTransfer(themes.serialize(theme)).name, theme.name);
+    const tokens = new Map();
+    themes.apply(theme, { style: { setProperty: (k, v) => tokens.set(k, v) }, dataset: {} }, {});
+    if (theme.font === 'classic') {
+      assert.match(tokens.get('--font-heading'), /Georgia/);
+      assert.match(tokens.get('--font-body'), /sans-serif/);
+    }
+  }
+});
 function storage(initial = null) {
   return { value: initial, getItem() { return this.value; }, setItem(key, value) { this.value = value; } };
 }
@@ -18,7 +32,7 @@ test('custom appearances persist without a fixed theme count or changing built-i
   const saved = storage();
   const library = themes.library(saved);
   for (let i = 0; i < 150; i++) library.save({ ...forest, name: `Theme ${i}` }, `custom-${i}`);
-  assert.equal(themes.library(saved).all().length, 153);
+  assert.equal(themes.library(saved).all().length, themes.builtins.length + 150);
   assert.equal(library.find('forest').name, 'Forest');
   assert.equal(library.find('removed-theme').id, 'dark');
   assert.throws(() => library.save(forest, 'dark'));
@@ -33,10 +47,10 @@ test('rejects executable CSS, unsupported fonts and unreadable palettes', () => 
   assert.equal(safe.css, undefined);
 });
 test('corrupt storage falls back and failed writes do not claim a saved theme', () => {
-  assert.equal(themes.library(storage('{broken')).all().length, 3);
+  assert.equal(themes.library(storage('{broken')).all().length, themes.builtins.length);
   const library = themes.library({ getItem() { throw Error('blocked'); }, setItem() { throw Error('quota'); } });
   assert.throws(() => library.save(forest, 'custom-test'), /cannot save/);
-  assert.equal(library.all().length, 3);
+  assert.equal(library.all().length, themes.builtins.length);
 });
 test('theme application changes only appearance tokens and browser chrome', () => {
   const tokens = new Map();
@@ -56,7 +70,7 @@ test('editing a custom theme persists in place and never changes built-ins', () 
   const saved = storage(); const library = themes.library(saved);
   library.save(forest, 'custom-edit');
   library.update({ ...forest, name: 'Edited', radius: '28' }, 'custom-edit');
-  assert.equal(library.all().length, 4);
+  assert.equal(library.all().length, themes.builtins.length + 1);
   assert.equal(themes.library(saved).find('custom-edit').name, 'Edited');
   assert.equal(library.find('forest').radius, '20');
   assert.throws(() => library.update(forest, 'forest'), /Only an existing custom/);
@@ -98,6 +112,6 @@ test('importing duplicate names adds new custom IDs without overwriting', () => 
   const library = themes.library(storage()); const text = themes.serialize(forest);
   library.save(themes.parseTransfer(text), 'custom-one');
   library.save(themes.parseTransfer(text), 'custom-two');
-  assert.equal(library.all().length, 5);
+  assert.equal(library.all().length, themes.builtins.length + 2);
   assert.equal(library.find('forest').id, 'forest');
 });

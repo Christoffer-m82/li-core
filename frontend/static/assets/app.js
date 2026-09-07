@@ -504,8 +504,12 @@ let editingThemeId = null;
 let themeImportRequest = 0;
 function applyTheme(theme, note = '') {
   window.LiThemes.apply(themeLibrary.find(theme), document.documentElement, document.querySelector('meta[name="theme-color"]'));
-  $('#theme-status').textContent = note || 'Appearance applies on this device. Content and permissions are unchanged.';
-  $$('#theme-library [data-theme-choice]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themeChoice === state.theme)));
+  $('#theme-status').textContent = `Selected: ${state.theme === 'auto' ? 'Auto' : themeLibrary.find(theme).name}. ${note || 'Appearance applies on this device. Content and permissions are unchanged.'}`;
+  $$('#theme-library [data-theme-choice]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.themeChoice === state.theme));
+    const badge = button.querySelector('.theme-selected');
+    if (badge) badge.textContent = button.dataset.themeChoice === state.theme ? '✓ Selected' : 'Use theme';
+  });
   $('#theme-edit-selected').disabled = !state.theme.startsWith('custom-');
 }
 function activateTheme(choice) {
@@ -526,16 +530,47 @@ function activateTheme(choice) {
 }
 function renderThemeLibrary() {
   const host = $('#theme-library'); host.replaceChildren();
+  const filter = $('#theme-filter').value || 'all';
   for (const theme of [...themeLibrary.all(), { id: 'auto', name: 'Auto', description: 'Light/Dark by sunrise or system preference' }]) {
+    if (filter === 'custom' && !theme.id.startsWith('custom-')) continue;
+    if (filter === 'builtin' && theme.id.startsWith('custom-')) continue;
+    if (['light', 'dark'].includes(filter) && theme.mode !== filter) continue;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'theme-choice';
     button.dataset.themeChoice = theme.id; button.setAttribute('aria-pressed', String(theme.id === state.theme));
+    const previewTheme = theme.id === 'auto' ? themeLibrary.find('light') : theme;
+    const preview = document.createElement('span'); preview.className = 'theme-preview'; preview.setAttribute('aria-hidden', 'true');
+    window.LiThemes.apply(previewTheme, preview, {});
+    if (theme.id === 'auto') preview.dataset.theme = 'auto';
+    const rail = document.createElement('span'); rail.className = 'theme-preview-rail'; rail.textContent = 'Li';
+    const chat = document.createElement('span'); chat.className = 'theme-preview-chat';
+    const heading = document.createElement('span'); heading.className = 'theme-preview-heading'; heading.textContent = 'A little clarity.';
+    chat.append(heading);
+    for (const sender of ['li', 'owner', 'specialist']) {
+      const bubble = document.createElement('span'); bubble.className = `theme-preview-bubble ${sender}`; chat.append(bubble);
+    }
+    preview.append(rail, chat);
     const title = document.createElement('strong'); title.textContent = theme.name;
     const note = document.createElement('small'); note.textContent = theme.description || `${theme.mode === 'dark' ? 'Dark' : 'Light'} palette · ${theme.font}`;
-    button.append(title, note); button.addEventListener('click', () => activateTheme(theme.id)); host.appendChild(button);
+    const swatches = document.createElement('span'); swatches.className = 'theme-swatches'; swatches.setAttribute('aria-hidden', 'true');
+    for (const color of ['bg', 'tile', 'accent', 'text']) {
+      const swatch = document.createElement('span'); swatch.style.backgroundColor = previewTheme[color]; swatches.append(swatch);
+    }
+    const badge = document.createElement('small'); badge.className = 'theme-selected'; badge.textContent = theme.id === state.theme ? '✓ Selected' : 'Use theme';
+    button.append(preview, title, note, swatches, badge); button.addEventListener('click', () => activateTheme(theme.id)); host.appendChild(button);
   }
+  $('#theme-gallery-empty').hidden = host.children.length !== 0;
 }
 function initializeAppearance() {
+  const toolbar = document.createElement('label'); toolbar.className = 'theme-gallery-filter'; toolbar.textContent = 'Browse appearances';
+  const filter = document.createElement('select'); filter.id = 'theme-filter'; filter.setAttribute('aria-controls', 'theme-library');
+  for (const [value, name] of [['all', 'All themes'], ['builtin', 'Built-in themes'], ['light', 'Light palettes'], ['dark', 'Dark palettes'], ['custom', 'My custom themes']]) {
+    const option = document.createElement('option'); option.value = value; option.textContent = name; filter.append(option);
+  }
+  toolbar.append(filter); $('#theme-library').before(toolbar);
+  const empty = document.createElement('p'); empty.id = 'theme-gallery-empty'; empty.hidden = true; empty.textContent = 'No themes in this collection yet. Create a theme below or choose another filter.';
+  $('#theme-library').after(empty);
   renderThemeLibrary();
+  $('#theme-filter').addEventListener('change', renderThemeLibrary);
   const displayedTheme = () => themeLibrary.find(document.documentElement.dataset.theme);
   const openEditor = (theme, id = null) => {
     ++themeImportRequest;
@@ -595,7 +630,7 @@ function initializeAppearance() {
     for (const field of ['name', 'mode', ...window.LiThemes.colors, 'font', 'radius']) draft[field] = $(`#theme-${field}`).value;
     try {
       const theme = editingThemeId ? themeLibrary.update(draft, editingThemeId) : themeLibrary.save(draft, `custom-${crypto.randomUUID()}`);
-      renderThemeLibrary(); activateTheme(theme.id);
+      $('#theme-filter').value = 'all'; renderThemeLibrary(); activateTheme(theme.id);
       editingThemeId = theme.id;
       $('#theme-editor-heading').textContent = `Edit ${theme.name}`;
       $('#theme-save').textContent = 'Save changes and use theme';
