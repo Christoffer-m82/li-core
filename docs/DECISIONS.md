@@ -20,7 +20,7 @@ prove deployment or operational state.
 | ADR-008: native apps authenticate through a dedicated gateway with bounded bearer/refresh lifecycle | [Native Gateway Architecture](../system/NATIVE_GATEWAY_ARCHITECTURE.md) | Accepted ADR in tracked source; deployment gated |
 | ADR-0035: nine governed Li-native systems cover the twelve platform recommendations | [Governed Li-native Systems](../system/GOVERNED_LI_NATIVE_SYSTEMS.md) | Accepted ADR in tracked source |
 | Proactivity uses paused scheduler jobs and owner-approved rhythm activation with durable idempotency | [Governed proactivity](../deployment/cloud-run/governed-proactivity.md) | Deployment/activation gate |
-| Finance and Calendar are first-class private workspaces; Calendar reuses Li's governed reader and portfolio data remains owner-entered, currency-separated, and unable to trade | [Finance and Calendar workspace architecture](../system/FINANCE_CALENDAR_ARCHITECTURE.md) | Accepted repository design; schema 0.42 and deployment require separate evidence |
+| Finance and Calendar are first-class private workspaces; Calendar reuses Li's governed reader and portfolio data remains owner-entered, currency-separated, and unable to trade | [Finance and Calendar workspace architecture](../system/FINANCE_CALENDAR_ARCHITECTURE.md) | Accepted repository design; schema 0.42 and the matching staging application are deployed with partial acceptance evidence |
 
 ## Adding a decision
 
