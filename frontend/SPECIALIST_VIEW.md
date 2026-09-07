@@ -16,9 +16,11 @@ These are two sibling native buttons, not nested buttons: both support keyboard 
 visible focus. Home's specialist cards continue to open Workspace.
 
 The conversation selector keeps cases separate. **New conversation** starts without another case's
-chat context; selecting a retained case shares its bounded recent context for follow-ups. The input
-stays below the scrollable timeline. Messages are oldest first, newest at the bottom. **Jump to latest**
-returns to the bottom; Refresh preserves the reading position when reviewing older messages.
+chat context; selecting a retained case shares its bounded recent context for follow-ups. The
+destination selector, attachment state and message input form a fixed footer inside the conversation
+panel while the timeline scrolls above them. Messages are oldest first, newest at the bottom.
+**Jump to latest** returns to the bottom; Refresh preserves the reading position when reviewing
+older messages. Enter sends and Shift+Enter adds a line break.
 
 | Sender | Presentation |
 | --- | --- |
@@ -42,9 +44,11 @@ The owner's saved request is never relabelled as Li speaking. Supporting finding
 expand inside the specialist bubble; History retains routing details, evidence and activity filters.
 Omitted or failed recommendations appear as system notices, not invented agent dialogue.
 
-Files use the existing authenticated temporary upload endpoint (10 MB maximum). Text, Markdown,
-CSV and JSON can supply extracted text; a validated PDF/image is not described as attached unless
-analysis text is actually returned. Extracted context must fit the existing 6,000-character limit.
+Files can be chosen with the accessible attachment button or dropped anywhere on the conversation
+panel. Keyboard and touch users do not need drag and drop. Only one file is accepted at a time, using
+the existing authenticated temporary upload endpoint (10 MB maximum). Text, Markdown, CSV and JSON
+can supply extracted text; a validated PDF/image is not described as attached unless analysis text
+is actually returned. Extracted context must fit the existing 6,000-character limit.
 Unsupported/oversized/failed analysis is explained; no file is silently saved. Remove attachment
 clears its in-memory context. Successful sending clears the draft and attachment; failed sending
 keeps the draft and warns to check history before retrying because an uncertain request may have
@@ -198,7 +202,8 @@ Run the [frontend checks](README.md#local-validation), including `node --test te
 The specialist tests cover metrics, filters, text-only rendering, missing/temporary responses,
 failed refresh/retry, specialist-switch races, sign-out invalidation, and conversation identifiers.
 Workspace tests cover chronology, author provenance, case isolation, explicit recipients, duplicate
-send prevention, failed persistence, draft retention, attachments, and scroll position. Backend/BFF
+send prevention, failed persistence, draft retention, attachment selection and drag/drop, keyboard
+submission, integrated-composer structure, and scroll position. Backend/BFF
 tests verify selection forwarding, rejected system-agent/private recipients and Li's continued role.
 BFF tests cover upstream errors and malformed responses for both roster and specialist history.
 Use only synthetic records for visual checks; a local preview is not proof of deployment or

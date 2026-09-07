@@ -35,6 +35,7 @@
     onActions = () => {}, onActivity = () => {}, confirmDiscard = () => true }) {
     let agent = null, entries = [], messages = [], conversationId = null, version = 0;
     let sending = false, uploading = false, ready = false, attachment = null, pendingSend = null, pendingBottom = false;
+    let dragDepth = 0;
     let pendingTurnId = null, pendingTurnFingerprint = null;
     const root = document.querySelector('#specialist-live');
     const node = (tag, content = '', className = '') => {
@@ -52,24 +53,42 @@
     latest.addEventListener('click', () => { log.scrollTop = log.scrollHeight; });
     const limits = node('p', 'Latest 40 saved chat messages and up to 50 loaded specialist records. Older history may not be shown. Specialist bubbles are recorded recommendations, not a verbatim internal transcript.', 'muted workspace-limits');
     const status = node('p', '', 'workspace-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    const chat = node('section', '', 'workspace-chat'); chat.setAttribute('aria-label', 'Shared specialist conversation');
+    const dropPrompt = node('div', 'Drop one file here to attach it to your next message', 'workspace-drop-prompt');
+    dropPrompt.setAttribute('aria-hidden', 'true');
+    const footer = node('div', '', 'workspace-chat-footer');
+    latest.className += ' workspace-latest';
     const form = node('form', '', 'workspace-composer');
+    const recipientRow = node('div', '', 'workspace-recipient-row');
     const recipient = node('select'); recipient.id = 'workspace-recipient';
-    const input = node('textarea'); input.id = 'workspace-input'; input.rows = 3; input.maxLength = 10000;
-    input.placeholder = 'Write to Li and your specialist…';
+    recipientRow.append(label('Send to', recipient.id), recipient);
+    const composerBar = node('div', '', 'workspace-composer-bar');
+    const input = node('textarea'); input.id = 'workspace-input'; input.rows = 1; input.maxLength = 10000;
+    input.placeholder = 'Write a message…';
+    input.setAttribute('aria-label', 'Message Li and your specialist');
     const file = node('input'); file.id = 'workspace-file'; file.type = 'file';
     file.accept = '.txt,.md,.csv,.json,.pdf,.png,.jpg,.jpeg,.webp';
-    const files = node('div', '', 'workspace-attachment');
-    const remove = node('button', 'Remove attachment', 'text-button'); remove.type = 'button'; remove.hidden = true;
-    const send = node('button', 'Send', 'primary-button'); send.type = 'submit';
-    form.append(label('Address message to', recipient.id), recipient, label('Message', input.id), input,
-      label('Attach a file · up to 10 MB · temporary analysis only', file.id), file, files, remove, send);
-    root.append(header, note, limits, log, latest, status, form);
+    file.hidden = true;
+    const attach = node('button', '＋', 'workspace-attach-button'); attach.id = 'workspace-attach'; attach.type = 'button';
+    attach.setAttribute('aria-label', 'Attach a file'); attach.title = 'Attach a file';
+    const files = node('div', '', 'workspace-attachment'); files.setAttribute('aria-live', 'polite');
+    const remove = node('button', 'Remove', 'text-button workspace-remove-attachment'); remove.type = 'button'; remove.hidden = true;
+    const attachmentRow = node('div', '', 'workspace-attachment-row'); attachmentRow.hidden = true; attachmentRow.append(files, remove);
+    const send = node('button', '↑', 'workspace-send-button'); send.type = 'submit';
+    send.setAttribute('aria-label', 'Send message'); send.title = 'Send message';
+    const composerNote = node('p', 'Attach or drag one file here · PDF, text, CSV, JSON or image · 10 MB max · analysed for this request only and not retained.', 'workspace-composer-note');
+    composerBar.append(file, attach, input, send);
+    form.append(recipientRow, attachmentRow, composerBar, composerNote);
+    footer.append(latest, status, form); chat.append(log, dropPrompt, footer);
+    root.append(header, note, limits, chat);
     function controls() {
       send.disabled = !ready || sending || uploading;
-      [input, recipient, file, remove, cases, fresh].forEach(el => { el.disabled = !agent || sending || uploading; });
-      send.textContent = sending ? 'Waiting for Li and specialist…' : 'Send';
+      [input, recipient, file, attach, remove, cases, fresh].forEach(el => { el.disabled = !agent || sending || uploading; });
+      send.textContent = sending ? '…' : '↑';
+      send.setAttribute('aria-label', sending ? 'Waiting for Li and specialist' : 'Send message');
+      send.title = sending ? 'Waiting for Li and specialist' : 'Send message';
     }
-    function resetDraft() { input.value = ''; attachment = null; pendingTurnId = null; pendingTurnFingerprint = null; file.value = ''; files.replaceChildren(); remove.hidden = true; }
+    function resetDraft() { input.value = ''; attachment = null; pendingTurnId = null; pendingTurnFingerprint = null; file.value = ''; files.replaceChildren(); remove.hidden = true; attachmentRow.hidden = true; }
     function forgetPending() { if (agent) removeRetry(retryKey(agent.id)); pendingTurnId = null; pendingTurnFingerprint = null; }
     function choices() {
       const option = (value, title) => { const el = node('option', title); el.value = value; return el; };
@@ -130,10 +149,17 @@
     const canDiscard = () => !(input.value.trim() || attachment) || confirmDiscard();
     cases.addEventListener('change', () => { if (!canDiscard()) { cases.value = conversationId || ''; return; } forgetPending(); resetDraft(); return load(cases.value || null); });
     fresh.addEventListener('click', () => { if (!canDiscard()) return; forgetPending(); resetDraft(); return load(null); });
-    remove.addEventListener('click', () => { attachment = null; file.value = ''; files.replaceChildren(); remove.hidden = true; });
-    file.addEventListener('change', async () => {
-      const item = file.files?.[0]; if (!item || sending || uploading) return;
-      attachment = null; remove.hidden = true; files.textContent = '';
+    remove.addEventListener('click', () => { attachment = null; file.value = ''; files.replaceChildren(); remove.hidden = true; attachmentRow.hidden = true; });
+    attach.addEventListener('click', () => file.click());
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); }
+    });
+    input.addEventListener('input', () => {
+      input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+    });
+    async function prepareAttachment(item) {
+      if (!item || sending || uploading) return;
+      attachment = null; remove.hidden = true; attachmentRow.hidden = true; files.textContent = '';
       if (item.size > 10 * 1024 * 1024) { status.textContent = 'Files must be 10 MB or smaller.'; file.value = ''; return; }
       const token = version; uploading = true; controls(); status.textContent = 'Analysing attachment temporarily…';
       try {
@@ -146,10 +172,39 @@
         }
         const context = `File: ${item.name}\n${data.analysis_text}`;
         if (context.length > 6000) { status.textContent = 'Extracted file content is too long. Attach a shorter excerpt (up to 6,000 characters).'; file.value = ''; return; }
-        attachment = context; files.textContent = `${item.name} · ready for next message · not retained`; remove.hidden = false;
+        attachment = context; files.textContent = `${item.name} · ready for next message · not retained`; remove.hidden = false; attachmentRow.hidden = false;
         status.textContent = 'Attachment ready. Li and the selected specialist receive it for this request only.';
       } catch { if (token === version) status.textContent = 'Upload unavailable. No attachment was added.'; }
       finally { if (token === version) { uploading = false; controls(); } }
+    }
+    file.addEventListener('change', async () => {
+      const item = file.files?.[0]; file.value = ''; await prepareAttachment(item);
+    });
+    const hasFiles = event => {
+      const types = event.dataTransfer?.types;
+      if (!types) return true;
+      if (typeof types.includes === 'function') return types.includes('Files');
+      if (typeof types.contains === 'function') return types.contains('Files');
+      return Array.from(types).includes('Files');
+    };
+    chat.addEventListener('dragenter', event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); dragDepth += 1; chat.classList.add('dragging');
+    });
+    chat.addEventListener('dragover', event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    chat.addEventListener('dragleave', event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) chat.classList.remove('dragging');
+    });
+    chat.addEventListener('drop', async event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); dragDepth = 0; chat.classList.remove('dragging');
+      const dropped = Array.from(event.dataTransfer?.files || []);
+      if (dropped.length !== 1) { status.textContent = 'Attach one file at a time. Nothing was added.'; return; }
+      await prepareAttachment(dropped[0]);
     });
     form.addEventListener('submit', async event => {
       event.preventDefault(); const message = input.value.trim();
@@ -213,7 +268,7 @@
     return {
       show() { if (pendingBottom && log.clientHeight > 0) { log.scrollTop = log.scrollHeight; pendingBottom = false; } },
       async open(item, records) {
-        ++version; pendingSend = null; pendingBottom = false; agent = item; entries = records; sending = false; uploading = false; resetDraft();
+        ++version; pendingSend = null; pendingBottom = false; dragDepth = 0; chat.classList.remove('dragging'); agent = item; entries = records; sending = false; uploading = false; resetDraft();
         root.setAttribute('data-chat-specialist', item.id);
         const option = (value, text) => { const el = node('option', text); el.value = value; return el; };
         recipient.replaceChildren(option('group', `Li + ${agent.name}`), option('specialist', `${agent.name} directly · Li included`)); recipient.value = 'group';
@@ -221,7 +276,7 @@
       },
       async refresh(records) { entries = records; if (!sending && !uploading) return load(conversationId, false); },
       async select(id) { if (sending || uploading) { status.textContent = 'Wait for the current request to finish.'; return; } if (!canDiscard()) return; resetDraft(); return load(id); },
-      clear() { ++version; pendingSend = null; pendingBottom = false; sending = false; uploading = false; agent = null; entries = []; messages = []; conversationId = null; ready = false; resetDraft(); cases.replaceChildren(); recipient.replaceChildren(); log.replaceChildren(); status.textContent = ''; controls(); },
+      clear() { ++version; pendingSend = null; pendingBottom = false; dragDepth = 0; chat.classList.remove('dragging'); sending = false; uploading = false; agent = null; entries = []; messages = []; conversationId = null; ready = false; resetDraft(); cases.replaceChildren(); recipient.replaceChildren(); log.replaceChildren(); status.textContent = ''; controls(); },
     };
   }
   (typeof window === 'undefined' ? globalThis : window).LiWorkspace = { create, timeline };
