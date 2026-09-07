@@ -225,7 +225,8 @@ No metered call was made during preparation.
 The opt-in [runner](../backend/acceptance/run_provider_trial.py) reuses the tracked migration validator
 and CI-pinned Supabase PostgreSQL image. It creates only `li-os-kr011-provider-trial-20260907`,
 publishes PostgreSQL on `127.0.0.1:55443`, and uses `li_os_kr011_provider_acceptance` with three distinct
-synthetic runtime-role passwords. It refuses an existing container, uses no host data mounts or
+synthetic runtime-role passwords. It pins Docker to a local socket rather than an inherited remote
+context, refuses an existing container, uses no host data mounts or
 backups, ignores `.env` and inherited provider/database/proxy settings, and removes only its returned
 container ID and disposable volume in `finally`. An interrupted process may require exact-ID cleanup;
 never infer that cleanup ran after a hard process kill.
@@ -270,11 +271,12 @@ after local preparation. It never reads the key from Git, `.env`, cloud secrets,
 it to a model; the SDK uses it only for normal authenticated Anthropic HTTPS requests. No raw SDK
 exceptions or tracebacks are printed. Run in a private terminal, not a captured assistant terminal.
 
-Preparation evidence: 29 guard/isolation tests passed; the four-case fake-provider runner passed
+Preparation evidence: 30 guard/isolation tests passed; the four-case fake-provider runner passed
 with 10 mock model calls after the full migration manifest passed. Early dry rehearsals exposed
 an overly long recall fixture and an audit fingerprint taken after a reconciliation read; both
 test-harness issues were corrected before any live calls. Each disposable container was removed.
-The full backend suite passed 1,113 tests, with four existing opt-in tests skipped and the upstream
+The full backend suite passed 1,113 tests before the additional local-Docker regression (which passed
+in the 30-test focused run), with four existing opt-in tests skipped and the upstream
 Starlette/AnyIO warning visible. Fake usage/cost numbers are simulated, not actual spend. The runner
 is **locally implemented and rehearsed, not provider-backed or deployed acceptance**.
 

@@ -143,7 +143,8 @@ def test_guarded_messages_settles_usage_without_content_in_journal(budget, tmp_p
 def test_child_environment_excludes_external_configuration(monkeypatch):
     from acceptance.run_provider_trial import isolated_environment
     for key in ("LI_OS_DB_HOST", "LI_OS_ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL",
-                "HTTPS_PROXY", "PGSERVICE", "PGPASSFILE", "GOOGLE_APPLICATION_CREDENTIALS"):
+                "HTTPS_PROXY", "PGSERVICE", "PGPASSFILE", "GOOGLE_APPLICATION_CREDENTIALS",
+                "DOCKER_HOST", "DOCKER_CONTEXT"):
         monkeypatch.setenv(key, "must-not-inherit")
     clean = isolated_environment()
     assert "must-not-inherit" not in clean.values()
@@ -167,3 +168,17 @@ def test_coverage_expiry_blocks_even_after_private_prompt_delay(tmp_path, monkey
         assert not trial.calls
     finally:
         trial.close()
+
+
+def test_docker_uses_explicit_local_socket_not_remote_context(monkeypatch):
+    from acceptance.run_provider_trial import docker_command
+    monkeypatch.setenv("DOCKER_HOST", "tcp://remote.invalid:2376")
+    monkeypatch.setenv("DOCKER_CONTEXT", "remote")
+    seen = []
+    monkeypatch.setattr("acceptance.run_provider_trial.command",
+                        lambda args, env: seen.append((args, env)))
+    docker_command("ps")
+    args, env = seen[0]
+    assert args[:2] == ["docker", "--host"]
+    assert args[2].startswith(("npipe:", "unix:"))
+    assert "DOCKER_HOST" not in env and "DOCKER_CONTEXT" not in env

@@ -374,8 +374,9 @@ OM-003 remains gated by the outstanding core privacy/recovery, owner/device and 
 
 The [bounded provider trial](TESTING_AND_AUDIT.md#provider-trial-preparation--2026-09-07) is locally
 implemented and fake-provider rehearsed against a fresh disposable schema-0.41 database. Its four
-EN/SV cases passed with 10 mock calls; 29 guard/isolation tests and the full backend suite (1,113
-passed, four opt-in skips) passed. The existing Starlette/AnyIO warning remains visible. This adds
+EN/SV cases passed with 10 mock calls; 30 guard/isolation tests passed. The full backend suite passed
+1,113 tests before the additional passing local-Docker regression, with four opt-in skips.
+The existing Starlette/AnyIO warning remains visible. This adds
 whole-trial spend/call/turn controls and canonical-schema replay fingerprints, not new live evidence.
 Read-only billing showed USD 11.99 prepaid and auto-reload off. No provider calls, deployment,
 staging migration, personal-record inspection, or backup access occurred. The live trial awaits

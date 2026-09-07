@@ -31,6 +31,8 @@ DATABASE = "li_os_kr011_provider_acceptance"
 PORT = "55443"
 PASSWORD = "ci-synthetic-postgres-password"
 JOURNAL = ROOT / "output" / "acceptance" / "kr011-provider-20260907.jsonl"
+DOCKER_ENDPOINT = ("npipe:////./pipe/dockerDesktopLinuxEngine" if sys.platform == "win32"
+                   else "unix:///var/run/docker.sock")
 
 
 def command(args, *, env=None):
@@ -48,6 +50,11 @@ def isolated_environment() -> dict:
         "PGHOST": "127.0.0.1", "PGPORT": PORT, "PGDATABASE": DATABASE,
         "PGUSER": "supabase_admin", "PGPASSWORD": PASSWORD, "PGSSLMODE": "disable",
     }
+
+
+def docker_command(*arguments):
+    # Do not inherit a remote Docker context/host and accidentally create cloud resources.
+    return command(["docker", "--host", DOCKER_ENDPOINT, *arguments], env=isolated_environment())
 
 
 def fake_messages():
@@ -128,9 +135,9 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
         require(0 <= age <= 3600, "remeasure_balance_before_live_trial")
     env = isolated_environment()
     # Refuse to reuse an existing resource; no ambiguous cleanup scope.
-    existing = command(["docker", "ps", "-a", "--filter", f"name=^/{CONTAINER}$", "--format", "{{.ID}}"])
+    existing = docker_command("ps", "-a", "--filter", f"name=^/{CONTAINER}$", "--format", "{{.ID}}")
     require(not existing, "named_container_already_exists")
-    command(["docker", "image", "inspect", IMAGE, "--format", "{{.Id}}"])
+    docker_command("image", "inspect", IMAGE, "--format", "{{.Id}}")
     JOURNAL.parent.mkdir(parents=True, exist_ok=True)
     journal = JOURNAL if live else JOURNAL.with_name("kr011-provider-dry-" + str(time.time_ns()) + ".jsonl")
     budget = TrialBudget(journal, expires_at=(
@@ -138,14 +145,15 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
     container_id = None
     sdk = None
     try:
-        container_id = command(["docker", "run", "--detach", "--pull=never", "--name", CONTAINER,
+        container_id = docker_command("run", "--detach", "--pull=never", "--name", CONTAINER,
             "--label", "li-os.synthetic-acceptance=kr011-provider-20260907",
             "--publish", f"127.0.0.1:{PORT}:5432", "--env", "POSTGRES_DB=postgres",
-            "--env", f"POSTGRES_PASSWORD={PASSWORD}", IMAGE])
+            "--env", f"POSTGRES_PASSWORD={PASSWORD}", IMAGE)
         require(bool(re.fullmatch(r"[a-f0-9]{64}", container_id)), "container_identity_invalid")
         for _ in range(45):
-            ready = subprocess.run(["docker", "exec", container_id, "pg_isready", "-U",
-                                    "postgres", "-h", "localhost"], capture_output=True)
+            ready = subprocess.run(["docker", "--host", DOCKER_ENDPOINT, "exec", container_id,
+                                    "pg_isready", "-U", "postgres", "-h", "localhost"],
+                                   env=env, capture_output=True, timeout=10)
             if ready.returncode == 0:
                 break
             time.sleep(1)
@@ -192,13 +200,17 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
                               "evidence": evidence, "model_calls": len(budget.calls),
                               "cost_upper_bound_usd": budget.charged_bound / 1_000_000}, sort_keys=True))
     finally:
-        if sdk is not None:
-            sdk.close()
-        budget.close()
-        if container_id and re.fullmatch(r"[a-f0-9]{64}", container_id):
-            # Remove only the ID returned by this run (including its disposable volume).
-            command(["docker", "rm", "--force", "--volumes", container_id])
-            print("Removed only this run's disposable synthetic container/database/volume.")
+        try:
+            if sdk is not None:
+                sdk.close()
+        finally:
+            try:
+                budget.close()
+            finally:
+                if container_id and re.fullmatch(r"[a-f0-9]{64}", container_id):
+                    # Remove only the ID returned by this run, even if SDK close fails.
+                    docker_command("rm", "--force", "--volumes", container_id)
+                    print("Removed only this run's disposable synthetic container/database/volume.")
 
 
 if __name__ == "__main__":
