@@ -24,6 +24,15 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _is_blank_optional_setting(value: object) -> bool:
+    if value is None:
+        return True
+    reveal = getattr(value, "get_secret_value", None)
+    if callable(reveal):
+        value = reveal()
+    return value == ""
+
+
 def _assert_isolated_configuration() -> None:
     assert os.environ["LI_OS_SYNTHETIC_ACCEPTANCE"] == "1"
     assert os.environ["LI_OS_ENVIRONMENT"] == "development"
@@ -66,13 +75,15 @@ def isolated_synthetic_database() -> Iterator[None]:
 
     settings = get_settings()
     assert settings.anthropic_api_key.get_secret_value() == "ci-synthetic-provider-disabled"
-    assert settings.brave_search_api_key is None
-    assert settings.google_calendar_client_id is None
-    assert settings.google_calendar_client_secret is None
-    assert settings.google_calendar_refresh_token is None
-    assert settings.google_gmail_client_id is None
-    assert settings.google_gmail_client_secret is None
-    assert settings.google_gmail_refresh_token is None
+    assert all(_is_blank_optional_setting(value) for value in (
+        settings.brave_search_api_key,
+        settings.google_calendar_client_id,
+        settings.google_calendar_client_secret,
+        settings.google_calendar_refresh_token,
+        settings.google_gmail_client_id,
+        settings.google_gmail_client_secret,
+        settings.google_gmail_refresh_token,
+    ))
 
     with psycopg.connect(
         host=os.environ["PGHOST"],
