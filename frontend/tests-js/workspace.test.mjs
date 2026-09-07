@@ -4,11 +4,14 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../static/assets/workspace.js', import.meta.url), 'utf8');
 class Element {
-  children = []; textContent = ''; value = ''; handlers = {}; attributes = {}; scrollTop = 0; scrollHeight = 800; clientHeight = 400;
-  append(...items) { this.children.push(...items); }
+  children = []; textContent = ''; value = ''; handlers = {}; attributes = {}; scrollTop = 0; scrollHeight = 800; clientHeight = 400; style = {};
+  classList = { add: (...names) => { const set=new Set(this.className.split(/\s+/).filter(Boolean)); names.forEach(name=>set.add(name)); this.className=[...set].join(' '); }, remove: (...names) => { const remove=new Set(names); this.className=this.className.split(/\s+/).filter(name=>name&&!remove.has(name)).join(' '); } };
+  append(...items) { this.children.push(...items); items.forEach(item => { if (item && typeof item === 'object') item.parent = this; }); }
   replaceChildren(...items) { this.children = items; this.textContent = ''; }
   setAttribute(k, v) { this.attributes[k] = v; }
   addEventListener(k, fn) { this.handlers[k] = fn; }
+  click() { return this.handlers.click?.({preventDefault(){}}); }
+  requestSubmit() { return this.handlers.submit?.({preventDefault(){}}); }
 }
 const id = '00000000-0000-0000-0000-000000000001';
 const agent = { id: 'nora', name: 'Nora' };
@@ -160,6 +163,45 @@ test('temporary attachments pass only successful bounded analysis; unsupported i
   analysis='Safe text'; await file.handlers.change(); assert.match(app.status(),/ready/);
   app.get('workspace-input').value='Discuss'; await app.send(); assert.match(payload.temporary_upload_context,/Safe text/);
   analysis='a'.repeat(6001); await file.handlers.change(); assert.match(app.status(),/too long/);
+});
+test('workspace composer is integrated with an accessible attachment button', async () => {
+  const app=setup(); await app.view.open(agent,[]);
+  const chat=app.root.children.find(element=>element.className==='workspace-chat');
+  const form=app.root.children.flatMap(element=>element.children || []).flatMap(element=>element.children || []).find(element=>element.tag==='form');
+  assert.ok(chat); assert.ok(form); assert.equal(form.parent.parent,chat);
+  const file=app.get('workspace-file'); let opened=false; file.click=()=>{opened=true;};
+  await app.get('workspace-attach').click();
+  assert.equal(file.hidden,true); assert.equal(opened,true);
+});
+test('dropping one file uses temporary analysis and sends it without retaining the binary', async () => {
+  let payload, uploads=0; const app=setup(async (url,options) => {
+    if(url==='/api/uploads'){uploads++;return reply({analysis_text:'Dropped safe text'});}
+    if(url==='/api/chat'){payload=JSON.parse(options.body);return reply({conversation_id:id,response:'OK',conversation_history_error:'not saved'});}
+    return reply({interactions:[]});
+  });
+  await app.view.open(agent,[]);
+  const chat=app.root.children.find(element=>element.className==='workspace-chat');
+  const transfer={types:['Files'],files:[{name:'dropped.txt',size:18}]};
+  await chat.handlers.dragenter({dataTransfer:transfer,preventDefault(){}}); assert.match(chat.className,/dragging/);
+  await chat.handlers.drop({dataTransfer:transfer,preventDefault(){}});
+  assert.equal(uploads,1); assert.ok(!chat.className.includes('dragging')); assert.match(app.status(),/request only/);
+  app.get('workspace-input').value='Review this'; await app.send();
+  assert.match(payload.temporary_upload_context,/dropped\.txt\nDropped safe text/);
+});
+test('multi-file drops fail closed and keyboard Enter sends while Shift+Enter does not', async () => {
+  let chats=0,uploads=0; const app=setup(async url => {
+    if(url==='/api/uploads'){uploads++;return reply({analysis_text:'text'});}
+    if(url==='/api/chat'){chats++;return reply({conversation_id:id,response:'OK',conversation_history_error:'not saved'});}
+    return reply({interactions:[]});
+  });
+  await app.view.open(agent,[]);
+  const chat=app.root.children.find(element=>element.className==='workspace-chat');
+  await chat.handlers.drop({dataTransfer:{types:['Files'],files:[{name:'a.txt'},{name:'b.txt'}]},preventDefault(){}});
+  assert.equal(uploads,0); assert.match(app.status(),/one file at a time/);
+  const input=app.get('workspace-input'); input.value='Keyboard send';
+  await input.handlers.keydown({key:'Enter',shiftKey:true,preventDefault(){throw new Error('Shift+Enter must keep the newline');}}); assert.equal(chats,0);
+  let prevented=false; await input.handlers.keydown({key:'Enter',shiftKey:false,preventDefault(){prevented=true;}});
+  assert.equal(prevented,true); assert.equal(chats,1);
 });
 test('message content stays text and reading position is retained during refresh', async () => {
   const app=setup(async () => reply({messages:[{role:'user',content:'<img onerror=alert(1)>'}]}));
