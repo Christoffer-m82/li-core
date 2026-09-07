@@ -37,11 +37,15 @@ def _map_google_event(candidate: object) -> object:
     end = candidate.get("end")
     if not isinstance(start, Mapping) or not isinstance(end, Mapping):
         return {"malformed": True}
+    all_day = isinstance(start.get("date"), str) and isinstance(end.get("date"), str)
     return {
         "event_id": candidate.get("id"),
         "title": candidate.get("summary") or "(untitled)",
-        "start": start.get("dateTime"),
-        "end": end.get("dateTime"),
+        "start": None if all_day else start.get("dateTime"),
+        "end": None if all_day else end.get("dateTime"),
+        "start_date": start.get("date") if all_day else None,
+        "end_date": end.get("date") if all_day else None,
+        "all_day": all_day,
         "timezone": start.get("timeZone") or end.get("timeZone"),
         "location": candidate.get("location"),
         "description": candidate.get("description"),

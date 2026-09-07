@@ -30,7 +30,8 @@ def upcoming_calendar_candidates(
     upcoming = sorted(
         (
             event for event in events
-            if event.status != "cancelled" and event.end > now and event.start <= now + horizon
+            if not event.all_day and event.start is not None and event.end is not None
+            and event.status != "cancelled" and event.end > now and event.start <= now + horizon
         ),
         key=lambda event: (event.start, event.end, event.event_id),
     )

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -151,6 +151,23 @@ def test_malformed_create_result_never_claims_success() -> None:
     )
     assert outcome.status == "failed"
     assert outcome.event is None
+
+
+def test_all_day_event_preserves_exclusive_dates_without_timezone_shift() -> None:
+    provider = RecordingProvider(search_result=[{
+        "event_id": "all-day-1", "title": "Birthday", "all_day": True,
+        "start_date": date(2030, 6, 3), "end_date": date(2030, 6, 4),
+        "status": "confirmed",
+    }])
+    outcome = execute_calendar_action(
+        CalendarActionEnvelope(request=SearchCalendarAction(
+            action="calendar.search", time_min=START, time_max=END,
+        )), provider,
+    )
+    assert outcome.status == "completed"
+    assert outcome.events[0].start is None
+    assert outcome.events[0].start_date == date(2030, 6, 3)
+    assert outcome.events[0].all_day is True
 
 
 def test_missing_create_details_are_rejected_before_provider() -> None:

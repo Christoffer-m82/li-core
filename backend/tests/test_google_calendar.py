@@ -64,12 +64,34 @@ def test_search_maps_google_event_and_preserves_timezone() -> None:
         "title": "Planning",
         "start": "2030-06-03T11:00:00+02:00",
         "end": "2030-06-03T12:00:00+02:00",
+        "start_date": None,
+        "end_date": None,
+        "all_day": False,
         "timezone": "Europe/Berlin",
         "location": "Office",
         "description": "Quarterly plan",
         "status": "confirmed",
         "html_link": "https://calendar.google.com/event?eid=event1",
     }]
+
+
+def test_search_maps_all_day_dates_without_timezone_conversion() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "oauth2.googleapis.com":
+            return _token_response(request)
+        return httpx.Response(200, json={"items": [{
+            "id": "all-day", "summary": "Birthday",
+            "start": {"date": "2030-06-03"}, "end": {"date": "2030-06-04"},
+            "status": "confirmed",
+        }]}, request=request)
+
+    event = _provider(handler).search_events(
+        SearchCalendarAction(action="calendar.search", time_min=START, time_max=END)
+    )[0]
+    assert event["all_day"] is True
+    assert event["start_date"] == "2030-06-03"
+    assert event["end_date"] == "2030-06-04"
+    assert event["start"] is None and event["end"] is None
 
 
 def test_create_sends_timezone_and_uses_stable_idempotency_id() -> None:
