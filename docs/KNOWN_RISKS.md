@@ -143,20 +143,21 @@ where applicable, Heimdall review.
 
 ## KR-013: Provider transport log privacy
 
-- **Status:** Open; local correction validated, not deployed in this batch.
+- **Status:** Open; correction deployed to the staging backend, historical assessment unresolved.
 - **Evidence:** Synthetic Calendar tests on 2026-09-07 reproduced HTTPX INFO logs containing
   request URLs and search query text. The generic formatter's credential-name replacement does
   not remove arbitrary private queries. No historical logs or personal records were inspected;
   actual historical exposure is not established or ruled out.
 - **Impact:** Provider request URLs may reveal calendar identifiers or query contents in transport
   logs. Do not retrieve raw transport logs for diagnosis or broaden access to them.
-- **Mitigation:** The backend correction suppresses verbose HTTPX/HTTPCore messages, replaces
+- **Mitigation:** Backend `li-os-release-db1d17c` suppresses verbose HTTPX/HTTPCore messages, replaces
   remaining transport bodies with a fixed privacy notice while retaining severity, and supplies
   allowlisted Calendar failure diagnostics. Synthetic redaction and full-backend tests passed.
-- **Closure:** Requires reviewed rollout and applicable safe live evidence; assessment or handling
+- **Closure:** The reviewed rollout and bounded post-promotion controls passed. Assessment or handling
   of historical logs remains a separate privacy-preserving, exactly authorized owner decision.
   No log deletion, retention change, credential rotation or historical inspection was performed.
-- **Evidence and rollout gate:** [Calendar diagnosis](TESTING_AND_AUDIT.md#calendar-sanitized-diagnosis--2026-09-07).
+- **Evidence and rollout gate:** [Calendar diagnosis](TESTING_AND_AUDIT.md#calendar-sanitized-diagnosis--2026-09-07)
+  and [staging release](releases/2026-09-08-db1d17c-staging.md).
 
 ## Closed risks
 

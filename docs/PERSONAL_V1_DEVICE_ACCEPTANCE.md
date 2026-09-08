@@ -7,8 +7,8 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) and does not replace the
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
-is the [Finance and Calendar staging release](releases/2026-09-07-a7601b7-staging.md): backend and web
-`a7601b7` with database schema 0.42. The earlier
+is backend [Calendar diagnostic release](releases/2026-09-08-db1d17c-staging.md) `db1d17c` with web
+`a7601b7` and database schema 0.42. The earlier
 [specialist-language release](releases/2026-09-07-0fc39a7-staging.md) remains the backend application
 rollback target; web `7527434` remains the web rollback target.
 
@@ -137,11 +137,11 @@ normal-use evidence.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend and web `release-a7601b7` |
-| Backend revision | `li-os-release-a7601b7` |
+| Deployed release | Backend `release-db1d17c`; web `release-a7601b7` |
+| Backend revision | `li-os-release-db1d17c` |
 | Web revision | `li-os-web-release-a7601b7` |
 | Database schema | `0.42` |
-| Staging rollout | PASS — backup/restore/rehearsal, migration, candidate health, authority, traffic, signed-in Home, Finance create/edit and safe Calendar failure evidence are recorded in the [release record](releases/2026-09-07-a7601b7-staging.md); this is not physical-device, provider-display or stability acceptance |
+| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics, candidate checks and backend promotion are in the [backend release](releases/2026-09-08-db1d17c-staging.md). This is not Calendar-provider, physical-device, owner or stability acceptance |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
