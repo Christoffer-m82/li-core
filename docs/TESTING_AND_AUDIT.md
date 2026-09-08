@@ -373,19 +373,16 @@ provider call, migration or deployment was performed. All 56 tracked Markdown fi
 and anchor validation; the tracked-file secret audit passed. Local tests do not establish Calendar
 provider-backed or device acceptance. Runtime correction commit: `8a56a00`.
 
-### Next authorized Calendar diagnostic rollout
+### Authorized Calendar diagnostic rollout and remaining read
 
-1. After review, merge and green CI, obtain exact authorization for a **backend-only** staging
-   rollout of the resulting immutable commit, with verified existing cost coverage. This record
-   does not grant that authorization. No web, database, OAuth, IAM, secret, scheduler or billing
-   change is required by these diagnostics.
-2. Follow [Deployment workflow](DEPLOYMENT_WORKFLOW.md): tracked-only image, zero-normal-traffic
-   candidate, public denial, IAM health, masked application readiness/schema-0.42 validation,
-   identity and numeric-reference continuity, then authorized promotion. Assess `a7601b7` as the
-   immediate compatibility rollback candidate, explicitly noting that it restores the transport
-   logging risk; do not call any older revision privacy-safe without that review. Do not trigger
-   Calendar reads on a rolled-back vulnerable revision merely to verify health.
-3. Obtain a bounded read authorization that permits the secure runtime to access the owner's
+1. The backend-only tracked-image rollout completed on 2026-09-08 after review, green CI, fresh
+   cost evidence, zero-normal-traffic candidate validation, public denial, IAM health, masked
+   application readiness/schema-0.42 validation, identity and numeric-reference continuity, and
+   authorized promotion. See the [release record](releases/2026-09-08-db1d17c-staging.md). No web,
+   database, OAuth, IAM, secret, scheduler or billing change occurred.
+2. `a7601b7` remains a schema-compatible availability fallback but restores the transport-logging
+   risk. Do not call it privacy-safe or trigger Calendar/provider reads on it merely to verify health.
+3. Obtain a separate bounded read authorization that permits the secure runtime to access the owner's
    Calendar but exposes only safe diagnostics to the operator. Perform at most one deliberate
    read; no event creation, raw-result capture or repeated blind retries. Calendar uses no model
    call. Recheck applicable coverage before the external operation.
