@@ -373,7 +373,7 @@ provider call, migration or deployment was performed. All 56 tracked Markdown fi
 and anchor validation; the tracked-file secret audit passed. Local tests do not establish Calendar
 provider-backed or device acceptance. Runtime correction commit: `8a56a00`.
 
-### Authorized Calendar diagnostic rollout and remaining read
+### Authorized Calendar diagnostic rollout and bounded result
 
 1. The backend-only tracked-image rollout completed on 2026-09-08 after review, green CI, fresh
    cost evidence, zero-normal-traffic candidate validation, public denial, IAM health, masked
@@ -382,14 +382,16 @@ provider-backed or device acceptance. Runtime correction commit: `8a56a00`.
    database, OAuth, IAM, secret, scheduler or billing change occurred.
 2. `a7601b7` remains a schema-compatible availability fallback but restores the transport-logging
    risk. Do not call it privacy-safe or trigger Calendar/provider reads on it merely to verify health.
-3. Obtain a separate bounded read authorization that permits the secure runtime to access the owner's
-   Calendar but exposes only safe diagnostics to the operator. Perform at most one deliberate
-   read; no event creation, raw-result capture or repeated blind retries. Calendar uses no model
-   call. Recheck applicable coverage before the external operation.
-4. Inspect only `li.calendar` fixed diagnostic fields for that request, never arbitrary log bodies
-   or event results. If it succeeds, record successful read separately from owner-verified event
-   display. If it fails, record the category and stop that test. OAuth renewal, enabling an API,
-   changing calendar ID/scope or other provider settings needs its own exact authorization.
+3. The owner then authorized one bounded read. The one-use runner verified the serving revision,
+   authenticated readiness and schema 0.42, recorded its dispatch marker, and attempted one
+   `calendar.search` over one UTC day with no query and a maximum of one result. Calendar made no
+   model call. The operator request expired while queued, but its exact correlation ID matched one
+   `li.calendar` entry: `authentication`, `oauth`, HTTP 400. No retry was made.
+4. The deployed mapping means Google returned `invalid_grant` during refresh-token exchange. The
+   stored refresh authorization is invalid, expired, revoked or mismatched with the OAuth client;
+   the safe evidence cannot distinguish further. A new owner consent flow, refresh-token secret
+   version and reviewed backend revision require separate exact authorization. After repair, a new
+   bounded read must separately establish Calendar display.
 5. Leave OM-010, physical-device/owner/stability acceptance and the exact `LIOS42` archive step
    open until their own evidence exists. Archive requires fresh action-time owner confirmation.
    Weekly Avanza quotes and specialist recency ordering remain planned and out of this batch.

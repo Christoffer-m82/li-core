@@ -156,6 +156,10 @@ where applicable, Heimdall review.
 - **Closure:** The reviewed rollout and bounded post-promotion controls passed. Assessment or handling
   of historical logs remains a separate privacy-preserving, exactly authorized owner decision.
   No log deletion, retention change, credential rotation or historical inspection was performed.
+- **Live diagnostic evidence:** The single authorized Calendar read on 2026-09-08 produced only the
+  fixed `calendar.search`, `authentication`, `oauth` and HTTP 400 fields for its exact correlation
+  ID. No raw provider material or Calendar content was inspected, and no retry was made. This
+  validates the corrected live diagnostic path; it does not determine historical exposure.
 - **Evidence and rollout gate:** [Calendar diagnosis](TESTING_AND_AUDIT.md#calendar-sanitized-diagnosis--2026-09-07)
   and [staging release](releases/2026-09-08-db1d17c-staging.md).
 
