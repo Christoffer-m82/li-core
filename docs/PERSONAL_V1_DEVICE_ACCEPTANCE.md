@@ -8,9 +8,10 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
 is backend [Calendar diagnostic release](releases/2026-09-08-db1d17c-staging.md) `db1d17c` with web
-`a7601b7` and database schema 0.42. The earlier
+[public OAuth information release](releases/2026-09-08-131034f-staging.md) `131034f` and database
+schema 0.42. The earlier
 [specialist-language release](releases/2026-09-07-0fc39a7-staging.md) remains the backend application
-rollback target; web `7527434` remains the web rollback target.
+rollback target; web `a7601b7` is the immediate web rollback target.
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -137,11 +138,11 @@ normal-use evidence.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend `release-db1d17c`; web `release-a7601b7` |
+| Deployed release | Backend `release-db1d17c`; web `release-131034f` |
 | Backend revision | `li-os-release-db1d17c` |
-| Web revision | `li-os-web-release-a7601b7` |
+| Web revision | `li-os-web-release-131034f` |
 | Database schema | `0.42` |
-| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics, candidate checks, backend promotion and the OAuth-authentication failure classification are in the [backend release](releases/2026-09-08-db1d17c-staging.md). This is not successful Calendar-provider, physical-device, owner or stability acceptance |
+| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics, backend promotion and the OAuth-authentication failure classification are in the [backend release](releases/2026-09-08-db1d17c-staging.md); the public Google OAuth information documents and web promotion are in the [web release](releases/2026-09-08-131034f-staging.md). This is not successful Calendar-provider, physical-device, owner or stability acceptance |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
