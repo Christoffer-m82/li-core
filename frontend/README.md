@@ -17,8 +17,27 @@ identity token.
    `roles/run.invoker` on that backend. Do not grant `allUsers` backend access.
 
 The web service itself must be reachable for the OAuth redirect. Its application content
-and API remain protected by Google sign-in plus the server-side email allowlist. The only
-anonymous endpoint is a data-free health check and the sign-in shell.
+and API remain protected by Google sign-in plus the server-side email allowlist. Anonymous
+content is limited to the data-free health check, sign-in shell, and fixed `/about`, `/privacy`,
+and `/terms` documents required to explain the personal deployment and its Google Calendar use.
+Those documents contain no runtime or personal data and are served with the same security headers.
+
+## Google OAuth public information
+
+Before changing an external Google OAuth application from Testing to In production, deploy and
+verify the public documents, then configure its branding with these same-origin URLs:
+
+```text
+Application home page: https://FRONTEND_URL/about
+Application privacy policy: https://FRONTEND_URL/privacy
+Application Terms of Service: https://FRONTEND_URL/terms
+```
+
+The About page links to both policies and describes the application beyond sign-in. The Privacy
+Policy identifies the Calendar events scope, data fields, purposes, service-provider processing,
+retention, security, approval boundary and revocation path. Do not substitute the authenticated
+application shell, a placeholder page or an unrelated provider URL. Publishing status, OAuth
+consent, secret rotation and deployment remain separately protected external actions.
 
 ## Android and Windows installation
 

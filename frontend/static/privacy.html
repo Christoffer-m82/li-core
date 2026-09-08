@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Privacy Policy for the personal Li OS deployment and its Google Calendar access." />
+  <meta name="robots" content="index,follow" />
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/public.css" />
+  <title>Li OS Privacy Policy</title>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/about"><span class="brand-mark">Li</span><span>Li OS</span></a>
+    <nav class="site-nav" aria-label="Public information">
+      <a href="/about">About</a>
+      <a href="/privacy" aria-current="page">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/">Sign in</a>
+    </nav>
+  </header>
+  <main class="public-main">
+    <p class="eyebrow">Your information stays yours</p>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Last updated: 8 September 2026</p>
+    <p class="lead">This policy explains how the personal Li OS deployment handles information, including data obtained through Google Calendar. Li OS is operated for the sole approved owner and does not offer public registration.</p>
+
+    <h2>Who operates Li OS</h2>
+    <p>Li OS is a personal system operated by Christoffer Melldén. Privacy questions can be sent to <a href="mailto:christoffer.mellden@gmail.com">christoffer.mellden@gmail.com</a>.</p>
+
+    <h2>Google data Li OS accesses</h2>
+    <p>Li OS requests the Google Calendar events permission (<code>https://www.googleapis.com/auth/calendar.events</code>). This permits the system to read Calendar events and create or update event data. Li OS limits its product behavior to schedule reads and owner-approved event creation.</p>
+    <p>Calendar information processed by the system can include event identifiers, titles, start and end times, all-day dates, time zones, locations, descriptions, attendance status and Google Calendar links.</p>
+
+    <h2>How Calendar information is used</h2>
+    <ul>
+      <li>To show the owner’s week and month schedule in the private Calendar workspace.</li>
+      <li>To answer owner requests about planning, timing and schedule conflicts.</li>
+      <li>To prepare and create Calendar events only through Li’s explicit approval flow.</li>
+      <li>To diagnose provider availability using privacy-minimised operational status information.</li>
+    </ul>
+    <p>Li OS does not use Google Calendar information for advertising, sell it, or use it to build advertising profiles. Li OS does not use it to train general-purpose AI models. When the owner asks Li to reason about Calendar information, the minimum relevant data may be processed by the configured AI service under the system’s private provider configuration.</p>
+
+    <h2>Storage and retention</h2>
+    <p>Google Calendar remains the system of record for Calendar events. The Calendar workspace retrieves events on demand and holds them temporarily while presenting the schedule; it does not create a separate Calendar-event database. If the owner discusses an event with Li, that conversation and any explicitly governed memory may be retained under Li OS conversation and memory controls.</p>
+    <p>OAuth credentials are stored as restricted server-side secrets and are never delivered to browser JavaScript. Operational logs are designed to retain status, timing and sanitised failure categories without intentionally recording OAuth credentials, request URLs, queries, raw provider responses or Calendar event contents.</p>
+
+    <h2>Sharing and service providers</h2>
+    <p>Calendar information is handled only by Google, the private Li OS services needed to fulfil the owner’s request, and the configured AI provider when relevant reasoning is requested. Specialists receive only the context permitted by Li OS privacy and routing controls. Li OS does not disclose Calendar information to unrelated third parties.</p>
+
+    <h2>Security and control</h2>
+    <p>Li OS restricts sign-in to the approved owner account, keeps its backend private, uses scoped and revocable OAuth access, and separates authentication from action approval. Calendar reads do not authorise writes. Creating an event requires an explicit owner approval at the action boundary.</p>
+
+    <h2>Access, deletion and revocation</h2>
+    <p>The owner can view, edit or delete Calendar events directly in Google Calendar. Google access can be revoked from the Google Account’s connected-app permissions. Revocation stops future Calendar access by Li OS but does not automatically delete separate Li conversation history. Conversation and governed-memory removal remain available through Li OS controls and requests.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>This page will be updated when Li OS materially changes how it accesses or uses Google data. The updated date above records the current version.</p>
+  </main>
+  <footer class="site-footer">
+    <p>Li OS · Personal-use deployment</p>
+    <nav aria-label="Footer"><a href="/about">About</a><a href="/terms">Terms</a></nav>
+  </footer>
+</body>
+</html>

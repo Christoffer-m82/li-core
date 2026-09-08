@@ -133,6 +133,27 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def public_document(filename: str) -> FileResponse:
+    """Serve a fixed, data-free public document outside the signed-in application shell."""
+
+    return FileResponse(STATIC_DIR / filename, media_type="text/html")
+
+
+@app.get("/about", include_in_schema=False)
+def about() -> FileResponse:
+    return public_document("about.html")
+
+
+@app.get("/privacy", include_in_schema=False)
+def privacy() -> FileResponse:
+    return public_document("privacy.html")
+
+
+@app.get("/terms", include_in_schema=False)
+def terms() -> FileResponse:
+    return public_document("terms.html")
+
+
 @app.get("/auth/login")
 def login() -> Response:
     if not settings.google_client_id or not settings.google_client_secret.get_secret_value():
