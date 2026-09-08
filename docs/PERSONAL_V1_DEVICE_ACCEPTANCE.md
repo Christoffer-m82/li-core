@@ -141,7 +141,7 @@ normal-use evidence.
 | Backend revision | `li-os-release-db1d17c` |
 | Web revision | `li-os-web-release-a7601b7` |
 | Database schema | `0.42` |
-| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics, candidate checks and backend promotion are in the [backend release](releases/2026-09-08-db1d17c-staging.md). This is not Calendar-provider, physical-device, owner or stability acceptance |
+| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics, candidate checks, backend promotion and the OAuth-authentication failure classification are in the [backend release](releases/2026-09-08-db1d17c-staging.md). This is not successful Calendar-provider, physical-device, owner or stability acceptance |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
