@@ -292,6 +292,53 @@ in the 30-test focused run), with four existing opt-in tests skipped and the ups
 Starlette/AnyIO warning visible. Fake usage/cost numbers are simulated, not actual spend. The runner
 is **locally implemented and rehearsed, not provider-backed or deployed acceptance**.
 
+### Readiness review — 2026-09-09
+
+At review baseline `fb22842`, the runner applied the current manifest through schema 0.42 but
+required runtime health to equal 0.41. A default fake-provider rehearsal reproduced
+`runtime_database_health_failed` before any provider dispatch; its earlier printed 0.41 message
+was a hard-coded label, not measured schema evidence. The runner now compares restricted runtime
+health with the final logical version in the manifest it applied, and prints success only after
+that comparison passes. The complete migration validator still runs first; a missing or mismatched
+health version stops the trial before private credential entry.
+
+The corrected four-case EN/SV rehearsal passed at schema 0.42 with **10 fake model calls**. It proved
+private markers present for Li and absent from Nora's complete packet, private derived history,
+one synthetic correction before an injected delivery failure, uncertainty, and unchanged canonical
+fingerprints with no additional fake-provider call on exact replay. Both disposable containers
+created during reproduction and validation were removed by their exact returned IDs. There was no
+live trial ledger at the fixed path when checked; no ledger was deleted or reset. This is local
+fake-provider evidence only. The displayed simulated cost is not actual consumption.
+
+Validation: **34 trial budget/isolation tests passed**, including current-manifest acceptance and
+older, unexpected and missing runtime-schema rejection; **1,171 backend tests passed**, with four
+intentional opt-in skips. The upstream Starlette/AnyIO warning remained visible. No production
+runtime, migration file, provider configuration or authority changed.
+
+The next proposed trial retains the existing four-case allocation and fixed ledger: one privacy
+and one recovery turn per language, **4 new turns / 16 underlying calls / USD 0.50 maximum**.
+It requires new exact authorization, current prepaid balance and pricing/coverage verification,
+disabled auto-reload, and the existing masked credential prompt. Do not run the earlier dated
+operator wrapper with stale balance evidence. The current continuation authorizes local preparation
+only. Subsequent Workspace and derived-capture provider cases remain outside that four-turn batch.
+
+| Evidence layer | Disposition after this review |
+| --- | --- |
+| Local fake providers and real disposable database | Passed at schema 0.42; earlier schema-0.41 results remain historical evidence |
+| Local real providers | Still unexecuted; prompt/classifier output and provider interaction remain unverified for these cases |
+| Deployed privacy/recovery correction | Recorded in prior releases; this local rehearsal does not reverify Cloud Run or owner data |
+| Reconciliation | The isolated driver proves the same synthetic correction record and unchanged replay fingerprint. It does not establish a production reconciliation endpoint or permission to reset an uncertain turn |
+| Historical owner records | Unassessed; needs separately scoped owner review or an explicit residual-risk decision |
+| Device, owner and stable use | Open; no new owner observations were supplied |
+
+For the proposed recovery case, classify the isolated result as **effect observed** only after the
+same fixture record, source-turn identity and fingerprint checks pass. Failure to find a result is
+**unresolved**, not proof of no effect. A no-effect finding would require positive evidence that
+the write never dispatched or committed; it is not an outcome this post-write fixture aims to prove.
+The model response is deliberately withheld after it returns, so the case exercises the application's
+deterministic uncertainty response; do not label it a test of model-generated uncertainty wording.
+Never reset the ledger or turn, submit a replacement identity, or infer safe retry from a 503.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,

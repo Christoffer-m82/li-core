@@ -119,6 +119,10 @@ where applicable, Heimdall review.
   The [bounded provider-trial preparation](TESTING_AND_AUDIT.md#provider-trial-preparation--2026-09-07)
   now adds a local write-ahead budget and rehearsed synthetic runner, but has made no live calls.
   Do not treat guard implementation or a fake-provider rehearsal as closing this risk.
+  The [2026-09-09 readiness review](TESTING_AND_AUDIT.md#readiness-review--2026-09-09)
+  corrected the local runner's stale schema-0.41 gate and passed the same four synthetic cases
+  against schema 0.42. Real-provider execution, subsequent Workspace/capture provider coverage,
+  production reconciliation and the historical-record decision remain outstanding.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
