@@ -289,6 +289,21 @@ def test_recovery_pipeline_observations_start_content_free_and_false():
     assert flags and all(type(value) is bool and value is False for value in flags.values())
 
 
+@pytest.mark.parametrize("selected", [frozenset(), frozenset({("en", "unknown")})])
+def test_provider_trial_rejects_empty_or_unknown_case_selection(budget, selected):
+    from acceptance.provider_trial import run_cases
+    with pytest.raises(TrialStopped, match="trial_case_selection_not_allowed"):
+        run_cases(budget, None, None, selected_cases=selected)
+
+
+def test_unresolved_case_selection_skips_only_completed_english_privacy():
+    from acceptance.provider_trial import ALL_CASES, UNRESOLVED_CASES
+    assert ALL_CASES - UNRESOLVED_CASES == {("en", "privacy")}
+    assert UNRESOLVED_CASES == {
+        ("en", "recovery"), ("sv", "privacy"), ("sv", "recovery"),
+    }
+
+
 def test_checkpoint_is_durable_and_contains_only_safe_booleans(budget, tmp_path):
     import json
     budget.checkpoint("sv", "recovery_precondition", {"exact_value_unique": False})
@@ -488,3 +503,57 @@ def test_key_entry_attempt_preserves_both_ledgers(separate_trial, monkeypatch, c
         runner.trial_journal(True, False, True)
     with pytest.raises(TrialStopped, match="select_one_authorized_batch_only"):
         runner.trial_journal(True, True, True)
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_content_free_attempt_preserves_all_prior_ledgers(separate_trial, monkeypatch, changed):
+    import hashlib
+    import json
+    runner, original, pre_dispatch = separate_trial
+    pre_dispatch.write_bytes(b'{"event":"private-entry-stop"}\n')
+    monkeypatch.setattr(runner, "PRE_DISPATCH_SHA256",
+                        hashlib.sha256(pre_dispatch.read_bytes()).hexdigest())
+    diagnostic = original.with_name("diagnostic.jsonl")
+    diagnostic.write_bytes(b'{"event":"diagnostic-stop"}\n')
+    monkeypatch.setattr(runner, "KEY_ENTRY_JOURNAL", diagnostic)
+    monkeypatch.setattr(runner, "DIAGNOSTIC_SHA256",
+                        hashlib.sha256(diagnostic.read_bytes()).hexdigest())
+    new = original.with_name("content-free.jsonl")
+    monkeypatch.setattr(runner, "CONTENT_FREE_JOURNAL", new)
+    before = [path.read_bytes() for path in (original, pre_dispatch, diagnostic)]
+    if changed:
+        diagnostic.write_bytes(b"changed fixture")
+        with pytest.raises(TrialStopped, match="preserved_diagnostic_ledger_required"):
+            runner.trial_journal(True, False, False, True)
+        assert not new.exists()
+        return
+    path, digest = runner.trial_journal(True, False, False, True)
+    trial = TrialBudget(
+        path,
+        predecessor_sha256=digest,
+        pre_dispatch_sha256=runner.PRE_DISPATCH_SHA256,
+        diagnostic_sha256=runner.DIAGNOSTIC_SHA256,
+    )
+    trial.close()
+    event = json.loads(new.read_text())
+    assert event["diagnostic_ledger"] == "kr011-provider-pr104-key-entry-20260909.jsonl"
+    assert event["diagnostic_sha256"] == runner.DIAGNOSTIC_SHA256
+    assert event["reviewed_diagnostic_pr"] == 106
+    assert event["reviewed_diagnostic_merge"] == "f91e859632d4135af336192bd20e8a03b49755a9"
+    assert [path.read_bytes() for path in (original, pre_dispatch, diagnostic)] == before
+    with pytest.raises(TrialStopped, match="trial_ledger_already_exists"):
+        runner.trial_journal(True, False, False, True)
+    with pytest.raises(TrialStopped, match="select_one_authorized_batch_only"):
+        runner.trial_journal(True, True, False, True)
+
+
+@pytest.mark.parametrize("diagnostic", ["raw provider text", "", "a" * 63, 123])
+def test_diagnostic_provenance_rejects_non_hash(tmp_path, diagnostic):
+    with pytest.raises(TrialStopped, match="trial_diagnostic_hash_invalid"):
+        TrialBudget(
+            tmp_path / "new.jsonl",
+            predecessor_sha256="a" * 64,
+            pre_dispatch_sha256="b" * 64,
+            diagnostic_sha256=diagnostic,
+        )
+    assert not (tmp_path / "new.jsonl").exists()

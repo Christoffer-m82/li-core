@@ -131,6 +131,10 @@ where applicable, Heimdall review.
   records only allowlisted booleans at classifier, target-resolution, apply and dispatch boundaries;
   its local EN/SV fake-provider rehearsal passed. It does not resolve the retained live result and
   adds no permission or identity for another provider attempt.
+  The later [unresolved-case continuation preparation](TESTING_AND_AUDIT.md#unresolved-case-continuation-preparation--2026-09-09)
+  adds an exclusive one-use identity that preserves all three earlier ledgers and skips the already
+  passed English privacy case. Its three-case fake-provider rehearsal passed; no live execution is
+  authorized or claimed.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only

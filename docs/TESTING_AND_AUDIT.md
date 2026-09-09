@@ -503,6 +503,36 @@ call, staging change or personal-data access was added. All three existing live 
 immutable evidence. Another provider-backed attempt still requires separate review, exact
 authorization, fresh cost coverage and a new one-use identity. KR-011 and OM-003 remain open.
 
+### Unresolved-case continuation preparation — 2026-09-09
+
+After PR #106 merged as `f91e859632d4135af336192bd20e8a03b49755a9`, the next local-only
+preparation reduced a future provider batch to the three genuinely unresolved cases: English
+recovery, Swedish historical privacy and Swedish recovery. The already passed provider-backed
+English privacy case is not repeated. The selector is `--authorized-content-free-trial`; live use
+still also requires `--live`, fresh prepaid coverage and private terminal key entry. It has no
+arbitrary journal path and writes only the new exclusive-created
+`output/acceptance/kr011-provider-content-free-20260909.jsonl` ledger.
+
+Before any resource is created, the selector requires all three earlier live ledgers to exist with
+their reviewed SHA-256 values. It records the original, pre-dispatch and diagnostic provenance and
+PR #106's merge commit without copying provider content. Every earlier selector remains blocked by
+its existing immutable ledger. The hard ceilings remain four turns, 16 calls and USD 0.50, although
+the selected continuation contains only three turn identities. Exact replays remain rejection checks
+and cannot dispatch provider calls.
+
+A schema-0.42 fake-provider rehearsal passed the selected three cases with seven fake calls. It
+proved both recovery writes became uncertain after the injected delivery failure, exact replay made
+no additional call or canonical change, and the Swedish private marker reached Li but not Nora's
+complete packet. The exact disposable database/container and this rehearsal's dry ledger were
+removed. One hundred focused guard tests and Ruff passed. A read-only account check at 18:45 UTC
+showed USD 11.92 prepaid and auto-reload off. The unchanged full four-case fake-provider path also
+passed with 10 fake calls, and the full backend suite passed 1,237 tests with four intentional skips
+and the upstream Starlette/AnyIO warning visible. Both additional dry ledgers and all exact disposable
+resources were removed. The balance is coverage evidence only, not authorization or a provider call.
+No live call, personal-record access, staging change or protected output change occurred. Exact owner
+authorization is still required immediately before creating the live ledger; KR-011 and OM-003
+remain open.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,
