@@ -385,6 +385,17 @@ private credential entry and fresh coverage at execution. KR-011 remains open; s
 provider acceptance, the historical-record decision, device/owner evidence and stability remain
 distinct outstanding requirements. OM-003 remains gated.
 
+## Privacy and recovery readiness review — 2026-09-09
+
+The [existing bounded trial](TESTING_AND_AUDIT.md#readiness-review--2026-09-09) was blocked locally
+by a stale schema-0.41 check after the manifest advanced to 0.42. Its corrected manifest comparison
+passed the four existing EN/SV privacy/recovery cases at schema 0.42 with 10 fake calls; the full
+backend suite passed 1,171 tests with four intentional opt-in skips. This adds local evidence and
+repairs trial readiness; no live provider test or staging change occurred. KR-011 remains open for
+real-provider acceptance, reconciliation and the separately authorized historical-record decision.
+OM-003 remains gated by those relevant core findings and the applicable owner/device and stable-use
+requirements. Finance archive and Calendar-read acceptance do not substitute for these observations.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
