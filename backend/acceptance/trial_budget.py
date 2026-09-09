@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 from threading import RLock
 import time
 
@@ -63,7 +64,16 @@ def reservation(request: dict) -> tuple[int, int]:
 
 
 class TrialBudget:
-    def __init__(self, journal: Path, *, expires_at: float | None = None):
+    def __init__(self, journal: Path, *, expires_at: float | None = None,
+                 predecessor_sha256: str | None = None, pre_dispatch_sha256: str | None = None):
+        if pre_dispatch_sha256 is not None and (
+                predecessor_sha256 is None or not isinstance(pre_dispatch_sha256, str)
+                or not re.fullmatch(r"[a-f0-9]{64}", pre_dispatch_sha256)):
+            raise TrialStopped("trial_pre_dispatch_hash_invalid")
+        if predecessor_sha256 is not None and (
+                not isinstance(predecessor_sha256, str)
+                or not re.fullmatch(r"[a-f0-9]{64}", predecessor_sha256)):
+            raise TrialStopped("trial_predecessor_hash_invalid")
         self._lock = RLock()
         # Exclusive creation is intentional. After interruption, reconcile this
         # batch; do not delete its journal or mint a new identity to rerun it.
@@ -73,8 +83,17 @@ class TrialBudget:
         self.stopped = False
         self.replaying = False
         self.expires_at = expires_at
+        provenance = {} if predecessor_sha256 is None else {
+            "predecessor_ledger": "kr011-provider-20260907.jsonl",
+            "predecessor_sha256": predecessor_sha256, "reviewed_pr": 104,
+            "reviewed_merge": "873c6823c6b853bae14926da5baba44f2334abf0",
+        }
+        if pre_dispatch_sha256 is not None:
+            provenance.update(pre_dispatch_ledger="kr011-provider-pr104-20260909.jsonl",
+                              pre_dispatch_sha256=pre_dispatch_sha256)
         self._append({"event": "created", "max_calls": MAX_CALLS,
-                      "max_turns": MAX_TURNS, "max_micro_usd": MAX_MICRO_USD})
+                      "max_turns": MAX_TURNS, "max_micro_usd": MAX_MICRO_USD,
+                      **provenance})
 
     def _append(self, event: dict) -> None:
         try:

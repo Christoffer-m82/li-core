@@ -405,6 +405,83 @@ is preserved and still blocks rerunning the old command. A separately scoped, ow
 synthetic trial with fresh coverage is needed before claiming the real-provider failure resolved.
 KR-011 and OM-003 remain open.
 
+### Separately authorized PR-104 validation preparation — 2026-09-09
+
+The owner authorized one new isolated four-turn / 16-call / USD 0.50 maximum prepaid trial
+after PR #104, not a restart or reconciliation of the discarded first result. Select it explicitly
+with `--authorized-pr104-trial`; `--live` is still separately required. The original command remains
+blocked by its original ledger. No arbitrary ledger-path or automatic live-batch generator is exposed.
+
+The new live ledger is `output/acceptance/kr011-provider-pr104-20260909.jsonl`. Before creating
+resources, the runner requires the preserved `kr011-provider-20260907.jsonl` to match its reviewed
+SHA-256. The new exclusive-created ledger records that predecessor filename/hash and PR #104's
+merge commit. An existing new ledger blocks execution; a creation race also fails closed. Never
+delete, rename, reset or overwrite either ledger to rerun. A stopped new trial requires reconciliation
+and another owner decision, not this flag again. Fake rehearsals retain separate dry-run ledgers.
+
+This preparation uses only the new disposable `li-os-kr011-provider-pr104-20260909` container and
+`li_os_kr011_provider_pr104` database on `127.0.0.1:55443`, with the unchanged pinned image,
+three separated synthetic roles, tracked manifest, guarded provider and correction proof. Local
+validation passed 75 focused tests, 1,212 full-backend tests with four intentional opt-in skips,
+and Ruff. The Starlette/AnyIO warning remained visible. One four-case EN/SV fake rehearsal passed
+at schema 0.42 with 10 fake calls; its exact disposable resources were removed. The original ledger
+hash remained unchanged and the new live ledger was absent after preparation.
+
+Read-only billing at 15:12 UTC showed USD 11.95 prepaid with auto-reload off. The official
+[Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) still listed Sonnet 5
+at USD 2/10 per million input/output tokens; the guard retains conservative 3/15 reservations.
+Coverage expires after one hour and must be checked again if stale. No live call occurred during
+this preparation. Private key entry and the new trial's actual observations remain pending.
+KR-011 and OM-003 remain open; local provider results cannot establish historical-record safety,
+staging recovery, subsequent Workspace/capture provider coverage, or device/owner/stability acceptance.
+
+### Private-entry stop and separately authorized attempt — 2026-09-09
+
+The PR-104 trial stopped at `anthropic_key_not_entered` before SDK construction or dispatch.
+Its ledger contains only the creation/provenance event: zero turns, reservations or provider calls,
+and zero provider consumption for that run. This was local prefix validation, not an Anthropic
+authentication rejection. Operator output and an exact-name local Docker check confirm cleanup.
+Both this ledger and the original four-call ledger remain unchanged.
+
+The owner subsequently authorized one separate attempt under the same limits. The explicit
+`--authorized-key-entry-trial` selector uses only
+`output/acceptance/kr011-provider-pr104-key-entry-20260909.jsonl`, requires both previous ledgers'
+reviewed hashes, and records both references. Both earlier selectors remain blocked; an existing
+new ledger or conflicting selectors also stops execution. No automatic retry or arbitrary ledger
+path is introduced. The new disposable database still uses the reviewed localhost-only setup.
+
+Preparation passed 77 focused tests, Ruff, and the four-case schema-0.42 fake rehearsal with
+10 fake calls and exact-resource cleanup. The full backend suite passed 1,214 tests with four
+intentional skips and the existing Starlette/AnyIO warning. Billing was rechecked at 16:04 UTC:
+USD 11.95 prepaid, auto-reload off. Official Sonnet 5 pricing remained USD 2/10 per million
+input/output tokens, below the guard's conservative reservation rates. No new live call occurred.
+Private entry and actual provider-backed acceptance remain pending; KR-011 and OM-003 remain open.
+
+### PR-104 provider-validation result — 2026-09-09
+
+The separately authorized attempt passed the fresh isolated schema-0.42 and three-role checks,
+accepted the privately entered existing API credential, and completed four first-party Sonnet 5
+calls across two synthetic turn identities. The durable ledger records 7,810 input and 1,715 output
+tokens with a conservative USD 0.049155 bound. This is a client-side bound, not a remeasured charge.
+The English historical-privacy checkpoint passed: private context reached Li but not Nora's complete
+packet, Nora responded, derived history remained private, and exact replay made no provider call.
+
+The English recovery case then stopped at `correction_dispatch_not_unique`. Its preceding safe
+checkpoint found no replacement marker or current-turn source in the bounded recall, while the
+governed observer could not prove exactly one successful correction receipt. That fixed diagnostic
+means the receipt count was not one; the retained evidence cannot distinguish zero from multiple
+receipts or identify the classifier's discarded response. It therefore does not establish a write,
+no effect, an application defect, or safe retry. The deliberately injected post-response delivery
+failure was never reached, English recovery remains unresolved, and both Swedish cases were not run.
+
+No automatic retry occurred. The runner removed only its exact disposable container, database and
+volume. The original, pre-dispatch-stop and current ledgers remain preserved. Do not rerun or delete
+any ledger to obtain a green result. A future diagnostic would require a separately reviewed design
+that records a fixed safe classifier/correction disposition before cleanup, new exact authorization,
+fresh cost evidence and a new one-use identity; this result does not provide that authorization.
+No staging, cloud, personal record, provider configuration or billing setting changed. KR-011 stays
+open, as do historical-record, staging/owner/device/stability evidence and OM-003's entry gate.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,

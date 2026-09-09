@@ -297,3 +297,110 @@ def test_governed_correction_proof_requires_unique_write_and_row(correction_proo
     with pytest.raises(TrialStopped):
         verified_correction(rows * row_count, receipts * receipt_count,
                             "seed", "synthetic-new", "synthetic-old", "synthetic-turn")
+
+
+@pytest.fixture
+def separate_trial(tmp_path, monkeypatch):
+    import hashlib
+    from acceptance import run_provider_trial as runner
+    old = tmp_path / "original.jsonl"
+    old.write_bytes(b'{"event":"synthetic-predecessor"}\n')
+    new = tmp_path / "new.jsonl"
+    monkeypatch.setattr(runner, "JOURNAL", old)
+    monkeypatch.setattr(runner, "PR104_JOURNAL", new)
+    monkeypatch.setattr(runner, "PREDECESSOR_SHA256", hashlib.sha256(old.read_bytes()).hexdigest())
+    return runner, old, new
+
+
+def test_separate_authorized_trial_preserves_and_links_predecessor(separate_trial):
+    import json
+    runner, old, new = separate_trial
+    before = old.read_bytes()
+    path, digest = runner.trial_journal(True, True)
+    assert path == new and digest == runner.PREDECESSOR_SHA256
+    trial = TrialBudget(path, predecessor_sha256=digest)
+    trial.close()
+    event = json.loads(new.read_text())
+    assert event["predecessor_sha256"] == digest
+    assert event["predecessor_ledger"] == "kr011-provider-20260907.jsonl"
+    assert event["reviewed_pr"] == 104
+    assert event["max_calls"] == 16 and event["max_turns"] == 4
+    assert event["max_micro_usd"] == 500_000
+    assert old.read_bytes() == before
+    with pytest.raises(TrialStopped, match="trial_ledger_already_exists_reconcile_only"):
+        runner.trial_journal(True, True)
+
+
+def test_old_live_command_remains_blocked(separate_trial):
+    runner, _, new = separate_trial
+    with pytest.raises(TrialStopped, match="trial_ledger_already_exists_reconcile_only"):
+        runner.trial_journal(True, False)
+    assert not new.exists()
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_separate_trial_requires_unchanged_original(separate_trial, missing):
+    runner, old, new = separate_trial
+    if missing:
+        old.unlink()
+    else:
+        old.write_bytes(b"changed synthetic fixture")
+    with pytest.raises(TrialStopped, match="preserved_predecessor"):
+        runner.trial_journal(True, True)
+    assert not new.exists()
+
+
+def test_separate_fake_rehearsal_does_not_consume_live_ledger(separate_trial):
+    runner, old, new = separate_trial
+    before = old.read_bytes()
+    path, digest = runner.trial_journal(False, True)
+    assert path not in {old, new} and "dry" in path.name
+    assert digest == runner.PREDECESSOR_SHA256
+    assert old.read_bytes() == before and not new.exists()
+
+
+def test_exclusive_creation_rejects_racing_ledger(separate_trial):
+    runner, _, new = separate_trial
+    path, digest = runner.trial_journal(True, True)
+    new.write_bytes(b"another process owns this synthetic fixture")
+    before = new.read_bytes()
+    with pytest.raises(FileExistsError):
+        TrialBudget(path, predecessor_sha256=digest)
+    assert new.read_bytes() == before
+
+
+@pytest.mark.parametrize("invalid", ["raw provider text", "", "a" * 63, 123])
+def test_predecessor_provenance_rejects_non_hash(tmp_path, invalid):
+    path = tmp_path / "new.jsonl"
+    with pytest.raises(TrialStopped, match="trial_predecessor_hash_invalid"):
+        TrialBudget(path, predecessor_sha256=invalid)
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_key_entry_attempt_preserves_both_ledgers(separate_trial, monkeypatch, changed):
+    import hashlib
+    import json
+    runner, old, stopped = separate_trial
+    stopped.write_bytes(b'{"event":"created"}\n')
+    old_before, stopped_before = old.read_bytes(), stopped.read_bytes()
+    monkeypatch.setattr(runner, "PRE_DISPATCH_SHA256", hashlib.sha256(stopped_before).hexdigest())
+    new = old.with_name("third.jsonl")
+    monkeypatch.setattr(runner, "KEY_ENTRY_JOURNAL", new)
+    if changed:
+        stopped.write_bytes(b"changed fixture")
+        with pytest.raises(TrialStopped, match="preserved_pre_dispatch_ledger_required"):
+            runner.trial_journal(True, False, True)
+        assert not new.exists()
+        return
+    path, digest = runner.trial_journal(True, False, True)
+    trial = TrialBudget(path, predecessor_sha256=digest,
+                        pre_dispatch_sha256=runner.PRE_DISPATCH_SHA256)
+    trial.close()
+    event = json.loads(new.read_text())
+    assert event["pre_dispatch_sha256"] == runner.PRE_DISPATCH_SHA256
+    assert old.read_bytes() == old_before and stopped.read_bytes() == stopped_before
+    with pytest.raises(TrialStopped, match="trial_ledger_already_exists"):
+        runner.trial_journal(True, False, True)
+    with pytest.raises(TrialStopped, match="select_one_authorized_batch_only"):
+        runner.trial_journal(True, True, True)

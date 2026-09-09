@@ -408,6 +408,12 @@ reproduced the strict-string/domain harness defect with realistic fake-classifie
 replaced it with governed replacement-record, source-turn and persisted-content proof. The local
 EN/SV rehearsal passes; no new real-provider evidence is claimed and the original ledger is preserved.
 
+The later [PR-104 provider-validation result](TESTING_AND_AUDIT.md#pr-104-provider-validation-result--2026-09-09)
+adds a provider-backed English historical-privacy pass. Its English recovery case could not prove
+exactly one governed correction dispatch, so the post-response uncertainty/replay case was not
+reached; both Swedish cases remain unrun. The one-use ledger and disposable-resource cleanup are
+preserved evidence, not permission to retry or proof of no effect. KR-011 and OM-003 remain open.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
