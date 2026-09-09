@@ -573,6 +573,40 @@ fresh coverage and a reviewed one-use identity preserving all four ledgers. KR-0
 remain open, along with subsequent Workspace/capture provider coverage, historical-record decisions,
 deployed recovery, physical-device, owner and stability evidence.
 
+### Authorized recovery-fixture trial preparation — 2026-09-09
+
+The owner separately authorized one new isolated validation of the PR #108 fixtures
+(`43f4437c50213ab4b7ae7720c03302d534d648c7`). The new selector is
+`--authorized-recovery-fixture-trial`; only `--live` permits metered execution. It verifies all four
+earlier live-ledger hashes before creating a disposable resource, then exclusively creates
+`output/acceptance/kr011-provider-recovery-fixture-20260909.jsonl`. Its provenance records all four
+predecessors and the reviewed fixture merge. Earlier stopped selectors remain blocked; deleting a
+ledger or changing its identity is not a retry procedure.
+
+Only English recovery, Swedish historical privacy and Swedish recovery run, in that order. The
+already passed English privacy case is excluded. Bounds remain four turns, 16 underlying calls,
+USD 0.50, and 2,048 output tokens per call, with durable pre-dispatch reservations, no SDK retries,
+and no extra providers or chargeable tools. The unchanged conservative USD 3/15 per-million-token
+rates exceed the [current standard Sonnet 5 USD 2/10 rates](https://platform.claude.com/docs/en/about-claude/pricing)
+checked on 2026-09-09. Fresh prepaid coverage and disabled auto-reload must be checked immediately
+before execution; coverage expires after one hour and is checked again before each dispatch.
+The existing API key is entered only through the runner's masked private terminal prompt.
+
+The exact disposable container is `li-os-kr011-recovery-fixture-20260909`, with no host mounts and
+localhost-only port 55443. It uses the existing pinned image, tracked schema-0.42 manifest,
+synthetic database and separated runtime roles. A pre-existing target is refused. Cleanup removes
+only the created container ID and its disposable volumes, retaining every live ledger. Strict
+classifier, governed-write, provenance, privacy, uncertain-effect and replay assertions are
+unchanged; no candidate is manufactured to obtain a pass.
+
+Local validation: 121 focused guard tests and 1,258 full-backend tests passed, with four intentional
+opt-in skips and the upstream Starlette/AnyIO warning visible. The selected three-case fake-provider
+rehearsal passed with seven fake calls and exact-resource cleanup. All four live-ledger hashes
+remained unchanged. This records preparation and local simulated evidence only: the new live trial
+has not run. Stop on the first failed gate, preserve and reconcile its journal, and do not start
+another attempt under this authorization. KR-011 and OM-003 remain open; no staging, personal-data,
+physical-device, owner or stability evidence is added by this preparation.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,

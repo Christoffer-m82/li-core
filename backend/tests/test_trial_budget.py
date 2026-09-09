@@ -594,3 +594,79 @@ def test_diagnostic_provenance_rejects_non_hash(tmp_path, diagnostic):
             diagnostic_sha256=diagnostic,
         )
     assert not (tmp_path / "new.jsonl").exists()
+
+
+@pytest.fixture
+def recovery_fixture_trial(tmp_path, monkeypatch):
+    import hashlib
+    from acceptance import run_provider_trial as runner
+    prior = []
+    for path_key, hash_key in (
+        ("JOURNAL", "PREDECESSOR_SHA256"),
+        ("PR104_JOURNAL", "PRE_DISPATCH_SHA256"),
+        ("KEY_ENTRY_JOURNAL", "DIAGNOSTIC_SHA256"),
+        ("CONTENT_FREE_JOURNAL", "CONTENT_FREE_SHA256"),
+    ):
+        path = tmp_path / (path_key + ".jsonl")
+        path.write_bytes(b'{"event":"synthetic-preserved-ledger"}\n')
+        monkeypatch.setattr(runner, path_key, path)
+        monkeypatch.setattr(runner, hash_key, hashlib.sha256(path.read_bytes()).hexdigest())
+        prior.append(path)
+    new = tmp_path / "recovery-fixture.jsonl"
+    monkeypatch.setattr(runner, "RECOVERY_FIXTURE_JOURNAL", new)
+    return runner, prior, new
+
+
+def test_recovery_fixture_trial_is_one_use_and_preserves_four_ledgers(recovery_fixture_trial):
+    import json
+    runner, prior, new = recovery_fixture_trial
+    before = [path.read_bytes() for path in prior]
+    path, digest = runner.trial_journal(True, False, authorized_recovery_fixture=True)
+    assert path == new
+    trial = TrialBudget(path, predecessor_sha256=digest,
+                        pre_dispatch_sha256=runner.PRE_DISPATCH_SHA256,
+                        diagnostic_sha256=runner.DIAGNOSTIC_SHA256,
+                        content_free_sha256=runner.CONTENT_FREE_SHA256)
+    trial.close()
+    event = json.loads(new.read_text())
+    assert event["content_free_sha256"] == runner.CONTENT_FREE_SHA256
+    assert event["reviewed_fixture_pr"] == 108
+    assert event["reviewed_fixture_merge"] == "43f4437c50213ab4b7ae7720c03302d534d648c7"
+    assert (event["max_turns"], event["max_calls"], event["max_micro_usd"]) == (4, 16, 500_000)
+    assert [path.read_bytes() for path in prior] == before
+    for selectors in [(False, False, False, False), (True, False, False, False),
+                      (False, True, False, False), (False, False, True, False),
+                      (False, False, False, True)]:
+        with pytest.raises(TrialStopped, match="trial_ledger_already_exists"):
+            runner.trial_journal(True, *selectors)
+
+
+@pytest.mark.parametrize("index", range(4))
+@pytest.mark.parametrize("missing", [False, True])
+def test_recovery_fixture_trial_requires_each_prior_ledger(recovery_fixture_trial, index, missing):
+    runner, prior, new = recovery_fixture_trial
+    if missing:
+        prior[index].unlink()
+    else:
+        prior[index].write_bytes(b"changed synthetic ledger")
+    with pytest.raises(TrialStopped, match="preserved_"):
+        runner.trial_journal(True, False, authorized_recovery_fixture=True)
+    assert not new.exists()
+
+
+def test_recovery_fixture_dry_run_and_conflicting_selectors(recovery_fixture_trial):
+    runner, prior, new = recovery_fixture_trial
+    path, _ = runner.trial_journal(False, False, authorized_recovery_fixture=True)
+    assert "dry" in path.name and path not in [*prior, new] and not new.exists()
+    for earlier in [(True, False, False), (False, True, False), (False, False, True)]:
+        with pytest.raises(TrialStopped, match="select_one_authorized_batch_only"):
+            runner.trial_journal(True, *earlier, True)
+
+
+@pytest.mark.parametrize("invalid", ["raw provider text", "", "a" * 63, 123])
+def test_content_free_provenance_rejects_non_hash(tmp_path, invalid):
+    path = tmp_path / "new.jsonl"
+    with pytest.raises(TrialStopped, match="trial_content_free_hash_invalid"):
+        TrialBudget(path, predecessor_sha256="a" * 64, pre_dispatch_sha256="b" * 64,
+                    diagnostic_sha256="c" * 64, content_free_sha256=invalid)
+    assert not path.exists()
