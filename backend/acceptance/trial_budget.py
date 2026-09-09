@@ -166,16 +166,47 @@ class TrialBudget:
     def checkpoint(self, language: str, case: str, flags: dict[str, bool]) -> None:
         """Persist only fixed-schema observations, never arbitrary diagnostic text."""
         allowed = {
-            "specialist_packet_private_marker_absent", "li_packet_private_marker_present",
-            "specialist_provider_responded", "derived_history_private",
-            "exact_replay_no_provider_call", "write_before_model",
-            "real_response_before_injected_failure", "outcome_uncertain",
-            "canonical_memory_fingerprint_unchanged_on_replay",
-            "same_correction_record_after_replay", "exact_value_unique",
-            "marker_present", "current_turn_source_present",
+            "privacy": {
+                "specialist_packet_private_marker_absent", "li_packet_private_marker_present",
+                "specialist_provider_responded", "derived_history_private",
+                "exact_replay_no_provider_call",
+            },
+            "recovery": {
+                "write_before_model", "real_response_before_injected_failure",
+                "outcome_uncertain", "exact_replay_no_provider_call",
+                "canonical_memory_fingerprint_unchanged_on_replay",
+                "same_correction_record_after_replay",
+            },
+            "recovery_precondition": {
+                "exact_value_unique", "marker_present", "current_turn_source_present",
+            },
+            "recovery_classifier": {
+                "classifier_analysis_started", "classifier_analysis_completed",
+                "classifier_analysis_failed", "classifier_no_candidates",
+                "classifier_exactly_one_correction_candidate",
+                "classifier_multiple_correction_candidates",
+                "classifier_other_action_present", "classifier_correction_fields_complete",
+            },
+            "recovery_apply": {
+                "governed_apply_started", "governed_apply_completed", "governed_apply_failed",
+                "target_resolution_started", "target_resolution_completed",
+                "target_resolution_failed", "correction_dispatch_started",
+                "correction_dispatch_completed", "correction_dispatch_failed",
+            },
+            "recovery_pipeline": {
+                "classifier_analysis_started", "classifier_analysis_completed",
+                "classifier_analysis_failed", "classifier_no_candidates",
+                "classifier_exactly_one_correction_candidate",
+                "classifier_multiple_correction_candidates",
+                "classifier_other_action_present", "classifier_correction_fields_complete",
+                "governed_apply_started", "governed_apply_completed", "governed_apply_failed",
+                "target_resolution_started", "target_resolution_completed",
+                "target_resolution_failed", "correction_dispatch_started",
+                "correction_dispatch_completed", "correction_dispatch_failed",
+            },
         }
-        if (language not in {"en", "sv"} or case not in {"privacy", "recovery", "recovery_precondition"}
-                or not flags or set(flags) - allowed
+        if (language not in {"en", "sv"} or case not in allowed
+                or not flags or set(flags) - allowed.get(case, set())
                 or any(type(value) is not bool for value in flags.values())):
             raise TrialStopped("trial_checkpoint_not_allowed")
         with self._lock:

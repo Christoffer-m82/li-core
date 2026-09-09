@@ -482,6 +482,27 @@ fresh cost evidence and a new one-use identity; this result does not provide tha
 No staging, cloud, personal record, provider configuration or billing setting changed. KR-011 stays
 open, as do historical-record, staging/owner/device/stability evidence and OM-003's entry gate.
 
+### Content-free recovery diagnostic hardening — 2026-09-09
+
+The isolated provider harness now records fixed boolean checkpoints at the memory classifier,
+governed-apply, target-resolution and correction-dispatch boundaries. The classifier checkpoint
+distinguishes no candidate, exactly one correction, multiple corrections, another memory action,
+incomplete correction fields and classifier failure. Later checkpoints distinguish an apply that
+was never started from target-resolution, correction-dispatch and apply completion or failure.
+The allowlist rejects arbitrary keys, text and non-boolean values; prompts, candidate contents,
+target queries, replacement values, identifiers, provider responses and exception bodies are not
+written to the ledger.
+
+Ninety-one focused checkpoint, budget and one-use-ledger tests passed. The local fake-provider rehearsal
+then passed all four EN/SV privacy and recovery cases at schema 0.42 with 10 fake calls, emitted the
+new successful pipeline checkpoints and removed its exact disposable resources. The full backend
+suite passed 1,228 tests with four intentional opt-in skips and the existing Starlette/AnyIO warning.
+This validates the diagnostic design locally; it does not reconstruct the discarded PR-104
+classifier response or resolve that live result. No new live selector, ledger identity, provider
+call, staging change or personal-data access was added. All three existing live ledgers remain
+immutable evidence. Another provider-backed attempt still requires separate review, exact
+authorization, fresh cost coverage and a new one-use identity. KR-011 and OM-003 remain open.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,

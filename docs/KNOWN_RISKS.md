@@ -127,6 +127,10 @@ where applicable, Heimdall review.
   passed English historical privacy but stopped before the injected recovery failure because exactly
   one governed correction dispatch could not be proven. English recovery and both Swedish cases
   remain outstanding; the retained result is not proof of no effect or permission to retry.
+  The later [content-free diagnostic hardening](TESTING_AND_AUDIT.md#content-free-recovery-diagnostic-hardening--2026-09-09)
+  records only allowlisted booleans at classifier, target-resolution, apply and dispatch boundaries;
+  its local EN/SV fake-provider rehearsal passed. It does not resolve the retained live result and
+  adds no permission or identity for another provider attempt.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
