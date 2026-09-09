@@ -73,8 +73,10 @@ def fake_messages():
             old = re.search(r"synthetic-old-(?:en|sv)-[a-f0-9]+", content)
             new = re.search(r"synthetic-new-(?:en|sv)-[a-f0-9]+", content)
             candidate = {"action": "correct_explicit",
-                         "memory_class": "explicit_preference", "domain": "preferences",
-                         "value": new[0] if new else "unused", "sensitivity": "low"}
+                         "memory_class": "explicit_preference", "domain": "notebooks",
+                         "value": (("Föredrar anteckningsböcker märkta " if "synthetic-new-sv-" in content
+                                    else "Prefers notebooks labelled ") + new[0]) if new else "unused",
+                         "sensitivity": "low"}
             if old:
                 candidate["target_query"] = old[0]
             answer = {"candidates": [candidate] if old else []}
