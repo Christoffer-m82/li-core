@@ -443,7 +443,15 @@ fix or authorize another attempt. KR-011 and OM-003 remain open; staging is unch
 The owner subsequently authorized [one recovery-fixture validation trial](TESTING_AND_AUDIT.md#authorized-recovery-fixture-trial-preparation--2026-09-09).
 Its new exclusive selector preserves all four live ledgers and skips English privacy. Local guard
 tests and the seven-call fake rehearsal passed; live execution still requires fresh coverage and
-private key entry. No new provider-backed result or staging change is claimed.
+private key entry. No new provider-backed result or staging change was claimed by that preparation.
+
+The subsequent [recovery-fixture provider-backed result](TESTING_AND_AUDIT.md#recovery-fixture-provider-backed-result--2026-09-09)
+passed English recovery, Swedish historical privacy and Swedish recovery with seven calls and a
+USD 0.074364 conservative bound. Combined with the earlier English privacy pass, the four baseline
+cases now have local provider-backed evidence. All five live ledgers remain preserved; the isolated
+container is absent. No staging or device acceptance is added. KR-011 and OM-003 remain open for
+remaining coverage, deployed reconciliation, historical-record decisions, device/owner and stability
+evidence. Do not rerun this completed trial or repeat the already passed English privacy case.
 
 ## Earlier baseline — 2026-09-04
 

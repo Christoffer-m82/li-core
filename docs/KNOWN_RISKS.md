@@ -91,7 +91,8 @@ where applicable, Heimdall review.
   the [schema-0.41 release](releases/2026-09-06-8831381-staging.md), after a fresh authenticated
   backup, full isolated restore, migration rehearsal, authority checks, and zero-traffic candidates.
 - **Impact:** The corrected staging runtime is no longer the older affected release, but provider-
-  backed bilingual privacy and uncertain-effect journeys have not been exercised live. Previously
+  backed bilingual privacy and uncertain-effect journeys are locally verified with synthetic records,
+  but applicable staging reconciliation and wider coverage remain incomplete. Previously
   affected personal records were not inspected or reclassified. A bounded live routing check also
   found that a prefixed English `Ask Nora` request invoked Nora while its Swedish `Be Nora`
   equivalent did not. That narrow routing failure is now corrected and live-retested in the
@@ -142,10 +143,15 @@ where applicable, Heimdall review.
   remain preserved; that fixture correction added no new trial identity. A separately owner-authorized
   [recovery-fixture trial preparation](TESTING_AND_AUDIT.md#authorized-recovery-fixture-trial-preparation--2026-09-09)
   now adds one exclusive identity, verified locally with all four predecessor hashes and the same
-  strict limits. It has not run live and does not close this risk.
+  strict limits. Its later [provider-backed result](TESTING_AND_AUDIT.md#recovery-fixture-provider-backed-result--2026-09-09)
+  passed both recovery cases and Swedish privacy with seven calls. The four baseline cases now have
+  local provider-backed evidence, not staging or universal-model acceptance. All five live ledgers
+  remain preserved; earlier inconclusive effects are not retroactively resolved. This does not close
+  the risk: subsequent Workspace/capture provider coverage, deployed reconciliation and the separate
+  historical-record decision remain outstanding.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
-  English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
+  coverage without repeating the passed baseline cases. Assess previously affected records only
   through a separately authorized privacy-preserving process, without automatic deletion or retry.
   Keep voice and final acceptance gated until the remaining relevant core evidence is complete.
 
