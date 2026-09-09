@@ -406,6 +406,23 @@ provider-backed or device acceptance. Runtime correction commit: `8a56a00`.
    OAuth credential/read sub-gate, not physical-device Calendar display, owner, or stability
    acceptance.
 
+### Synthetic Finance archive acceptance — 2026-09-09
+
+After fresh action-time owner confirmation, a dated one-use runner verified backend
+`li-os-calendar-v2` and web `li-os-web-release-131034f` at 100% traffic, authenticated readiness,
+and schema 0.42 before selecting the exact active `LIOS42` Avanza fixture named
+`Synthetic acceptance holding`. It required exactly one match and recorded its durable dispatch
+marker immediately before the sole archive request.
+
+The governed `archive_portfolio_holding` capability returned `archived`; the target was absent from
+the active portfolio afterward. An in-memory before/after fingerprint proved every non-target active
+Avanza holding unchanged without printing, logging, or writing any holding value. The tracked
+database function archives by setting timestamps rather than deleting its audit record. No automatic
+retry, provider call, Calendar or memory operation, schema, IAM, secret, scheduler, billing,
+application deployment, or unrelated portfolio mutation occurred. The one-use marker remains so the
+operation cannot be dispatched again under this authorization. This closes only the exact synthetic
+archive sub-gate; physical-device, owner, and stability acceptance remain open.
+
 ## Pre-commit audit
 
 Run and report:
