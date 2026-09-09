@@ -607,6 +607,40 @@ has not run. Stop on the first failed gate, preserve and reconcile its journal, 
 another attempt under this authorization. KR-011 and OM-003 remain open; no staging, personal-data,
 physical-device, owner or stability evidence is added by this preparation.
 
+### Recovery-fixture provider-backed result — 2026-09-09
+
+The owner ran the single authorized selector from merged PR #109 (`81aec88`) after the read-only
+billing check at 20:38:36 UTC showed USD 11.91 prepaid and auto-reload off. The isolated schema-0.42
+trial completed English recovery, Swedish historical privacy and Swedish recovery with three turns
+and seven settled provider calls. English privacy was not repeated. Usage totals were 13,513 input
+and 2,255 output tokens; the conservative cost bound was USD 0.074364, below USD 0.50. This is not a
+remeasured account charge or current balance.
+
+Both recovery cases produced exactly one complete correction candidate, completed target resolution
+and governed correction, and verified the replacement record and current-turn provenance before
+the real Li response. The harness then injected its authorized local delivery failure: the turn
+became uncertain. Exact replay made no provider call, retained the same correction record and left
+the canonical-memory fingerprint unchanged. The diagnostic `exact_value_unique=false` did not find
+exactly one bare-marker match; acceptance uses the reviewed governed-record/provenance
+proof, not bare-string equality. No assertion was weakened for this trial.
+
+Swedish privacy verified the private historical marker in Li's packet but absent from the complete
+specialist packet, a real specialist response, private derived history, and completed replay without
+another provider call. Together with the earlier English privacy result, the four selected baseline
+cases now have local provider-backed evidence. This does not prove universal model behavior,
+subsequent Workspace/capture provider coverage, staging reconciliation or absence of historical harm.
+Earlier inconclusive trial effects remain inconclusive; this new result does not reinterpret them.
+
+The content-free ledger `output/acceptance/kr011-provider-recovery-fixture-20260909.jsonl` has SHA-256
+`a88592a7b96af6b1607f5bee459af608580f8b0bc3eee6a523c9204750084a2d` and contains 11 checkpoints,
+seven reservations and seven usage settlements. All four predecessor hashes still match. All five
+live ledgers are preserved unchanged; the used selector must not be rerun. The owner reported removal
+of this run's container/database/volume; an exact-name Docker check confirmed the container absent.
+No further live call, owner-data access, deployment or protected external change was made while
+reconciling this evidence. KR-011 remains open for the remaining applicable coverage, deployed
+reconciliation and separate historical-record decision. OM-003 remains gated by those requirements,
+applicable device/owner checks and stable-use evidence.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,
@@ -642,8 +676,9 @@ physical-device, owner or stability evidence is added by this preparation.
 Close individual evidence gaps only after their applicable observations pass. KR-011 also needs the
 separate historical-record decision; a clean synthetic run cannot establish absence of prior harm.
 Follow the existing [OM-003 entry gate](LI_OS_IMPROVEMENT_BLUEPRINT.md#om-003-dependency-placement):
-rollout and bounded bilingual routing are evidenced, but live privacy/recovery, applicable owner/device
-checks and stability evidence remain outstanding. Voice is still planned and gated. Optional themes,
+rollout, bounded bilingual routing and the baseline local provider-backed privacy/recovery cases are
+evidenced, but remaining provider coverage, deployed reconciliation, applicable owner/device checks
+and stability evidence remain outstanding. Voice is still planned and gated. Optional themes,
 photos, all proactive rhythms and standalone native completion do not become voice prerequisites.
 
 ## Calendar sanitized diagnosis — 2026-09-07
