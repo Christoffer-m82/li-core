@@ -403,6 +403,11 @@ The failed exact-value lookup does not prove no effect. Local checkpoint diagnos
 future bounded observations without relaxing acceptance or authorizing another live run. KR-011,
 OM-003, owner/device and stability requirements remain open.
 
+The subsequent [correction verification refinement](TESTING_AND_AUDIT.md#correction-verification-refinement--2026-09-09)
+reproduced the strict-string/domain harness defect with realistic fake-classifier statements and
+replaced it with governed replacement-record, source-turn and persisted-content proof. The local
+EN/SV rehearsal passes; no new real-provider evidence is claimed and the original ledger is preserved.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
