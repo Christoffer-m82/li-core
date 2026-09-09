@@ -33,6 +33,8 @@ PASSWORD = "ci-synthetic-postgres-password"
 JOURNAL = ROOT / "output" / "acceptance" / "kr011-provider-20260907.jsonl"
 PR104_JOURNAL = JOURNAL.with_name("kr011-provider-pr104-20260909.jsonl")
 PREDECESSOR_SHA256 = "3e38ce407dcce3a7d8353749a719e63437bc6907e4edd3e1c1c9231e23fef917"
+KEY_ENTRY_JOURNAL = JOURNAL.with_name("kr011-provider-pr104-key-entry-20260909.jsonl")
+PRE_DISPATCH_SHA256 = "4fc45bbbd060ba4f2934cab352013381d18f8ed89eec5a675f515832470b4e13"
 DOCKER_ENDPOINT = ("npipe:////./pipe/dockerDesktopLinuxEngine" if sys.platform == "win32"
                    else "unix:///var/run/docker.sock")
 
@@ -137,16 +139,23 @@ def verify_trial_schema() -> str:
     return expected
 
 
-def trial_journal(live: bool, authorized_pr104: bool):
+def trial_journal(live: bool, authorized_pr104: bool, authorized_key_entry: bool = False):
     """One exact owner-authorized new batch, never an arbitrary retry path."""
     predecessor = None
-    if authorized_pr104:
+    if authorized_pr104 and authorized_key_entry:
+        raise TrialStopped("select_one_authorized_batch_only")
+    if authorized_pr104 or authorized_key_entry:
         if not JOURNAL.is_file() or JOURNAL.is_symlink():
             raise TrialStopped("preserved_predecessor_required")
         predecessor = hashlib.sha256(JOURNAL.read_bytes()).hexdigest()
         if predecessor != PREDECESSOR_SHA256:
             raise TrialStopped("preserved_predecessor_changed")
-    journal = (PR104_JOURNAL if authorized_pr104 else JOURNAL) if live else (
+    if authorized_key_entry:
+        if (not PR104_JOURNAL.is_file() or PR104_JOURNAL.is_symlink()
+                or hashlib.sha256(PR104_JOURNAL.read_bytes()).hexdigest() != PRE_DISPATCH_SHA256):
+            raise TrialStopped("preserved_pre_dispatch_ledger_required")
+    journal = (KEY_ENTRY_JOURNAL if authorized_key_entry else
+               PR104_JOURNAL if authorized_pr104 else JOURNAL) if live else (
         JOURNAL.with_name("kr011-provider-dry-" + str(time.time_ns()) + ".jsonl"))
     if journal.exists() or journal.is_symlink():
         raise TrialStopped("trial_ledger_already_exists_reconcile_only")
@@ -154,7 +163,7 @@ def trial_journal(live: bool, authorized_pr104: bool):
 
 
 def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reload_off: bool,
-        authorized_pr104: bool = False):
+        authorized_pr104: bool = False, authorized_key_entry: bool = False):
     from acceptance.provider_trial import require, run_cases
     if live:
         require(prepaid is not None and prepaid.is_finite() and prepaid >= Decimal("1.00")
@@ -164,7 +173,7 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
         except (ValueError, TypeError):
             raise TrialStopped("current_balance_timestamp_required") from None
         require(0 <= age <= 3600, "remeasure_balance_before_live_trial")
-    journal, predecessor = trial_journal(live, authorized_pr104)
+    journal, predecessor = trial_journal(live, authorized_pr104, authorized_key_entry)
     env = isolated_environment()
     # Refuse to reuse an existing resource; no ambiguous cleanup scope.
     existing = docker_command("ps", "-a", "--filter", f"name=^/{CONTAINER}$", "--format", "{{.ID}}")
@@ -173,7 +182,8 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
     JOURNAL.parent.mkdir(parents=True, exist_ok=True)
     budget = TrialBudget(journal, expires_at=(
         datetime.fromisoformat(verified_at).timestamp() + 3600 if live else None),
-        predecessor_sha256=predecessor)
+        predecessor_sha256=predecessor,
+        pre_dispatch_sha256=PRE_DISPATCH_SHA256 if authorized_key_entry else None)
     container_id = None
     sdk = None
     try:
@@ -252,10 +262,12 @@ if __name__ == "__main__":
     parser.add_argument("--auto-reload-off", action="store_true")
     parser.add_argument("--authorized-pr104-trial", action="store_true",
                         help="Select only the separately authorized one-use 2026-09-09 trial.")
+    parser.add_argument("--authorized-key-entry-trial", action="store_true",
+                        help="Select the one separately authorized attempt after the pre-dispatch stop.")
     args = parser.parse_args()
     try:
         run(args.live, args.prepaid_usd, args.balance_verified_at, args.auto_reload_off,
-            args.authorized_pr104_trial)
+            args.authorized_pr104_trial, args.authorized_key_entry_trial)
     except BaseException as exc:
         # Never emit tracebacks, provider packets, Pydantic input values or SDK errors.
         code = str(exc) if isinstance(exc, TrialStopped) else "trial_failed_safe_diagnostic_only"

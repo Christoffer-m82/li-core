@@ -375,3 +375,32 @@ def test_predecessor_provenance_rejects_non_hash(tmp_path, invalid):
     with pytest.raises(TrialStopped, match="trial_predecessor_hash_invalid"):
         TrialBudget(path, predecessor_sha256=invalid)
     assert not path.exists()
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_key_entry_attempt_preserves_both_ledgers(separate_trial, monkeypatch, changed):
+    import hashlib
+    import json
+    runner, old, stopped = separate_trial
+    stopped.write_bytes(b'{"event":"created"}\n')
+    old_before, stopped_before = old.read_bytes(), stopped.read_bytes()
+    monkeypatch.setattr(runner, "PRE_DISPATCH_SHA256", hashlib.sha256(stopped_before).hexdigest())
+    new = old.with_name("third.jsonl")
+    monkeypatch.setattr(runner, "KEY_ENTRY_JOURNAL", new)
+    if changed:
+        stopped.write_bytes(b"changed fixture")
+        with pytest.raises(TrialStopped, match="preserved_pre_dispatch_ledger_required"):
+            runner.trial_journal(True, False, True)
+        assert not new.exists()
+        return
+    path, digest = runner.trial_journal(True, False, True)
+    trial = TrialBudget(path, predecessor_sha256=digest,
+                        pre_dispatch_sha256=runner.PRE_DISPATCH_SHA256)
+    trial.close()
+    event = json.loads(new.read_text())
+    assert event["pre_dispatch_sha256"] == runner.PRE_DISPATCH_SHA256
+    assert old.read_bytes() == old_before and stopped.read_bytes() == stopped_before
+    with pytest.raises(TrialStopped, match="trial_ledger_already_exists"):
+        runner.trial_journal(True, False, True)
+    with pytest.raises(TrialStopped, match="select_one_authorized_batch_only"):
+        runner.trial_journal(True, True, True)

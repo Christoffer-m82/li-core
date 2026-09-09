@@ -65,7 +65,11 @@ def reservation(request: dict) -> tuple[int, int]:
 
 class TrialBudget:
     def __init__(self, journal: Path, *, expires_at: float | None = None,
-                 predecessor_sha256: str | None = None):
+                 predecessor_sha256: str | None = None, pre_dispatch_sha256: str | None = None):
+        if pre_dispatch_sha256 is not None and (
+                predecessor_sha256 is None or not isinstance(pre_dispatch_sha256, str)
+                or not re.fullmatch(r"[a-f0-9]{64}", pre_dispatch_sha256)):
+            raise TrialStopped("trial_pre_dispatch_hash_invalid")
         if predecessor_sha256 is not None and (
                 not isinstance(predecessor_sha256, str)
                 or not re.fullmatch(r"[a-f0-9]{64}", predecessor_sha256)):
@@ -84,6 +88,9 @@ class TrialBudget:
             "predecessor_sha256": predecessor_sha256, "reviewed_pr": 104,
             "reviewed_merge": "873c6823c6b853bae14926da5baba44f2334abf0",
         }
+        if pre_dispatch_sha256 is not None:
+            provenance.update(pre_dispatch_ledger="kr011-provider-pr104-20260909.jsonl",
+                              pre_dispatch_sha256=pre_dispatch_sha256)
         self._append({"event": "created", "max_calls": MAX_CALLS,
                       "max_turns": MAX_TURNS, "max_micro_usd": MAX_MICRO_USD,
                       **provenance})
