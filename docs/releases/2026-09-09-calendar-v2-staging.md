@@ -63,6 +63,23 @@ web change, or retry. This establishes one provider-backed backend Calendar read
 credential set. It does not establish Calendar UI behavior on a physical device, broad provider
 quality, owner acceptance, or stability.
 
+## Post-release synthetic Finance archive
+
+The owner later gave fresh action-time confirmation to archive only the active synthetic Avanza
+holding `LIOS42`, named `Synthetic acceptance holding`. A dated one-use local runner first verified
+backend `li-os-calendar-v2` and web `li-os-web-release-131034f` at 100% traffic, authenticated
+readiness, and schema 0.42. It required exactly one matching active target before creating its
+durable dispatch marker and calling the normal governed Finance archive capability once.
+
+The request returned `archived`, and `LIOS42` was no longer active afterward. An in-memory
+before/after fingerprint confirmed every non-target active Avanza holding was unchanged. No holding
+value or other personal portfolio content was printed, logged, or written to disk. The tracked
+schema-0.42 function archives by setting `archived_at` and `updated_at`; it does not delete the audit
+record. No automatic retry, Calendar, memory, provider, schema, IAM, secret, scheduler, billing,
+backend, or web deployment change occurred. The retained one-use marker prevents another dispatch
+under this authorization. This proves the exact synthetic archive sub-gate, not the remaining
+physical-device or owner journey.
+
 ## Recovery and remaining gates
 
 `li-os-release-db1d17c` remains Ready at 0% and is the authorized backend rollback target. Returning
@@ -70,8 +87,7 @@ traffic to it would restore the previous three version-1 references and the know
 failure while retaining the transport-log privacy correction. Application rollback does not alter
 schema 0.42, the web service, Google OAuth configuration, secret versions, or Calendar data.
 
-OM-010 remains open for the exact action-time-confirmed `LIOS42` synthetic Finance archive,
-physical Android phone/tablet and installed-Windows PWA acceptance, owner acceptance, and stability
-observation. KR-013 remains open only for the separately authorized historical-log assessment; no
-historical log or personal record was inspected. Weekly Avanza quotes, specialist recency ordering,
-and OM-003 real-time voice remain outside this release.
+OM-010 remains open for physical Android phone/tablet and installed-Windows PWA acceptance, owner
+acceptance, and stability observation. KR-013 remains open only for the separately authorized
+historical-log assessment; no historical log or personal record was inspected. Weekly Avanza quotes,
+specialist recency ordering, and OM-003 real-time voice remain outside this release.
