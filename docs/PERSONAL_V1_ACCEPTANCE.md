@@ -440,6 +440,11 @@ live ledgers remain preserved. Local EN/SV fixture clarification and an earlier 
 passed the seven-call fake rehearsal and 1,244 backend tests, but do not establish a live correction
 fix or authorize another attempt. KR-011 and OM-003 remain open; staging is unchanged.
 
+The owner subsequently authorized [one recovery-fixture validation trial](TESTING_AND_AUDIT.md#authorized-recovery-fixture-trial-preparation--2026-09-09).
+Its new exclusive selector preserves all four live ledgers and skips English privacy. Local guard
+tests and the seven-call fake rehearsal passed; live execution still requires fresh coverage and
+private key entry. No new provider-backed result or staging change is claimed.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all

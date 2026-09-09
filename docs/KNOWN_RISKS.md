@@ -139,7 +139,10 @@ where applicable, Heimdall review.
   subsequently isolated an empty parsed classifier result before any governed correction dispatch.
   One real call settled; recovery and both Swedish cases remain unproven. Local fixture clarification
   and a precise pre-apply stop are fake-provider verified, not a live fix. All four live ledgers
-  remain preserved and no new trial identity was added.
+  remain preserved; that fixture correction added no new trial identity. A separately owner-authorized
+  [recovery-fixture trial preparation](TESTING_AND_AUDIT.md#authorized-recovery-fixture-trial-preparation--2026-09-09)
+  now adds one exclusive identity, verified locally with all four predecessor hashes and the same
+  strict limits. It has not run live and does not close this risk.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
