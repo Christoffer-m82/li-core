@@ -457,6 +457,31 @@ USD 11.95 prepaid, auto-reload off. Official Sonnet 5 pricing remained USD 2/10 
 input/output tokens, below the guard's conservative reservation rates. No new live call occurred.
 Private entry and actual provider-backed acceptance remain pending; KR-011 and OM-003 remain open.
 
+### PR-104 provider-validation result — 2026-09-09
+
+The separately authorized attempt passed the fresh isolated schema-0.42 and three-role checks,
+accepted the privately entered existing API credential, and completed four first-party Sonnet 5
+calls across two synthetic turn identities. The durable ledger records 7,810 input and 1,715 output
+tokens with a conservative USD 0.049155 bound. This is a client-side bound, not a remeasured charge.
+The English historical-privacy checkpoint passed: private context reached Li but not Nora's complete
+packet, Nora responded, derived history remained private, and exact replay made no provider call.
+
+The English recovery case then stopped at `correction_dispatch_not_unique`. Its preceding safe
+checkpoint found no replacement marker or current-turn source in the bounded recall, while the
+governed observer could not prove exactly one successful correction receipt. That fixed diagnostic
+means the receipt count was not one; the retained evidence cannot distinguish zero from multiple
+receipts or identify the classifier's discarded response. It therefore does not establish a write,
+no effect, an application defect, or safe retry. The deliberately injected post-response delivery
+failure was never reached, English recovery remains unresolved, and both Swedish cases were not run.
+
+No automatic retry occurred. The runner removed only its exact disposable container, database and
+volume. The original, pre-dispatch-stop and current ledgers remain preserved. Do not rerun or delete
+any ledger to obtain a green result. A future diagnostic would require a separately reviewed design
+that records a fixed safe classifier/correction disposition before cleanup, new exact authorization,
+fresh cost evidence and a new one-use identity; this result does not provide that authorization.
+No staging, cloud, personal record, provider configuration or billing setting changed. KR-011 stays
+open, as do historical-record, staging/owner/device/stability evidence and OM-003's entry gate.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,

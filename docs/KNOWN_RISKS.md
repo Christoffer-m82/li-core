@@ -123,6 +123,10 @@ where applicable, Heimdall review.
   corrected the local runner's stale schema-0.41 gate and passed the same four synthetic cases
   against schema 0.42. Real-provider execution, subsequent Workspace/capture provider coverage,
   production reconciliation and the historical-record decision remain outstanding.
+  A later [bounded provider-backed result](TESTING_AND_AUDIT.md#pr-104-provider-validation-result--2026-09-09)
+  passed English historical privacy but stopped before the injected recovery failure because exactly
+  one governed correction dispatch could not be proven. English recovery and both Swedish cases
+  remain outstanding; the retained result is not proof of no effect or permission to retry.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only
