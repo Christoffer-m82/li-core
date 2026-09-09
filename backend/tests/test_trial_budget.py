@@ -242,3 +242,58 @@ def test_checkpoint_rejects_arbitrary_diagnostics(budget, tmp_path, language, ca
     with pytest.raises(TrialStopped, match="trial_checkpoint_not_allowed"):
         budget.checkpoint(language, case, flags)
     assert "raw content" not in (tmp_path / "journal.jsonl").read_text()
+
+
+@pytest.fixture
+def correction_proof():
+    source = "li-chat:synthetic-conversation:synthetic-turn"
+    value = "Prefers notebooks labelled synthetic-new"
+    arguments = {"memory_id": "seed", "new_value": value, "source_reference": source}
+    result = {"previous_memory_id": "seed", "memory_id": "replacement",
+              "outcome": "created_replacement"}
+    row = {"memory_id": "replacement", "value_text": value, "source_reference": source,
+           "memory_class": "explicit_preference", "truth_status": "confirmed",
+           "temporal_status": "current", "domain": "notebooks"}
+    return [row], [(arguments, result)]
+
+
+@pytest.mark.parametrize("value", ["synthetic-new", "Prefers synthetic-new notebooks",
+                                   "Föredrar anteckningsböcker märkta synthetic-new"])
+def test_governed_correction_proof_accepts_preserved_statement(correction_proof, value):
+    from acceptance.provider_trial import verified_correction
+    rows, receipts = correction_proof
+    rows[0]["value_text"] = receipts[0][0]["new_value"] = value
+    assert verified_correction(rows, receipts, "seed", "synthetic-new", "synthetic-old",
+                               "synthetic-turn") is rows[0]
+
+
+@pytest.mark.parametrize("target,key,value", [
+    ("arguments", "memory_id", "wrong-seed"),
+    ("arguments", "source_reference", "li-chat:synthetic-conversation:wrong-turn"),
+    ("arguments", "new_value", "synthetic-old instead of synthetic-new"),
+    ("arguments", "new_value", "unrelated preference"),
+    ("result", "previous_memory_id", "wrong-seed"),
+    ("result", "memory_id", "seed"),
+    ("result", "outcome", "no_change"),
+    ("row", "memory_id", "unrelated-record"),
+    ("row", "value_text", "different stored content"),
+    ("row", "source_reference", "wrong-source"),
+    ("row", "truth_status", "outdated"),
+    ("row", "temporal_status", "historical"),
+    ("row", "memory_class", "explicit_fact"),
+])
+def test_governed_correction_proof_rejects_false_positive(correction_proof, target, key, value):
+    from acceptance.provider_trial import verified_correction
+    rows, receipts = correction_proof
+    {"arguments": receipts[0][0], "result": receipts[0][1], "row": rows[0]}[target][key] = value
+    with pytest.raises(TrialStopped):
+        verified_correction(rows, receipts, "seed", "synthetic-new", "synthetic-old", "synthetic-turn")
+
+
+@pytest.mark.parametrize("row_count,receipt_count", [(0, 1), (2, 1), (1, 0), (1, 2)])
+def test_governed_correction_proof_requires_unique_write_and_row(correction_proof, row_count, receipt_count):
+    from acceptance.provider_trial import verified_correction
+    rows, receipts = correction_proof
+    with pytest.raises(TrialStopped):
+        verified_correction(rows * row_count, receipts * receipt_count,
+                            "seed", "synthetic-new", "synthetic-old", "synthetic-turn")

@@ -47,6 +47,34 @@ class GuardedMessages:
             raise TrialStopped("provider_trial_call_failed") from None
 
 
+def verified_correction(rows, receipts, seed_id, marker, old, identity):
+    """Verify real governed-call receipts against synthetic persisted state.
+
+    Marker presence alone cannot prove a correction. Receipts and content stay in
+    process memory; only the existing safe boolean evidence is persisted.
+    """
+    require(len(receipts) == 1, "correction_dispatch_not_unique")
+    arguments, result = receipts[0]
+    source = arguments.get("source_reference")
+    value = arguments.get("new_value")
+    require(isinstance(source, str) and source.startswith("li-chat:")
+            and source.endswith(":" + identity), "correction_source_mismatch")
+    require(arguments.get("memory_id") == seed_id
+            and result.get("previous_memory_id") == seed_id
+            and result.get("memory_id") not in {None, seed_id}
+            and result.get("outcome") == "created_replacement", "correction_transition_mismatch")
+    require(isinstance(value, str) and marker in value and old not in value,
+            "correction_content_unproven")
+    matches = [row for row in rows if row.get("memory_id") == result["memory_id"]]
+    require(len(matches) == 1, "correction_record_not_unique")
+    row = matches[0]
+    require(row.get("value_text") == value.strip() and row.get("source_reference") == source
+            and row.get("memory_class") == "explicit_preference"
+            and row.get("truth_status") == "confirmed" and row.get("temporal_status") == "current",
+            "correction_persistence_mismatch")
+    return row
+
+
 def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
     """Four chat identities; exact replay is a rejection check, not a new turn.
 
@@ -65,15 +93,23 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
     settings = get_settings()
     headers = {"Authorization": "Bearer " + settings.api_token.get_secret_value()}
     real_generate = claude.generate_claude_text
+    real_correct = memory_capture.correct_explicit_memory
+    correction_receipts = []
     private_markers: list[str] = []
     observed: dict[str, bool] = {}
     recovery_value: str | None = None
     fail_delivered_response = False
     evidence: list[dict] = []
 
-    def exact_memory(value):
-        return [row for row in recall_memory(query=value, domains=["preferences"], limit=10)
-                if row["value_text"] == value]
+    def observed_correct(**kwargs):
+        result = real_correct(**kwargs)
+        correction_receipts.append((dict(kwargs), dict(result)))
+        return result
+
+    def current_correction():
+        # The classifier may legitimately change domain and wording.
+        rows = recall_memory(query=recovery_value, domains=None, limit=10)
+        return verified_correction(rows, correction_receipts, seed_id, recovery_value, old, identity)
 
     def observed_generate(**kwargs):
         stage = kwargs.get("stage")
@@ -89,10 +125,10 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             observed["li_packet_private_marker_present"] = True
         if fail_delivered_response and stage == "li_direct":
             flags = correction_observations(
-                recall_memory(query=recovery_value, domains=["preferences"], limit=10),
+                recall_memory(query=recovery_value, domains=None, limit=10),
                 recovery_value, identity)
             budget.checkpoint(language, "recovery_precondition", flags)
-            require(flags["exact_value_unique"], "correction_not_completed")
+            current_correction()
             observed["write_before_model"] = True
         result = real_generate(**kwargs)
         if stage == "specialist:nora":
@@ -117,6 +153,7 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
         stack.enter_context(patch.object(li_runtime, "build_li_system_prompt",
                                          lambda: synthetic_identity))
         client = stack.enter_context(TestClient(main.app))
+        stack.enter_context(patch.object(memory_capture, "correct_explicit_memory", observed_correct))
         for language in ("en", "sv"):
             observed = {}
             nonce = uuid4().hex
@@ -161,7 +198,8 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             observed = {}
             old = f"synthetic-old-{language}-{nonce}"
             recovery_value = f"synthetic-new-{language}-{nonce}"
-            store_explicit_memory(memory_class="explicit_preference", domain="preferences",
+            correction_receipts.clear()
+            seed_id = store_explicit_memory(memory_class="explicit_preference", domain="preferences",
                 value=old, title=None, sensitivity="low", private_to_li=False,
                 source_reference="provider-acceptance-synthetic-seed")
             message = (f"Correct my existing notebook preference from {old} to {recovery_value}."
@@ -177,19 +215,18 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             require(observed.get("write_before_model") is True and
                     observed.get("real_response_before_injected_failure") is True,
                     "provider_backed_post_write_failure_not_proven")
-            after_write = exact_memory(recovery_value)
-            require(len(after_write) == 1, "synthetic_correction_not_reconciled")
+            after_write = current_correction()
             calls_before = len(budget.calls)
             memory_before = memory_fingerprint()
             budget.turn(identity, replay=True)
             replay = client.post("/li/chat", headers=headers, json=payload)
             memory_after = memory_fingerprint()
-            after_replay = exact_memory(recovery_value)
+            after_replay = current_correction()
             require(replay.status_code == 409 and
                     replay.json()["detail"]["code"] == "turn_outcome_uncertain" and
-                    len(budget.calls) == calls_before and len(after_replay) == 1 and
-                    after_write[0]["memory_id"] == after_replay[0]["memory_id"] and
-                    after_write[0]["source_reference"].endswith(identity) and
+                    len(budget.calls) == calls_before and
+                    after_write["memory_id"] == after_replay["memory_id"] and
+                    after_write["value_text"] == after_replay["value_text"] and
                     memory_after == memory_before,
                     "uncertain_replay_not_safe")
             evidence.append({"language": language, "case": "recovery", **observed,

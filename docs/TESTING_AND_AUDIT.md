@@ -373,6 +373,38 @@ This did not consume provider credit or reset the live ledger. No staging runtim
 provider configuration, personal records or protected output files were changed. KR-011 and
 OM-003 remain open; this result does not establish staged recovery, owner/device or stability acceptance.
 
+### Correction verification refinement — 2026-09-09
+
+After the first provider attempt, a local fake-classifier reproduction returned a concise EN/SV
+notebook-preference statement containing the synthetic replacement marker and used the `notebooks`
+domain. Both choices are permitted by the classifier contract. The previous bare-marker equality
+and fixed `preferences` lookup reproduced `correction_not_completed`. This establishes a harness
+defect, not the exact output or cause of the discarded first live attempt.
+
+The trial now observes the real governed correction function without replacing its implementation
+or changing its arguments. Before the deliberate delivery failure, it requires exactly one successful
+correction receipt, the seeded previous-memory ID, a distinct newly created replacement ID, the
+current `li-chat` source-turn reference, and a unique recalled row with that replacement ID. Stored
+content must equal the actual correction argument, include the replacement marker and exclude the
+old marker; the row must remain a confirmed/current explicit preference with the exact source
+reference. Lookup is bounded but not hard-coded to the seed domain. Receipt arguments and results
+stay in process memory and are never written to the ledger or console.
+
+The same proof runs after delivery failure and exact replay; unchanged record ID/content, call count,
+and complete canonical-schema fingerprint remain required. Marker presence alone, a model claim,
+an unrelated record, duplicate receipts, missing/duplicate rows or mismatched provenance cannot pass.
+Missing evidence remains unresolved, never permission to retry an uncertain effect.
+
+Validation: 65 focused tests and Ruff passed, including EN/SV sentence values and negative identity,
+source, outcome, content, status and uniqueness cases. The full backend suite passed 1,202 tests
+with four intentional opt-in skips and the upstream Starlette/AnyIO warning visible.
+The revised four-case fake-provider rehearsal
+passed at schema 0.42 with 10 fake calls; both reproduction and verification disposable containers
+were removed. No live call, staging change or personal-data access occurred. The original live ledger
+is preserved and still blocks rerunning the old command. A separately scoped, owner-authorized new
+synthetic trial with fresh coverage is needed before claiming the real-provider failure resolved.
+KR-011 and OM-003 remain open.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,
