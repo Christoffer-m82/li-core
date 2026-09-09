@@ -339,6 +339,40 @@ The model response is deliberately withheld after it returns, so the case exerci
 deterministic uncertainty response; do not label it a test of model-generated uncertainty wording.
 Never reset the ledger or turn, submit a replacement identity, or infer safe retry from a 503.
 
+### First provider attempt and safe checkpoints — 2026-09-09
+
+The owner ran the authorized local trial after read-only verification of USD 11.99 prepaid
+credit and disabled auto-reload at 13:09 UTC. The fixed ledger records two new turn identities,
+four reservations and four settled usages: 7,925 input and 2,262 output tokens. Its conservative
+USD 3/15 rate bound totals **USD 0.057705**, not a remeasured invoice or account balance.
+The trial stopped at `correction_not_completed`; the owner-provided output confirms cleanup of
+the disposable database/container/volume. A subsequent attempt stopped at expired coverage
+before dispatch. The original ledger remains intact; no further live trial is authorized here.
+
+Control-flow and ledger evidence imply the English privacy case completed before the English
+recovery precondition failed. This older runner did not persist completed-case observations.
+English recovery and both Swedish cases remain unproven. The failure means an exact-value lookup
+did not return exactly one expected row; it does **not** prove no correction occurred. The
+classifier contract permits a concise memory statement, whereas the fixture requires the bare
+synthetic marker. Local EN/SV fixtures demonstrate that a statement containing that marker fails
+the equality assertion. That is a plausible harness mismatch, not the established cause of the
+discarded live result; raw provider output and database contents were not retained.
+
+The runner now durably checkpoints completed cases and records only fixed-schema booleans before
+the correction assertion: unique exact value, marker presence in the bounded lookup, and a source
+reference ending in the current synthetic turn identity. These diagnostics do not relax the
+assertion, establish no-effect from an empty lookup, or replace the later record/source/fingerprint
+reconciliation checks. Arbitrary diagnostic keys, strings and non-boolean values are rejected.
+Existing ledgers are never upgraded, overwritten or reset by this change. Any later live attempt
+needs a separately reviewed continuation and exact authorization, fresh coverage and private entry;
+do not mint a replacement identity merely to bypass the existing ledger.
+
+Local validation: 45 budget/isolation/diagnostic tests and Ruff passed. The four-case fake-provider
+rehearsal passed at schema 0.42 with 10 fake calls, and its disposable resources were removed.
+This did not consume provider credit or reset the live ledger. No staging runtime,
+provider configuration, personal records or protected output files were changed. KR-011 and
+OM-003 remain open; this result does not establish staged recovery, owner/device or stability acceptance.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,

@@ -199,3 +199,46 @@ def test_trial_accepts_current_manifest_schema(monkeypatch):
     expected = manifest["migrations"][-1]["logical_version"]
     monkeypatch.setattr("app.database.database_health", lambda: {"schema_version": expected})
     assert verify_trial_schema() == expected
+
+
+@pytest.mark.parametrize("language", ["en", "sv"])
+def test_correction_statement_is_not_exact_marker_and_remains_unproven(language):
+    from acceptance.provider_trial import correction_observations
+    marker = "synthetic-new-" + language
+    statement = ("Prefers notebooks labelled " if language == "en" else
+                 "Föredrar anteckningsböcker märkta ") + marker
+    flags = correction_observations([
+        {"value_text": statement, "source_reference": "turn:synthetic-identity"}],
+        marker, "synthetic-identity")
+    assert flags == {"exact_value_unique": False, "marker_present": True,
+                     "current_turn_source_present": True}
+
+
+@pytest.mark.parametrize("count", [0, 1, 2])
+def test_correction_observation_preserves_unique_exact_requirement(count):
+    from acceptance.provider_trial import correction_observations
+    rows = [{"value_text": "synthetic-new", "source_reference": "another-turn"}] * count
+    flags = correction_observations(rows, "synthetic-new", "this-turn")
+    assert flags["exact_value_unique"] is (count == 1)
+    assert flags["current_turn_source_present"] is False
+
+
+def test_checkpoint_is_durable_and_contains_only_safe_booleans(budget, tmp_path):
+    import json
+    budget.checkpoint("sv", "recovery_precondition", {"exact_value_unique": False})
+    events = [json.loads(line) for line in (tmp_path / "journal.jsonl").read_text().splitlines()]
+    assert events[-1] == {"event": "checkpoint", "language": "sv",
+                          "case": "recovery_precondition", "flags": {"exact_value_unique": False}}
+
+
+@pytest.mark.parametrize("language,case,flags", [
+    ("raw content", "privacy", {"marker_present": True}),
+    ("en", "raw content", {"marker_present": True}),
+    ("en", "privacy", {"raw content": True}),
+    ("en", "privacy", {"marker_present": "raw content"}),
+    ("en", "privacy", {"marker_present": 1}),
+])
+def test_checkpoint_rejects_arbitrary_diagnostics(budget, tmp_path, language, case, flags):
+    with pytest.raises(TrialStopped, match="trial_checkpoint_not_allowed"):
+        budget.checkpoint(language, case, flags)
+    assert "raw content" not in (tmp_path / "journal.jsonl").read_text()

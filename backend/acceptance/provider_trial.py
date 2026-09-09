@@ -14,6 +14,20 @@ def require(condition: bool, code: str) -> None:
         raise TrialStopped(code)
 
 
+def correction_observations(rows: list[dict], value: str, identity: str) -> dict[str, bool]:
+    """Describe the strict assertion without exposing synthetic record contents.
+
+    Marker presence is diagnostic only, never sufficient correction/replay proof.
+    A negative bounded lookup cannot establish that no write occurred.
+    """
+    return {
+        "exact_value_unique": sum(row.get("value_text") == value for row in rows) == 1,
+        "marker_present": any(value in str(row.get("value_text", "")) for row in rows),
+        "current_turn_source_present": any(
+            str(row.get("source_reference", "")).endswith(identity) for row in rows),
+    }
+
+
 class GuardedMessages:
     """The only provider boundary available to this process's application."""
     def __init__(self, budget: TrialBudget, underlying):
@@ -74,7 +88,11 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             require(private_markers[-1] in packet, "historical_recall_inconclusive")
             observed["li_packet_private_marker_present"] = True
         if fail_delivered_response and stage == "li_direct":
-            require(len(exact_memory(recovery_value)) == 1, "correction_not_completed")
+            flags = correction_observations(
+                recall_memory(query=recovery_value, domains=["preferences"], limit=10),
+                recovery_value, identity)
+            budget.checkpoint(language, "recovery_precondition", flags)
+            require(flags["exact_value_unique"], "correction_not_completed")
             observed["write_before_model"] = True
         result = real_generate(**kwargs)
         if stage == "specialist:nora":
@@ -137,6 +155,8 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             evidence.append({"language": language, "case": "privacy", **observed,
                              "derived_history_private": True,
                              "exact_replay_no_provider_call": True})
+            budget.checkpoint(language, "privacy", {
+                key: value for key, value in evidence[-1].items() if key not in {"language", "case"}})
 
             observed = {}
             old = f"synthetic-old-{language}-{nonce}"
@@ -176,4 +196,6 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
                              "outcome_uncertain": True, "exact_replay_no_provider_call": True,
                              "canonical_memory_fingerprint_unchanged_on_replay": True,
                              "same_correction_record_after_replay": True})
+            budget.checkpoint(language, "recovery", {
+                key: value for key, value in evidence[-1].items() if key not in {"language", "case"}})
     return evidence

@@ -396,6 +396,13 @@ real-provider acceptance, reconciliation and the separately authorized historica
 OM-003 remains gated by those relevant core findings and the applicable owner/device and stable-use
 requirements. Finance archive and Calendar-read acceptance do not substitute for these observations.
 
+The later [first provider attempt](TESTING_AND_AUDIT.md#first-provider-attempt-and-safe-checkpoints--2026-09-09)
+stopped at the English synthetic correction precondition after four settled calls. English privacy
+completion is inferred from control flow and the ledger; recovery and Swedish cases remain unproven.
+The failed exact-value lookup does not prove no effect. Local checkpoint diagnostics preserve
+future bounded observations without relaxing acceptance or authorizing another live run. KR-011,
+OM-003, owner/device and stability requirements remain open.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
