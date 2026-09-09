@@ -66,7 +66,11 @@ def reservation(request: dict) -> tuple[int, int]:
 class TrialBudget:
     def __init__(self, journal: Path, *, expires_at: float | None = None,
                  predecessor_sha256: str | None = None, pre_dispatch_sha256: str | None = None,
-                 diagnostic_sha256: str | None = None):
+                 diagnostic_sha256: str | None = None, content_free_sha256: str | None = None):
+        if content_free_sha256 is not None and (
+                diagnostic_sha256 is None or not isinstance(content_free_sha256, str)
+                or not re.fullmatch(r"[a-f0-9]{64}", content_free_sha256)):
+            raise TrialStopped("trial_content_free_hash_invalid")
         if diagnostic_sha256 is not None and (
                 pre_dispatch_sha256 is None or not isinstance(diagnostic_sha256, str)
                 or not re.fullmatch(r"[a-f0-9]{64}", diagnostic_sha256)):
@@ -102,6 +106,13 @@ class TrialBudget:
                 diagnostic_sha256=diagnostic_sha256,
                 reviewed_diagnostic_pr=106,
                 reviewed_diagnostic_merge="f91e859632d4135af336192bd20e8a03b49755a9",
+            )
+        if content_free_sha256 is not None:
+            provenance.update(
+                content_free_ledger="kr011-provider-content-free-20260909.jsonl",
+                content_free_sha256=content_free_sha256,
+                reviewed_fixture_pr=108,
+                reviewed_fixture_merge="43f4437c50213ab4b7ae7720c03302d534d648c7",
             )
         self._append({"event": "created", "max_calls": MAX_CALLS,
                       "max_turns": MAX_TURNS, "max_micro_usd": MAX_MICRO_USD,
