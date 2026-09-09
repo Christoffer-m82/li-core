@@ -123,6 +123,16 @@ def memory_fingerprint():
     return digest.hexdigest()
 
 
+def verify_trial_schema() -> str:
+    """Match runtime health to the manifest just applied by the isolated validator."""
+    from acceptance.provider_trial import require
+    from app.database import database_health
+    manifest = json.loads((ROOT / "memory/migrations/manifest.json").read_text(encoding="utf-8"))
+    expected = manifest["migrations"][-1]["logical_version"]
+    require(database_health().get("schema_version") == expected, "runtime_database_health_failed")
+    return expected
+
+
 def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reload_off: bool):
     from acceptance.provider_trial import require, run_cases
     if live:
@@ -174,10 +184,9 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
                                    ("li_owner_runtime", "ci-synthetic-owner-password")):
                 connection.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(
                     sql.Identifier(role), sql.Literal(password)))
-        print("PASS: fresh isolated schema 0.41; three distinct synthetic runtime roles.", flush=True)
         with configure_application():
-            from app.database import database_health
-            require(database_health()["schema_version"] == "0.41", "runtime_database_health_failed")
+            schema = verify_trial_schema()
+            print(f"PASS: fresh isolated schema {schema}; three distinct synthetic runtime roles.", flush=True)
             logging.disable(logging.CRITICAL)
             messages = fake_messages()
             if live:

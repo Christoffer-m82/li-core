@@ -182,3 +182,20 @@ def test_docker_uses_explicit_local_socket_not_remote_context(monkeypatch):
     assert args[:2] == ["docker", "--host"]
     assert args[2].startswith(("npipe:", "unix:"))
     assert "DOCKER_HOST" not in env and "DOCKER_CONTEXT" not in env
+
+
+@pytest.mark.parametrize("observed", ["0.41", "unexpected", None])
+def test_trial_rejects_database_not_matching_manifest(monkeypatch, observed):
+    from acceptance.run_provider_trial import verify_trial_schema
+    monkeypatch.setattr("app.database.database_health", lambda: {"schema_version": observed})
+    with pytest.raises(TrialStopped, match="^runtime_database_health_failed$"):
+        verify_trial_schema()
+
+
+def test_trial_accepts_current_manifest_schema(monkeypatch):
+    import json
+    from acceptance.run_provider_trial import ROOT, verify_trial_schema
+    manifest = json.loads((ROOT / "memory/migrations/manifest.json").read_text())
+    expected = manifest["migrations"][-1]["logical_version"]
+    monkeypatch.setattr("app.database.database_health", lambda: {"schema_version": expected})
+    assert verify_trial_schema() == expected
