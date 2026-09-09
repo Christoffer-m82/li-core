@@ -28,6 +28,57 @@ def correction_observations(rows: list[dict], value: str, identity: str) -> dict
     }
 
 
+def classifier_observations(analysis) -> dict[str, bool]:
+    """Summarize a classifier result without retaining its content."""
+    candidates = list(getattr(analysis, "candidates", ()))
+    corrections = [
+        candidate for candidate in candidates
+        if getattr(candidate, "action", None) == "correct_explicit"
+    ]
+    correction = corrections[0] if len(corrections) == 1 else None
+    target_query = getattr(correction, "target_query", None)
+    value = getattr(correction, "value", None)
+    return {
+        "classifier_analysis_completed": True,
+        "classifier_analysis_failed": False,
+        "classifier_no_candidates": not candidates,
+        "classifier_exactly_one_correction_candidate": len(corrections) == 1,
+        "classifier_multiple_correction_candidates": len(corrections) > 1,
+        "classifier_other_action_present": any(
+            getattr(candidate, "action", None) != "correct_explicit"
+            for candidate in candidates
+        ),
+        "classifier_correction_fields_complete": bool(
+            correction is not None
+            and isinstance(target_query, str) and target_query.strip()
+            and isinstance(value, str) and value.strip()
+        ),
+    }
+
+
+def recovery_pipeline_observations() -> dict[str, bool]:
+    """Return the fixed, content-free initial state for one recovery turn."""
+    return {
+        "classifier_analysis_started": False,
+        "classifier_analysis_completed": False,
+        "classifier_analysis_failed": False,
+        "classifier_no_candidates": False,
+        "classifier_exactly_one_correction_candidate": False,
+        "classifier_multiple_correction_candidates": False,
+        "classifier_other_action_present": False,
+        "classifier_correction_fields_complete": False,
+        "governed_apply_started": False,
+        "governed_apply_completed": False,
+        "governed_apply_failed": False,
+        "target_resolution_started": False,
+        "target_resolution_completed": False,
+        "target_resolution_failed": False,
+        "correction_dispatch_started": False,
+        "correction_dispatch_completed": False,
+        "correction_dispatch_failed": False,
+    }
+
+
 class GuardedMessages:
     """The only provider boundary available to this process's application."""
     def __init__(self, budget: TrialBudget, underlying):
@@ -93,18 +144,102 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
     settings = get_settings()
     headers = {"Authorization": "Bearer " + settings.api_token.get_secret_value()}
     real_generate = claude.generate_claude_text
+    real_analyze = main.analyze_memory_capture
+    real_apply = main.apply_memory_capture
+    real_resolve = memory_capture._resolve_memory_target
     real_correct = memory_capture.correct_explicit_memory
     correction_receipts = []
     private_markers: list[str] = []
     observed: dict[str, bool] = {}
     recovery_value: str | None = None
     fail_delivered_response = False
+    recovery_pipeline = recovery_pipeline_observations()
     evidence: list[dict] = []
 
     def observed_correct(**kwargs):
-        result = real_correct(**kwargs)
+        if fail_delivered_response:
+            recovery_pipeline["correction_dispatch_started"] = True
+        try:
+            result = real_correct(**kwargs)
+        except Exception:
+            if fail_delivered_response:
+                recovery_pipeline["correction_dispatch_failed"] = True
+            raise
+        if fail_delivered_response:
+            recovery_pipeline["correction_dispatch_completed"] = True
         correction_receipts.append((dict(kwargs), dict(result)))
         return result
+
+    def observed_resolve(candidate):
+        if fail_delivered_response:
+            recovery_pipeline["target_resolution_started"] = True
+        try:
+            result = real_resolve(candidate)
+        except Exception:
+            if fail_delivered_response:
+                recovery_pipeline["target_resolution_failed"] = True
+            raise
+        if fail_delivered_response:
+            recovery_pipeline["target_resolution_completed"] = True
+        return result
+
+    def observed_analyze(*args, **kwargs):
+        if fail_delivered_response:
+            recovery_pipeline["classifier_analysis_started"] = True
+        try:
+            analysis = real_analyze(*args, **kwargs)
+        except Exception:
+            if fail_delivered_response:
+                recovery_pipeline["classifier_analysis_failed"] = True
+                budget.checkpoint(language, "recovery_classifier", {
+                    key: recovery_pipeline[key] for key in (
+                        "classifier_analysis_started", "classifier_analysis_completed",
+                        "classifier_analysis_failed", "classifier_no_candidates",
+                        "classifier_exactly_one_correction_candidate",
+                        "classifier_multiple_correction_candidates",
+                        "classifier_other_action_present",
+                        "classifier_correction_fields_complete",
+                    )
+                })
+            raise
+        if fail_delivered_response:
+            recovery_pipeline.update(classifier_observations(analysis))
+            budget.checkpoint(language, "recovery_classifier", {
+                key: recovery_pipeline[key] for key in (
+                    "classifier_analysis_started", "classifier_analysis_completed",
+                    "classifier_analysis_failed", "classifier_no_candidates",
+                    "classifier_exactly_one_correction_candidate",
+                    "classifier_multiple_correction_candidates",
+                    "classifier_other_action_present",
+                    "classifier_correction_fields_complete",
+                )
+            })
+        return analysis
+
+    def observed_apply(*args, **kwargs):
+        if fail_delivered_response:
+            recovery_pipeline["governed_apply_started"] = True
+        try:
+            result = real_apply(*args, **kwargs)
+        except Exception:
+            if fail_delivered_response:
+                recovery_pipeline["governed_apply_failed"] = True
+            raise
+        else:
+            if fail_delivered_response:
+                recovery_pipeline["governed_apply_completed"] = True
+            return result
+        finally:
+            if fail_delivered_response:
+                budget.checkpoint(language, "recovery_apply", {
+                    key: recovery_pipeline[key] for key in (
+                        "governed_apply_started", "governed_apply_completed",
+                        "governed_apply_failed", "target_resolution_started",
+                        "target_resolution_completed", "target_resolution_failed",
+                        "correction_dispatch_started", "correction_dispatch_completed",
+                        "correction_dispatch_failed",
+                    )
+                })
 
     def current_correction():
         # The classifier may legitimately change domain and wording.
@@ -124,6 +259,7 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             require(private_markers[-1] in packet, "historical_recall_inconclusive")
             observed["li_packet_private_marker_present"] = True
         if fail_delivered_response and stage == "li_direct":
+            budget.checkpoint(language, "recovery_pipeline", dict(recovery_pipeline))
             flags = correction_observations(
                 recall_memory(query=recovery_value, domains=None, limit=10),
                 recovery_value, identity)
@@ -153,6 +289,9 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
         stack.enter_context(patch.object(li_runtime, "build_li_system_prompt",
                                          lambda: synthetic_identity))
         client = stack.enter_context(TestClient(main.app))
+        stack.enter_context(patch.object(main, "analyze_memory_capture", observed_analyze))
+        stack.enter_context(patch.object(main, "apply_memory_capture", observed_apply))
+        stack.enter_context(patch.object(memory_capture, "_resolve_memory_target", observed_resolve))
         stack.enter_context(patch.object(memory_capture, "correct_explicit_memory", observed_correct))
         for language in ("en", "sv"):
             observed = {}
@@ -199,6 +338,7 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             old = f"synthetic-old-{language}-{nonce}"
             recovery_value = f"synthetic-new-{language}-{nonce}"
             correction_receipts.clear()
+            recovery_pipeline = recovery_pipeline_observations()
             seed_id = store_explicit_memory(memory_class="explicit_preference", domain="preferences",
                 value=old, title=None, sensitivity="low", private_to_li=False,
                 source_reference="provider-acceptance-synthetic-seed")

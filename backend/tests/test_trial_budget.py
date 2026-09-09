@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 
 import pytest
 
@@ -223,12 +224,95 @@ def test_correction_observation_preserves_unique_exact_requirement(count):
     assert flags["current_turn_source_present"] is False
 
 
+@pytest.mark.parametrize("actions,expected", [
+    ([], {
+        "classifier_no_candidates": True,
+        "classifier_exactly_one_correction_candidate": False,
+        "classifier_multiple_correction_candidates": False,
+        "classifier_other_action_present": False,
+        "classifier_correction_fields_complete": False,
+    }),
+    (["correct_explicit"], {
+        "classifier_no_candidates": False,
+        "classifier_exactly_one_correction_candidate": True,
+        "classifier_multiple_correction_candidates": False,
+        "classifier_other_action_present": False,
+        "classifier_correction_fields_complete": True,
+    }),
+    (["correct_explicit", "correct_explicit"], {
+        "classifier_no_candidates": False,
+        "classifier_exactly_one_correction_candidate": False,
+        "classifier_multiple_correction_candidates": True,
+        "classifier_other_action_present": False,
+        "classifier_correction_fields_complete": False,
+    }),
+    (["store_explicit"], {
+        "classifier_no_candidates": False,
+        "classifier_exactly_one_correction_candidate": False,
+        "classifier_multiple_correction_candidates": False,
+        "classifier_other_action_present": True,
+        "classifier_correction_fields_complete": False,
+    }),
+    (["correct_explicit", "ignore"], {
+        "classifier_no_candidates": False,
+        "classifier_exactly_one_correction_candidate": True,
+        "classifier_multiple_correction_candidates": False,
+        "classifier_other_action_present": True,
+        "classifier_correction_fields_complete": True,
+    }),
+])
+def test_classifier_observations_are_content_free(actions, expected):
+    from acceptance.provider_trial import classifier_observations
+    candidates = [SimpleNamespace(action=action, target_query="private target",
+                                  value="private replacement") for action in actions]
+    flags = classifier_observations(SimpleNamespace(candidates=candidates))
+    assert flags == {
+        "classifier_analysis_completed": True,
+        "classifier_analysis_failed": False,
+        **expected,
+    }
+    assert "private" not in repr(flags)
+
+
+@pytest.mark.parametrize("target_query,value", [(None, "new"), ("target", None), (" ", "new"),
+                                                   ("target", " ")])
+def test_classifier_observations_require_complete_correction_fields(target_query, value):
+    from acceptance.provider_trial import classifier_observations
+    analysis = SimpleNamespace(candidates=[SimpleNamespace(
+        action="correct_explicit", target_query=target_query, value=value)])
+    assert classifier_observations(analysis)["classifier_correction_fields_complete"] is False
+
+
+def test_recovery_pipeline_observations_start_content_free_and_false():
+    from acceptance.provider_trial import recovery_pipeline_observations
+    flags = recovery_pipeline_observations()
+    assert flags and all(type(value) is bool and value is False for value in flags.values())
+
+
 def test_checkpoint_is_durable_and_contains_only_safe_booleans(budget, tmp_path):
     import json
     budget.checkpoint("sv", "recovery_precondition", {"exact_value_unique": False})
     events = [json.loads(line) for line in (tmp_path / "journal.jsonl").read_text().splitlines()]
     assert events[-1] == {"event": "checkpoint", "language": "sv",
                           "case": "recovery_precondition", "flags": {"exact_value_unique": False}}
+
+
+@pytest.mark.parametrize("case,flag", [
+    ("recovery_classifier", "classifier_analysis_completed"),
+    ("recovery_apply", "target_resolution_failed"),
+    ("recovery_pipeline", "correction_dispatch_started"),
+])
+def test_content_free_recovery_checkpoints_are_allowed(budget, tmp_path, case, flag):
+    import json
+    budget.checkpoint("en", case, {flag: False})
+    event = json.loads((tmp_path / "journal.jsonl").read_text().splitlines()[-1])
+    assert event == {"event": "checkpoint", "language": "en", "case": case,
+                     "flags": {flag: False}}
+
+
+def test_checkpoint_rejects_allowlisted_flag_in_wrong_case(budget):
+    with pytest.raises(TrialStopped, match="trial_checkpoint_not_allowed"):
+        budget.checkpoint("en", "privacy", {"correction_dispatch_started": False})
 
 
 @pytest.mark.parametrize("language,case,flags", [

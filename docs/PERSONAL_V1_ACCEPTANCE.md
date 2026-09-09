@@ -414,6 +414,14 @@ exactly one governed correction dispatch, so the post-response uncertainty/repla
 reached; both Swedish cases remain unrun. The one-use ledger and disposable-resource cleanup are
 preserved evidence, not permission to retry or proof of no effect. KR-011 and OM-003 remain open.
 
+The subsequent [content-free diagnostic hardening](TESTING_AND_AUDIT.md#content-free-recovery-diagnostic-hardening--2026-09-09)
+adds fixed boolean-only checkpoints for classifier disposition, governed apply, target resolution
+and correction dispatch. A local schema-0.42 fake-provider rehearsal passed the four EN/SV cases and
+removed its disposable resources. This prevents the same category of ambiguity in a separately
+authorized future trial, but it neither reconstructs the prior provider response nor authorizes a
+retry. No new live evidence, staging change or personal-record access occurred; KR-011 and OM-003
+remain open.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all
