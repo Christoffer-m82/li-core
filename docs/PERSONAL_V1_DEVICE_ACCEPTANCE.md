@@ -7,10 +7,10 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) and does not replace the
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
-is backend [Calendar diagnostic release](releases/2026-09-08-db1d17c-staging.md) `db1d17c` with web
+is backend [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md) `calendar-v2` with web
 [public OAuth information release](releases/2026-09-08-131034f-staging.md) `131034f` and database
 schema 0.42. The earlier
-[specialist-language release](releases/2026-09-07-0fc39a7-staging.md) remains the backend application
+[`db1d17c` diagnostic release](releases/2026-09-08-db1d17c-staging.md) remains the backend application
 rollback target; web `a7601b7` is the immediate web rollback target.
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
@@ -84,7 +84,7 @@ installation-specific checks on each device where the matrix requires them.
 | Inspect memory and history | Recall and provenance are truthful; proposed memory is visibly distinct from confirmed memory; correction/forgetting retains its confirmation boundary | NOT RUN |
 | Switch among built-in and custom appearances, then export/import a custom appearance | Content does not change, contrast remains readable, and the custom appearance survives reload on that device | NOT RUN |
 | Read Calendar, Gmail, tasks, and current research using harmless queries | Configured reads return grounded results or an honest unavailable/stale state; Gmail does not send | NOT RUN |
-| Open the Calendar workspace, move between weeks, choose a month date, use Today, and refresh | Week starts Monday; Saturday/Sunday remain distinct without warning-like contrast; all-day events stay on their correct date; month cells reveal counts rather than private titles; unavailable reads are honest | NOT RUN — source is deployed; physical-device and provider-backed display evidence remain open |
+| Open the Calendar workspace, move between weeks, choose a month date, use Today, and refresh | Week starts Monday; Saturday/Sunday remain distinct without warning-like contrast; all-day events stay on their correct date; month cells reveal counts rather than private titles; unavailable reads are honest | NOT RUN — source is deployed and one bounded provider-backed backend read passed; physical-device and Calendar-display evidence remain open |
 | Open My Finances, switch between Avanza and Crypto, and use one clearly synthetic holding | Values remain separated by currency; unpriced/stale states are explicit; create/edit/archive affect only the synthetic holding; no broker login, market quote, trade, memory, or specialist sharing occurs | NOT RUN — source and schema 0.42 are deployed; physical-device owner journey remains open |
 | Grant microphone permission and speak once in English and once in Swedish | The transcript is correct before submission, exactly one normal chat turn is sent, and spoken output can be stopped | NOT RUN |
 | Deny microphone permission, then cancel an active attempt | Li explains the denial/cancel state and typed chat remains usable | NOT RUN |
@@ -138,11 +138,11 @@ normal-use evidence.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend `release-db1d17c`; web `release-131034f` |
-| Backend revision | `li-os-release-db1d17c` |
+| Deployed release | Backend `calendar-v2`; web `release-131034f` |
+| Backend revision | `li-os-calendar-v2` |
 | Web revision | `li-os-web-release-131034f` |
 | Database schema | `0.42` |
-| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics, backend promotion and the OAuth-authentication failure classification are in the [backend release](releases/2026-09-08-db1d17c-staging.md); the public Google OAuth information documents, web promotion, branding update and In-production publication are in the [web release](releases/2026-09-08-131034f-staging.md). This is not successful Calendar-provider, physical-device, owner or stability acceptance |
+| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics and the original OAuth failure classification are in the [diagnostic backend release](releases/2026-09-08-db1d17c-staging.md); public OAuth documents, branding and In-production publication are in the [web release](releases/2026-09-08-131034f-staging.md); matching credential references, backend promotion and one successful bounded provider-backed read are in the [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md). Physical-device Calendar display, owner and stability acceptance remain open |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |

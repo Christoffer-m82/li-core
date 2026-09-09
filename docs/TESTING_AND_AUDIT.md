@@ -395,6 +395,16 @@ provider-backed or device acceptance. Runtime correction commit: `8a56a00`.
 5. Leave OM-010, physical-device/owner/stability acceptance and the exact `LIOS42` archive step
    open until their own evidence exists. Archive requires fresh action-time owner confirmation.
    Weekly Avanza quotes and specialist recency ordering remain planned and out of this batch.
+6. On 2026-09-09, the owner-authorized configuration-only follow-up retained the exact `db1d17c`
+   image and identity while changing only the three Calendar numeric references from version 1 to
+   version 2. Zero-traffic candidate checks, masked application readiness, schema 0.42, public
+   denial, private IAM, unchanged web traffic, and pre/post-promotion ERROR-log checks passed. See
+   the [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md).
+7. A fresh dated one-use runner then attempted exactly one `calendar.search` over one UTC day with
+   no query, no approval, no automatic retry, and a maximum of one result. The provider-backed read
+   completed and returned zero events. Event contents were not printed or saved. This closes the
+   OAuth credential/read sub-gate, not physical-device Calendar display, owner, or stability
+   acceptance.
 
 ## Pre-commit audit
 

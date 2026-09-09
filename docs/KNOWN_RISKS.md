@@ -160,8 +160,15 @@ where applicable, Heimdall review.
   fixed `calendar.search`, `authentication`, `oauth` and HTTP 400 fields for its exact correlation
   ID. No raw provider material or Calendar content was inspected, and no retry was made. This
   validates the corrected live diagnostic path; it does not determine historical exposure.
+- **Follow-up live evidence:** The [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md)
+  retained the same privacy-corrected image and completed one bounded provider-backed read after the
+  matching OAuth credential references were deployed. It returned zero events; no event content was
+  printed or saved, and no ERROR-or-higher log entry was found. This confirms the live transport-log
+  mitigation remained compatible with a successful read; it still does not determine historical
+  exposure.
 - **Evidence and rollout gate:** [Calendar diagnosis](TESTING_AND_AUDIT.md#calendar-sanitized-diagnosis--2026-09-07)
-  and [staging release](releases/2026-09-08-db1d17c-staging.md).
+  plus the [diagnostic](releases/2026-09-08-db1d17c-staging.md) and
+  [successful configuration](releases/2026-09-09-calendar-v2-staging.md) releases.
 
 ## Closed risks
 
