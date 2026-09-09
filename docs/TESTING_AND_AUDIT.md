@@ -405,6 +405,36 @@ is preserved and still blocks rerunning the old command. A separately scoped, ow
 synthetic trial with fresh coverage is needed before claiming the real-provider failure resolved.
 KR-011 and OM-003 remain open.
 
+### Separately authorized PR-104 validation preparation — 2026-09-09
+
+The owner authorized one new isolated four-turn / 16-call / USD 0.50 maximum prepaid trial
+after PR #104, not a restart or reconciliation of the discarded first result. Select it explicitly
+with `--authorized-pr104-trial`; `--live` is still separately required. The original command remains
+blocked by its original ledger. No arbitrary ledger-path or automatic live-batch generator is exposed.
+
+The new live ledger is `output/acceptance/kr011-provider-pr104-20260909.jsonl`. Before creating
+resources, the runner requires the preserved `kr011-provider-20260907.jsonl` to match its reviewed
+SHA-256. The new exclusive-created ledger records that predecessor filename/hash and PR #104's
+merge commit. An existing new ledger blocks execution; a creation race also fails closed. Never
+delete, rename, reset or overwrite either ledger to rerun. A stopped new trial requires reconciliation
+and another owner decision, not this flag again. Fake rehearsals retain separate dry-run ledgers.
+
+This preparation uses only the new disposable `li-os-kr011-provider-pr104-20260909` container and
+`li_os_kr011_provider_pr104` database on `127.0.0.1:55443`, with the unchanged pinned image,
+three separated synthetic roles, tracked manifest, guarded provider and correction proof. Local
+validation passed 75 focused tests, 1,212 full-backend tests with four intentional opt-in skips,
+and Ruff. The Starlette/AnyIO warning remained visible. One four-case EN/SV fake rehearsal passed
+at schema 0.42 with 10 fake calls; its exact disposable resources were removed. The original ledger
+hash remained unchanged and the new live ledger was absent after preparation.
+
+Read-only billing at 15:12 UTC showed USD 11.95 prepaid with auto-reload off. The official
+[Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) still listed Sonnet 5
+at USD 2/10 per million input/output tokens; the guard retains conservative 3/15 reservations.
+Coverage expires after one hour and must be checked again if stale. No live call occurred during
+this preparation. Private key entry and the new trial's actual observations remain pending.
+KR-011 and OM-003 remain open; local provider results cannot establish historical-record safety,
+staging recovery, subsequent Workspace/capture provider coverage, or device/owner/stability acceptance.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,
