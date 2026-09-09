@@ -435,6 +435,28 @@ this preparation. Private key entry and the new trial's actual observations rema
 KR-011 and OM-003 remain open; local provider results cannot establish historical-record safety,
 staging recovery, subsequent Workspace/capture provider coverage, or device/owner/stability acceptance.
 
+### Private-entry stop and separately authorized attempt — 2026-09-09
+
+The PR-104 trial stopped at `anthropic_key_not_entered` before SDK construction or dispatch.
+Its ledger contains only the creation/provenance event: zero turns, reservations or provider calls,
+and zero provider consumption for that run. This was local prefix validation, not an Anthropic
+authentication rejection. Operator output and an exact-name local Docker check confirm cleanup.
+Both this ledger and the original four-call ledger remain unchanged.
+
+The owner subsequently authorized one separate attempt under the same limits. The explicit
+`--authorized-key-entry-trial` selector uses only
+`output/acceptance/kr011-provider-pr104-key-entry-20260909.jsonl`, requires both previous ledgers'
+reviewed hashes, and records both references. Both earlier selectors remain blocked; an existing
+new ledger or conflicting selectors also stops execution. No automatic retry or arbitrary ledger
+path is introduced. The new disposable database still uses the reviewed localhost-only setup.
+
+Preparation passed 77 focused tests, Ruff, and the four-case schema-0.42 fake rehearsal with
+10 fake calls and exact-resource cleanup. The full backend suite passed 1,214 tests with four
+intentional skips and the existing Starlette/AnyIO warning. Billing was rechecked at 16:04 UTC:
+USD 11.95 prepaid, auto-reload off. Official Sonnet 5 pricing remained USD 2/10 per million
+input/output tokens, below the guard's conservative reservation rates. No new live call occurred.
+Private entry and actual provider-backed acceptance remain pending; KR-011 and OM-003 remain open.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,
