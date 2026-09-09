@@ -27,6 +27,40 @@ def require(condition: bool, code: str) -> None:
         raise TrialStopped(code)
 
 
+def recovery_fixture(language: str, old: str, new: str) -> tuple[str, str]:
+    """State a low-risk preference, with unique labels retained for exact proof.
+
+    These are fictional fixtures, not owner facts or instructions to force a
+    classifier disposition. The real classifier may still decline the request.
+    """
+    require(language in {"en", "sv"}, "trial_case_selection_not_allowed")
+    if language == "en":
+        return (
+            f"Prefers notebooks with blue covers labelled {old}.",
+            f"I no longer prefer notebooks with blue covers labelled {old}. "
+            f"I now prefer notebooks with green covers labelled {new}. "
+            "Please correct my previously remembered notebook preference.",
+        )
+    return (
+        f"Föredrar anteckningsböcker med blå omslag märkta {old}.",
+        f"Jag föredrar inte längre anteckningsböcker med blå omslag märkta {old}. "
+        f"Jag föredrar nu anteckningsböcker med gröna omslag märkta {new}. "
+        "Rätta min tidigare ihågkomna preferens för anteckningsböcker.",
+    )
+
+
+def require_recovery_classifier(flags: dict[str, bool]) -> None:
+    """Stop before apply on an unexpected result; never substitute a candidate."""
+    require(not flags["classifier_no_candidates"], "recovery_classifier_no_candidates")
+    require(not flags["classifier_multiple_correction_candidates"],
+            "recovery_classifier_multiple_corrections")
+    require(not flags["classifier_other_action_present"]
+            and flags["classifier_exactly_one_correction_candidate"],
+            "recovery_classifier_unexpected_action")
+    require(flags["classifier_correction_fields_complete"],
+            "recovery_classifier_incomplete_correction")
+
+
 def correction_observations(rows: list[dict], value: str, identity: str) -> dict[str, bool]:
     """Describe the strict assertion without exposing synthetic record contents.
 
@@ -232,6 +266,7 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint, *,
                     "classifier_correction_fields_complete",
                 )
             })
+            require_recovery_classifier(recovery_pipeline)
         return analysis
 
     def observed_apply(*args, **kwargs):
@@ -362,12 +397,10 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint, *,
                 recovery_value = f"synthetic-new-{language}-{nonce}"
                 correction_receipts.clear()
                 recovery_pipeline = recovery_pipeline_observations()
+                seed_value, message = recovery_fixture(language, old, recovery_value)
                 seed_id = store_explicit_memory(memory_class="explicit_preference", domain="preferences",
-                    value=old, title=None, sensitivity="low", private_to_li=False,
+                    value=seed_value, title=None, sensitivity="low", private_to_li=False,
                     source_reference="provider-acceptance-synthetic-seed")
-                message = (f"Correct my existing notebook preference from {old} to {recovery_value}."
-                           if language == "en" else
-                           f"Rätta min befintliga anteckningsbokspreferens från {old} till {recovery_value}.")
                 identity = str(uuid4())
                 payload = {"message": message, "turn_id": identity}
                 budget.turn(identity)

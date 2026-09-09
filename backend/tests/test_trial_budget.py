@@ -289,6 +289,43 @@ def test_recovery_pipeline_observations_start_content_free_and_false():
     assert flags and all(type(value) is bool and value is False for value in flags.values())
 
 
+@pytest.mark.parametrize("language", ["en", "sv"])
+def test_recovery_fixture_states_old_and_new_preference(language):
+    from acceptance.provider_trial import recovery_fixture
+    old, new = f"synthetic-old-{language}-abc", f"synthetic-new-{language}-abc"
+    seed, message = recovery_fixture(language, old, new)
+    assert old in seed and new not in seed
+    assert old in message and new in message
+    assert ("blue covers" if language == "en" else "blå omslag") in seed
+    assert ("green covers" if language == "en" else "gröna omslag") in message
+    assert ("I now prefer" if language == "en" else "Jag föredrar nu") in message
+
+
+@pytest.mark.parametrize("actions,code", [
+    ([], "recovery_classifier_no_candidates"),
+    (["store_explicit"], "recovery_classifier_unexpected_action"),
+    (["correct_explicit", "ignore"], "recovery_classifier_unexpected_action"),
+    (["correct_explicit", "correct_explicit"], "recovery_classifier_multiple_corrections"),
+])
+def test_recovery_classifier_gate_stops_unexpected_disposition(actions, code):
+    from acceptance.provider_trial import classifier_observations, require_recovery_classifier
+    candidates = [SimpleNamespace(action=action, target_query="private target", value="private value")
+                  for action in actions]
+    flags = classifier_observations(SimpleNamespace(candidates=candidates))
+    with pytest.raises(TrialStopped, match="^" + code + "$"):
+        require_recovery_classifier(flags)
+
+
+def test_recovery_classifier_gate_requires_complete_single_correction():
+    from acceptance.provider_trial import classifier_observations, require_recovery_classifier
+    candidate = SimpleNamespace(action="correct_explicit", target_query="target", value="value")
+    flags = classifier_observations(SimpleNamespace(candidates=[candidate]))
+    require_recovery_classifier(flags)
+    candidate.target_query = " "
+    with pytest.raises(TrialStopped, match="^recovery_classifier_incomplete_correction$"):
+        require_recovery_classifier(classifier_observations(SimpleNamespace(candidates=[candidate])))
+
+
 @pytest.mark.parametrize("selected", [frozenset(), frozenset({("en", "unknown")})])
 def test_provider_trial_rejects_empty_or_unknown_case_selection(budget, selected):
     from acceptance.provider_trial import run_cases

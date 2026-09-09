@@ -135,6 +135,11 @@ where applicable, Heimdall review.
   adds an exclusive one-use identity that preserves all three earlier ledgers and skips the already
   passed English privacy case. Its three-case fake-provider rehearsal passed; no live execution is
   authorized or claimed.
+  The [content-free trial result](TESTING_AND_AUDIT.md#content-free-trial-result-and-explicit-recovery-fixture--2026-09-09)
+  subsequently isolated an empty parsed classifier result before any governed correction dispatch.
+  One real call settled; recovery and both Swedish cases remain unproven. Local fixture clarification
+  and a precise pre-apply stop are fake-provider verified, not a live fix. All four live ledgers
+  remain preserved and no new trial identity was added.
   Existing prepaid API coverage and disabled auto-reload were owner-verified for the
   bounded check; recheck coverage before later provider calls. Run the remaining bounded
   English/Swedish privacy and failure/retry acceptance. Assess previously affected records only

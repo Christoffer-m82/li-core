@@ -433,6 +433,13 @@ showed USD 11.92 prepaid with auto-reload off at 18:45 UTC. This prepares but do
 perform another live attempt; no personal data, staging service or protected output was touched.
 KR-011 and OM-003 remain open.
 
+The [content-free trial result](TESTING_AND_AUDIT.md#content-free-trial-result-and-explicit-recovery-fixture--2026-09-09)
+then identified no parsed classifier candidates in the first English recovery case: no governed
+apply or correction dispatch started. One provider call settled; neither Swedish case ran. All four
+live ledgers remain preserved. Local EN/SV fixture clarification and an earlier classifier stop
+passed the seven-call fake rehearsal and 1,244 backend tests, but do not establish a live correction
+fix or authorize another attempt. KR-011 and OM-003 remain open; staging is unchanged.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all

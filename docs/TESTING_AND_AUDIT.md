@@ -533,6 +533,46 @@ No live call, personal-record access, staging change or protected output change 
 authorization is still required immediately before creating the live ledger; KR-011 and OM-003
 remain open.
 
+### Content-free trial result and explicit recovery fixture — 2026-09-09
+
+The owner executed the separately authorized unresolved-case trial after verification of USD 11.92
+prepaid credit and disabled auto-reload at 19:31 UTC. Its exclusive ledger,
+`output/acceptance/kr011-provider-content-free-20260909.jsonl`, has SHA-256
+`a39fc1c7f92ef3998667262f25424213ecf856041b9f6d709a3a88488cd8b34a`.
+It records one synthetic English recovery turn and one settled provider call: 1,797 input and 229
+output tokens, with a conservative USD 0.008826 bound, not a remeasured account charge.
+
+Classifier analysis completed with no parsed candidates. Governed apply, target resolution and
+correction dispatch never started. The trial stopped at `correction_dispatch_not_unique` before
+the Li response call, deliberate delivery failure or replay probe. This identifies the failed
+precondition for this attempt, not the model's reasoning, the discarded earlier trials' outcomes,
+or a general no-write guarantee. The parser allows a missing `candidates` field to default to an
+empty list, so the checkpoint does not prove the provider explicitly returned an empty array.
+Both Swedish cases remain unrun; the already passed English privacy case was not repeated.
+The exact disposable container was absent after operator-reported cleanup. All four live ledgers
+are preserved; no retry, owner-record access or staging change occurred.
+
+Local review found the fixture expressed only a replacement of opaque marker values. The revised
+EN/SV fixtures state a previous blue-cover notebook preference and a new green-cover preference,
+retaining unique synthetic labels for the unchanged record/provenance/content assertions. This is
+a fixture-realism improvement, not proof that wording caused the live result or that the real
+classifier will now accept it. The classifier prompt, parser, runtime authority and governed writes
+are unchanged. A new harness-only gate stops immediately after the durable classifier checkpoint
+for no candidates, multiple corrections, another action or incomplete correction fields. It never
+substitutes a candidate or proceeds to apply an unexpected result.
+
+Local validation passed 107 guard tests, 1,244 full-backend tests with four intentional skips,
+Ruff and compileall; the upstream Starlette/AnyIO warning remains visible. The revised three-case
+schema-0.42 fake-provider rehearsal passed with seven fake calls and exact-resource cleanup.
+An isolated empty-candidate fake-provider probe stopped at `recovery_classifier_no_candidates`
+after one fake call and its durable classifier checkpoint, before apply or any subsequent model
+call; its exact container was removed. Both new dry-run ledgers remain local evidence.
+This is local simulated evidence only. No new live selector or journal identity was added; every
+used live selector remains blocked. Any future metered trial needs separate exact authorization,
+fresh coverage and a reviewed one-use identity preserving all four ledgers. KR-011 and OM-003
+remain open, along with subsequent Workspace/capture provider coverage, historical-record decisions,
+deployed recovery, physical-device, owner and stability evidence.
+
 ### Execution and stop conditions
 
 - **Privacy first:** for EN and SV independently, seed synthetic history without recipient metadata,
