@@ -144,5 +144,24 @@ class TrialBudget:
             self.stopped = True
             self._append({"event": "stopped"})
 
+    def checkpoint(self, language: str, case: str, flags: dict[str, bool]) -> None:
+        """Persist only fixed-schema observations, never arbitrary diagnostic text."""
+        allowed = {
+            "specialist_packet_private_marker_absent", "li_packet_private_marker_present",
+            "specialist_provider_responded", "derived_history_private",
+            "exact_replay_no_provider_call", "write_before_model",
+            "real_response_before_injected_failure", "outcome_uncertain",
+            "canonical_memory_fingerprint_unchanged_on_replay",
+            "same_correction_record_after_replay", "exact_value_unique",
+            "marker_present", "current_turn_source_present",
+        }
+        if (language not in {"en", "sv"} or case not in {"privacy", "recovery", "recovery_precondition"}
+                or not flags or set(flags) - allowed
+                or any(type(value) is not bool for value in flags.values())):
+            raise TrialStopped("trial_checkpoint_not_allowed")
+        with self._lock:
+            self._append({"event": "checkpoint", "language": language, "case": case,
+                          "flags": flags})
+
     def close(self) -> None:
         self._file.close()
