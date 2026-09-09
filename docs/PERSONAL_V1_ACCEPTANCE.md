@@ -422,6 +422,17 @@ authorized future trial, but it neither reconstructs the prior provider response
 retry. No new live evidence, staging change or personal-record access occurred; KR-011 and OM-003
 remain open.
 
+The later [unresolved-case continuation preparation](TESTING_AND_AUDIT.md#unresolved-case-continuation-preparation--2026-09-09)
+adds a new exclusive-created ledger identity for only English recovery, Swedish historical privacy
+and Swedish recovery. It verifies the hashes of all three earlier immutable live ledgers and does
+not repeat the already passed provider-backed English privacy case. A local schema-0.42 rehearsal
+passed those three cases with seven fake calls and removed its exact disposable resources and dry
+ledger. The unchanged four-case fake path also passed with 10 calls; the full backend suite passed
+1,237 tests with four intentional skips and the upstream warning visible. A read-only account check
+showed USD 11.92 prepaid with auto-reload off at 18:45 UTC. This prepares but does not authorize or
+perform another live attempt; no personal data, staging service or protected output was touched.
+KR-011 and OM-003 remain open.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all

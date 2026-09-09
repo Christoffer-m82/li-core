@@ -35,6 +35,8 @@ PR104_JOURNAL = JOURNAL.with_name("kr011-provider-pr104-20260909.jsonl")
 PREDECESSOR_SHA256 = "3e38ce407dcce3a7d8353749a719e63437bc6907e4edd3e1c1c9231e23fef917"
 KEY_ENTRY_JOURNAL = JOURNAL.with_name("kr011-provider-pr104-key-entry-20260909.jsonl")
 PRE_DISPATCH_SHA256 = "4fc45bbbd060ba4f2934cab352013381d18f8ed89eec5a675f515832470b4e13"
+CONTENT_FREE_JOURNAL = JOURNAL.with_name("kr011-provider-content-free-20260909.jsonl")
+DIAGNOSTIC_SHA256 = "331ea143415873b1553c2893febc8e717513172975e7cc38b040cdf7ad2e013d"
 DOCKER_ENDPOINT = ("npipe:////./pipe/dockerDesktopLinuxEngine" if sys.platform == "win32"
                    else "unix:///var/run/docker.sock")
 
@@ -139,22 +141,28 @@ def verify_trial_schema() -> str:
     return expected
 
 
-def trial_journal(live: bool, authorized_pr104: bool, authorized_key_entry: bool = False):
+def trial_journal(live: bool, authorized_pr104: bool, authorized_key_entry: bool = False,
+                  authorized_content_free: bool = False):
     """One exact owner-authorized new batch, never an arbitrary retry path."""
     predecessor = None
-    if authorized_pr104 and authorized_key_entry:
+    if sum((authorized_pr104, authorized_key_entry, authorized_content_free)) > 1:
         raise TrialStopped("select_one_authorized_batch_only")
-    if authorized_pr104 or authorized_key_entry:
+    if authorized_pr104 or authorized_key_entry or authorized_content_free:
         if not JOURNAL.is_file() or JOURNAL.is_symlink():
             raise TrialStopped("preserved_predecessor_required")
         predecessor = hashlib.sha256(JOURNAL.read_bytes()).hexdigest()
         if predecessor != PREDECESSOR_SHA256:
             raise TrialStopped("preserved_predecessor_changed")
-    if authorized_key_entry:
+    if authorized_key_entry or authorized_content_free:
         if (not PR104_JOURNAL.is_file() or PR104_JOURNAL.is_symlink()
                 or hashlib.sha256(PR104_JOURNAL.read_bytes()).hexdigest() != PRE_DISPATCH_SHA256):
             raise TrialStopped("preserved_pre_dispatch_ledger_required")
-    journal = (KEY_ENTRY_JOURNAL if authorized_key_entry else
+    if authorized_content_free:
+        if (not KEY_ENTRY_JOURNAL.is_file() or KEY_ENTRY_JOURNAL.is_symlink()
+                or hashlib.sha256(KEY_ENTRY_JOURNAL.read_bytes()).hexdigest() != DIAGNOSTIC_SHA256):
+            raise TrialStopped("preserved_diagnostic_ledger_required")
+    journal = (CONTENT_FREE_JOURNAL if authorized_content_free else
+               KEY_ENTRY_JOURNAL if authorized_key_entry else
                PR104_JOURNAL if authorized_pr104 else JOURNAL) if live else (
         JOURNAL.with_name("kr011-provider-dry-" + str(time.time_ns()) + ".jsonl"))
     if journal.exists() or journal.is_symlink():
@@ -163,8 +171,9 @@ def trial_journal(live: bool, authorized_pr104: bool, authorized_key_entry: bool
 
 
 def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reload_off: bool,
-        authorized_pr104: bool = False, authorized_key_entry: bool = False):
-    from acceptance.provider_trial import require, run_cases
+        authorized_pr104: bool = False, authorized_key_entry: bool = False,
+        authorized_content_free: bool = False):
+    from acceptance.provider_trial import UNRESOLVED_CASES, require, run_cases
     if live:
         require(prepaid is not None and prepaid.is_finite() and prepaid >= Decimal("1.00")
                 and auto_reload_off, "current_prepaid_coverage_required")
@@ -173,7 +182,8 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
         except (ValueError, TypeError):
             raise TrialStopped("current_balance_timestamp_required") from None
         require(0 <= age <= 3600, "remeasure_balance_before_live_trial")
-    journal, predecessor = trial_journal(live, authorized_pr104, authorized_key_entry)
+    journal, predecessor = trial_journal(
+        live, authorized_pr104, authorized_key_entry, authorized_content_free)
     env = isolated_environment()
     # Refuse to reuse an existing resource; no ambiguous cleanup scope.
     existing = docker_command("ps", "-a", "--filter", f"name=^/{CONTAINER}$", "--format", "{{.ID}}")
@@ -183,7 +193,9 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
     budget = TrialBudget(journal, expires_at=(
         datetime.fromisoformat(verified_at).timestamp() + 3600 if live else None),
         predecessor_sha256=predecessor,
-        pre_dispatch_sha256=PRE_DISPATCH_SHA256 if authorized_key_entry else None)
+        pre_dispatch_sha256=(PRE_DISPATCH_SHA256
+                             if authorized_key_entry or authorized_content_free else None),
+        diagnostic_sha256=DIAGNOSTIC_SHA256 if authorized_content_free else None)
     container_id = None
     sdk = None
     try:
@@ -236,7 +248,10 @@ def run(live: bool, prepaid: Decimal | None, verified_at: str | None, auto_reloa
                                              transport=httpx.HTTPTransport(retries=0)))
                 key = None
                 messages = sdk.messages
-            evidence = run_cases(budget, messages, memory_fingerprint)
+            evidence = run_cases(
+                budget, messages, memory_fingerprint,
+                selected_cases=UNRESOLVED_CASES if authorized_content_free else None,
+            )
             print(json.dumps({"mode": "local_provider_backed" if live else "local_fake_provider",
                               "evidence": evidence, "model_calls": len(budget.calls),
                               "cost_upper_bound_usd": budget.charged_bound / 1_000_000}, sort_keys=True))
@@ -264,10 +279,13 @@ if __name__ == "__main__":
                         help="Select only the separately authorized one-use 2026-09-09 trial.")
     parser.add_argument("--authorized-key-entry-trial", action="store_true",
                         help="Select the one separately authorized attempt after the pre-dispatch stop.")
+    parser.add_argument("--authorized-content-free-trial", action="store_true",
+                        help="Select only a separately authorized unresolved-case diagnostic trial.")
     args = parser.parse_args()
     try:
         run(args.live, args.prepaid_usd, args.balance_verified_at, args.auto_reload_off,
-            args.authorized_pr104_trial, args.authorized_key_entry_trial)
+            args.authorized_pr104_trial, args.authorized_key_entry_trial,
+            args.authorized_content_free_trial)
     except BaseException as exc:
         # Never emit tracebacks, provider packets, Pydantic input values or SDK errors.
         code = str(exc) if isinstance(exc, TrialStopped) else "trial_failed_safe_diagnostic_only"

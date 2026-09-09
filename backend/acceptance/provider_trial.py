@@ -9,6 +9,19 @@ from uuid import uuid4
 from acceptance.trial_budget import TrialBudget, TrialStopped
 
 
+ALL_CASES = frozenset({
+    ("en", "privacy"),
+    ("en", "recovery"),
+    ("sv", "privacy"),
+    ("sv", "recovery"),
+})
+UNRESOLVED_CASES = frozenset({
+    ("en", "recovery"),
+    ("sv", "privacy"),
+    ("sv", "recovery"),
+})
+
+
 def require(condition: bool, code: str) -> None:
     if not condition:
         raise TrialStopped(code)
@@ -126,13 +139,17 @@ def verified_correction(rows, receipts, seed_id, marker, old, identity):
     return row
 
 
-def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
-    """Four chat identities; exact replay is a rejection check, not a new turn.
+def run_cases(budget: TrialBudget, messages, memory_fingerprint, *,
+              selected_cases: frozenset[tuple[str, str]] | None = None) -> list[dict]:
+    """Up to four chat identities; exact replay is a rejection check, not a new turn.
 
     Real classifier, delegation, synthesis, HTTP and database paths are retained.
     Only the identity prompt is synthetic, and recovery injects a local failure
     after a real model response and an independently verified synthetic write.
     """
+    cases = ALL_CASES if selected_cases is None else frozenset(selected_cases)
+    require(bool(cases) and cases <= ALL_CASES, "trial_case_selection_not_allowed")
+
     from fastapi.testclient import TestClient
     from app import claude, li_runtime, main, memory_capture, specialist_runtime
     from app.config import get_settings
@@ -150,6 +167,7 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
     real_correct = memory_capture.correct_explicit_memory
     correction_receipts = []
     private_markers: list[str] = []
+    active_private_marker: str | None = None
     observed: dict[str, bool] = {}
     recovery_value: str | None = None
     fail_delivered_response = False
@@ -255,8 +273,8 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
             require(not any(marker in packet for marker in private_markers),
                     "private_marker_at_specialist_boundary")
             observed["specialist_packet_private_marker_absent"] = True
-        if stage == "li_synthesis":
-            require(private_markers[-1] in packet, "historical_recall_inconclusive")
+        if stage == "li_synthesis" and active_private_marker is not None:
+            require(active_private_marker in packet, "historical_recall_inconclusive")
             observed["li_packet_private_marker_present"] = True
         if fail_delivered_response and stage == "li_direct":
             budget.checkpoint(language, "recovery_pipeline", dict(recovery_pipeline))
@@ -294,85 +312,91 @@ def run_cases(budget: TrialBudget, messages, memory_fingerprint) -> list[dict]:
         stack.enter_context(patch.object(memory_capture, "_resolve_memory_target", observed_resolve))
         stack.enter_context(patch.object(memory_capture, "correct_explicit_memory", observed_correct))
         for language in ("en", "sv"):
-            observed = {}
             nonce = uuid4().hex
-            private_marker = f"synthetic-private-{language}-{nonce}"
-            private_markers.append(private_marker)
-            query = ("Ask Nora to compare amber covers from our previous conversation."
-                     if language == "en" else
-                     "Be Nora jämföra bärnstensomslag från vårt tidigare samtal.")
-            private = {"private_to_li": True, "allowed_specialists": []}
-            historical = create_conversation(privacy_metadata=private)
-            append_conversation_message(conversation_id=historical, role="user",
-                content=f"{query} Private fictional context: {private_marker}",
-                privacy_metadata=private)
-            identity = str(uuid4())
-            payload = {"message": query, "turn_id": identity, "workspace_specialist": "nora"}
-            budget.turn(identity)
-            response = client.post("/li/chat", headers=headers, json=payload)
-            require(response.status_code == 200, "privacy_chat_not_completed")
-            result = response.json()
-            require(result["turn_state"] == "completed", "privacy_turn_not_completed")
-            for flag in ("specialist_packet_private_marker_absent", "li_packet_private_marker_present",
-                         "specialist_provider_responded"):
-                require(observed.get(flag) is True, flag)
-            rows = get_recent_conversation_messages(conversation_id=result["conversation_id"], limit=12)
-            assistant = next((row for row in rows if row["role"] == "assistant"), None)
-            require(assistant is not None and assistant["privacy_metadata"]["private_to_li"]
-                    and assistant["privacy_metadata"]["allowed_specialists"] == [],
-                    "derived_history_privacy_missing")
-            calls_before = len(budget.calls)
-            memory_before = memory_fingerprint()
-            budget.turn(identity, replay=True)
-            replay = client.post("/li/chat", headers=headers, json=payload)
-            require(replay.status_code == 200 and replay.json()["turn_state"] == "completed_replay"
-                    and len(budget.calls) == calls_before and memory_fingerprint() == memory_before,
-                    "completed_replay_not_safe")
-            evidence.append({"language": language, "case": "privacy", **observed,
-                             "derived_history_private": True,
-                             "exact_replay_no_provider_call": True})
-            budget.checkpoint(language, "privacy", {
-                key: value for key, value in evidence[-1].items() if key not in {"language", "case"}})
+            if (language, "privacy") in cases:
+                observed = {}
+                private_marker = f"synthetic-private-{language}-{nonce}"
+                private_markers.append(private_marker)
+                active_private_marker = private_marker
+                query = ("Ask Nora to compare amber covers from our previous conversation."
+                         if language == "en" else
+                         "Be Nora jämföra bärnstensomslag från vårt tidigare samtal.")
+                private = {"private_to_li": True, "allowed_specialists": []}
+                historical = create_conversation(privacy_metadata=private)
+                append_conversation_message(conversation_id=historical, role="user",
+                    content=f"{query} Private fictional context: {private_marker}",
+                    privacy_metadata=private)
+                identity = str(uuid4())
+                payload = {"message": query, "turn_id": identity, "workspace_specialist": "nora"}
+                budget.turn(identity)
+                response = client.post("/li/chat", headers=headers, json=payload)
+                require(response.status_code == 200, "privacy_chat_not_completed")
+                result = response.json()
+                require(result["turn_state"] == "completed", "privacy_turn_not_completed")
+                for flag in ("specialist_packet_private_marker_absent", "li_packet_private_marker_present",
+                             "specialist_provider_responded"):
+                    require(observed.get(flag) is True, flag)
+                rows = get_recent_conversation_messages(conversation_id=result["conversation_id"], limit=12)
+                assistant = next((row for row in rows if row["role"] == "assistant"), None)
+                require(assistant is not None and assistant["privacy_metadata"]["private_to_li"]
+                        and assistant["privacy_metadata"]["allowed_specialists"] == [],
+                        "derived_history_privacy_missing")
+                calls_before = len(budget.calls)
+                memory_before = memory_fingerprint()
+                budget.turn(identity, replay=True)
+                replay = client.post("/li/chat", headers=headers, json=payload)
+                require(replay.status_code == 200 and replay.json()["turn_state"] == "completed_replay"
+                        and len(budget.calls) == calls_before and memory_fingerprint() == memory_before,
+                        "completed_replay_not_safe")
+                evidence.append({"language": language, "case": "privacy", **observed,
+                                 "derived_history_private": True,
+                                 "exact_replay_no_provider_call": True})
+                budget.checkpoint(language, "privacy", {
+                    key: value for key, value in evidence[-1].items()
+                    if key not in {"language", "case"}})
+                active_private_marker = None
 
-            observed = {}
-            old = f"synthetic-old-{language}-{nonce}"
-            recovery_value = f"synthetic-new-{language}-{nonce}"
-            correction_receipts.clear()
-            recovery_pipeline = recovery_pipeline_observations()
-            seed_id = store_explicit_memory(memory_class="explicit_preference", domain="preferences",
-                value=old, title=None, sensitivity="low", private_to_li=False,
-                source_reference="provider-acceptance-synthetic-seed")
-            message = (f"Correct my existing notebook preference from {old} to {recovery_value}."
-                       if language == "en" else
-                       f"Rätta min befintliga anteckningsbokspreferens från {old} till {recovery_value}.")
-            identity = str(uuid4())
-            payload = {"message": message, "turn_id": identity}
-            budget.turn(identity)
-            fail_delivered_response = True
-            response = client.post("/li/chat", headers=headers, json=payload)
-            fail_delivered_response = False
-            require(response.status_code == 503, "recovery_failure_not_observed")
-            require(observed.get("write_before_model") is True and
-                    observed.get("real_response_before_injected_failure") is True,
-                    "provider_backed_post_write_failure_not_proven")
-            after_write = current_correction()
-            calls_before = len(budget.calls)
-            memory_before = memory_fingerprint()
-            budget.turn(identity, replay=True)
-            replay = client.post("/li/chat", headers=headers, json=payload)
-            memory_after = memory_fingerprint()
-            after_replay = current_correction()
-            require(replay.status_code == 409 and
-                    replay.json()["detail"]["code"] == "turn_outcome_uncertain" and
-                    len(budget.calls) == calls_before and
-                    after_write["memory_id"] == after_replay["memory_id"] and
-                    after_write["value_text"] == after_replay["value_text"] and
-                    memory_after == memory_before,
-                    "uncertain_replay_not_safe")
-            evidence.append({"language": language, "case": "recovery", **observed,
-                             "outcome_uncertain": True, "exact_replay_no_provider_call": True,
-                             "canonical_memory_fingerprint_unchanged_on_replay": True,
-                             "same_correction_record_after_replay": True})
-            budget.checkpoint(language, "recovery", {
-                key: value for key, value in evidence[-1].items() if key not in {"language", "case"}})
+            if (language, "recovery") in cases:
+                observed = {}
+                old = f"synthetic-old-{language}-{nonce}"
+                recovery_value = f"synthetic-new-{language}-{nonce}"
+                correction_receipts.clear()
+                recovery_pipeline = recovery_pipeline_observations()
+                seed_id = store_explicit_memory(memory_class="explicit_preference", domain="preferences",
+                    value=old, title=None, sensitivity="low", private_to_li=False,
+                    source_reference="provider-acceptance-synthetic-seed")
+                message = (f"Correct my existing notebook preference from {old} to {recovery_value}."
+                           if language == "en" else
+                           f"Rätta min befintliga anteckningsbokspreferens från {old} till {recovery_value}.")
+                identity = str(uuid4())
+                payload = {"message": message, "turn_id": identity}
+                budget.turn(identity)
+                fail_delivered_response = True
+                response = client.post("/li/chat", headers=headers, json=payload)
+                fail_delivered_response = False
+                require(response.status_code == 503, "recovery_failure_not_observed")
+                require(observed.get("write_before_model") is True and
+                        observed.get("real_response_before_injected_failure") is True,
+                        "provider_backed_post_write_failure_not_proven")
+                after_write = current_correction()
+                calls_before = len(budget.calls)
+                memory_before = memory_fingerprint()
+                budget.turn(identity, replay=True)
+                replay = client.post("/li/chat", headers=headers, json=payload)
+                memory_after = memory_fingerprint()
+                after_replay = current_correction()
+                require(replay.status_code == 409 and
+                        replay.json()["detail"]["code"] == "turn_outcome_uncertain" and
+                        len(budget.calls) == calls_before and
+                        after_write["memory_id"] == after_replay["memory_id"] and
+                        after_write["value_text"] == after_replay["value_text"] and
+                        memory_after == memory_before,
+                        "uncertain_replay_not_safe")
+                evidence.append({"language": language, "case": "recovery", **observed,
+                                 "outcome_uncertain": True, "exact_replay_no_provider_call": True,
+                                 "canonical_memory_fingerprint_unchanged_on_replay": True,
+                                 "same_correction_record_after_replay": True})
+                budget.checkpoint(language, "recovery", {
+                    key: value for key, value in evidence[-1].items()
+                    if key not in {"language", "case"}})
     return evidence
