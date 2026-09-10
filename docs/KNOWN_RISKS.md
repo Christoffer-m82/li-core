@@ -92,7 +92,7 @@ where applicable, Heimdall review.
   backup, full isolated restore, migration rehearsal, authority checks, and zero-traffic candidates.
 - **Impact:** The corrected staging runtime is no longer the older affected release, but provider-
   backed bilingual privacy and uncertain-effect journeys are locally verified with synthetic records,
-  but applicable staging reconciliation and wider coverage remain incomplete. Previously
+  while applicable staging reconciliation and wider coverage remain incomplete. Previously
   affected personal records were not inspected or reclassified. A bounded live routing check also
   found that a prefixed English `Ask Nora` request invoked Nora while its Swedish `Be Nora`
   equivalent did not. That narrow routing failure is now corrected and live-retested in the
@@ -154,6 +154,10 @@ where applicable, Heimdall review.
   coverage without repeating the passed baseline cases. Assess previously affected records only
   through a separately authorized privacy-preserving process, without automatic deletion or retry.
   Keep voice and final acceptance gated until the remaining relevant core evidence is complete.
+  The [2026-09-10 remaining-acceptance review](TESTING_AND_AUDIT.md#remaining-acceptance-review--2026-09-10)
+  separates mocked later-Workspace coverage, first-turn disposable capture and baseline provider
+  evidence. It proposes a bounded chained privacy/capture continuation and a separate deployed
+  reconciliation gate; it does not authorize live execution or historical-record inspection.
 
 ## KR-012: Portfolio values are owner-entered and may become stale
 
