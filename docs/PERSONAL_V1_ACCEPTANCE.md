@@ -453,6 +453,17 @@ container is absent. No staging or device acceptance is added. KR-011 and OM-003
 remaining coverage, deployed reconciliation, historical-record decisions, device/owner and stability
 evidence. Do not rerun this completed trial or repeat the already passed English privacy case.
 
+## Remaining KR-011 acceptance review — 2026-09-10
+
+The [remaining-acceptance review](TESTING_AND_AUDIT.md#remaining-acceptance-review--2026-09-10)
+identifies the unproven later-Workspace and derived-capture provider observations without repeating
+the passed baseline trials. Existing focused tests passed 61 cases with the upstream warning visible.
+The next proposed local extension is one two-turn chain per language using real disposable storage;
+provider execution and any deployed reconciliation trial retain separate authorization gates.
+No new provider, deployment, historical-record, device or stability evidence is claimed. KR-011 and
+OM-003 remain open. Android-phone installation, standalone launch and Home layout can be checked
+by the owner independently, without submitting chat or reading another provider.
+
 ## Earlier baseline — 2026-09-04
 
 - Local Python suites: backend 350, frontend 59, native gateway 12 tests passed; Ruff passed in all

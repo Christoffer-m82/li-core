@@ -165,6 +165,11 @@ one Swedish specialist exchange, not the privacy/recovery cases below.
 
 ### Existing evidence and remaining gaps
 
+The table describes the original coverage inventory. For the current disposition after the
+successful baseline provider trials, use the
+[remaining-acceptance review](#remaining-acceptance-review--2026-09-10); do not rerun passed cases
+based on the historical "Still required" column alone.
+
 | Boundary | Existing executable evidence | Still required |
 | --- | --- | --- |
 | Historical recall and later Workspace disclosure | `test_historical_recall_stays_private_in_workspace_and_derived_outputs` in [chat acceptance tests](../backend/tests/test_personal_v1_chat_acceptance.py), plus the opt-in [local acceptance harness](../backend/tests/test_local_acceptance_harness.py): EN/SV, real disposable database history/recall/capture paths, fake-provider packet inspection, private answer/capture metadata, and idempotent replay | Provider-backed synthetic run with the same packet-boundary observation; local fake-provider evidence does not establish provider-backed behavior |
@@ -640,6 +645,81 @@ No further live call, owner-data access, deployment or protected external change
 reconciling this evidence. KR-011 remains open for the remaining applicable coverage, deployed
 reconciliation and separate historical-record decision. OM-003 remains gated by those requirements,
 applicable device/owner checks and stable-use evidence.
+
+### Remaining-acceptance review — 2026-09-10
+
+Review baseline: PR #110 merge `28d5f6d`. The four selected baseline cases have
+[local provider-backed evidence](#recovery-fixture-provider-backed-result--2026-09-09).
+Do not repeat the baseline recovery cases or reinterpret the earlier ambiguous ledgers. No new
+live selector, ledger, provider call, disposable resource or staging change is created by this plan.
+
+| Remaining boundary | What the existing tests actually prove | Next evidence needed |
+| --- | --- | --- |
+| Subsequent Workspace turn | `test_historical_recall_stays_private_in_workspace_and_derived_outputs` checks two packets with mocked storage and capture; its follow-up message is English even in the Swedish initial-request variant | A same-conversation EN/SV chain using the real disposable database, then a separately authorized provider-backed version |
+| Derived capture | `test_historical_privacy_crosses_real_database_without_crossing_specialist_packet` verifies a private stored memory on the first turn with a fake classifier; the provider driver checks derived history but does not assert a capture receipt or persisted capture privacy | Real classifier disposition, governed receipt, current-turn provenance and persisted private metadata on the chained case; no candidate is not a capture pass |
+| Uncertain-effect reconciliation | Both isolated provider recovery cases verify a committed correction, deterministic uncertainty, exact replay rejection and unchanged canonical fingerprint | Deployed artifact/configuration compatibility and an explicitly reviewed operational reconciliation path; no production reconciliation endpoint is established by the harness |
+| Historical owner records | No assessment performed; new synthetic results cannot establish absence of prior harm | Separate scoped owner assessment authorization or explicit documented residual-risk decision, never automatic repair |
+
+**Smallest proposed continuation: one two-turn Workspace chain per language.** Reuse the existing
+disposable-database fixture and provider guard, rather than adding a second acceptance framework.
+First extend the existing local integration case to a genuine Swedish follow-up, persisted later-turn
+privacy/capture assertions and exact completed replay. Reuse existing shared-source and private-proposal
+guard tests as negative/positive controls; do not implement private proposals to make acceptance pass.
+
+For each chain, seed only fictional low-risk notebook context with private metadata and a unique
+marker in the isolated database. The first turn establishes the recalled answer and capture in that
+Workspace; the second uses the same conversation with a new legitimate turn ID, a non-private current
+request and no direct repetition of the historical marker. This setup is necessary to test propagation
+from a real earlier answer, not a repeat of the old one-turn baseline benchmark. Require the earlier
+answer actually to carry the marker, its stored disclosure metadata to remain private, and the later
+Li packet to receive it while every complete Nora packet excludes it. If the marker is absent, stop
+as inconclusive instead of substituting model output or claiming a non-disclosure pass.
+
+Use explicit fictional low-risk preference requests for capture. Observe the real classifier and
+governed store without replacing candidates or changing their arguments. Require the expected safe
+action, exactly one matching receipt, current-turn source, persisted value matching the governed
+argument, `private_to_li=true`, and private derived history. A proposal, unexpected mutation,
+ambiguous receipt or missing capture stops the case; a correctly blocked private proposal is safe
+behavior but does not prove successful private capture. Verify completed replay preserves call count,
+history count and canonical fingerprint. Keep reconciliation reads outside the replay fingerprint
+interval because those reads can legitimately add audit rows.
+
+Before any metered version, review the fixture diff and fake-provider rehearsal, preserve and verify
+all five live-ledger hashes, and obtain exact authorization naming the reviewed source, a new
+exclusive-created ledger, synthetic seed/store operations and exact cleanup resources. Proposed hard
+ceilings are **four new turns, 16 total model calls and USD 0.50 prepaid**, not a new spend approval.
+Retain the existing per-call limits, durable reservations, expiry checks and no-retry behavior;
+recheck current rates, balance and disabled auto-reload immediately before execution. Stop before any
+limit is exceeded, even if this leaves a case unrun. No fault injection or recovery-case rerun belongs
+in this privacy continuation. Keep the existing masked local credential entry, localhost-only fresh
+manifest database, three separated roles, synthetic identity, disabled other providers and no host
+backup mounts. Record only allowlisted booleans, hashes, counts, usage and outcomes, never packets,
+classifier content, records or credentials. Remove only that run's exactly identified resources;
+preserve its ledger even on failure. Earlier used selectors remain blocked.
+
+**Deployed reconciliation is a separate gate.** A new conversation on owner staging does not isolate
+retrieval or writes. Do not seed it, inject a failure, scan uncertain owner turns, or add a diagnostic
+route there under this plan. First compare the exact serving artifact and relevant configuration
+metadata with the validated source, using safe read-only evidence and no secret values. A rehearsal
+of that artifact with isolated synthetic storage establishes artifact compatibility, not Cloud Run
+or owner-data reconciliation. If deployed fault evidence remains necessary, submit a separate exact
+proposal for an owner-disconnected environment, its cost coverage, fixed synthetic targets, fault
+point, scoped read authority and cleanup. Do not create that environment automatically.
+
+Operational findings must distinguish **effect observed**, **no effect positively proven**, and
+**unresolved**. A missing search result or HTTP error is not proof of no effect. Preserve uncertain
+turn identities; no reset, replacement identity, record repair or retry follows from reconciliation.
+Application rollback neither reverses a memory write nor authorizes a database rollback. An actual
+historical-record assessment or repair remains a separate owner decision.
+
+Local validation for this review: from `backend/`, `python -m pytest
+tests/test_personal_v1_chat_acceptance.py tests/test_memory_capture.py tests/test_recoverable_turns.py -q`
+passed **61 tests**, with the upstream Starlette/AnyIO warning visible. No new integration or provider
+result is claimed. The proposed chained extension remains to be implemented and rehearsed.
+KR-011 stays open. OM-003 remains gated by the applicable staged, owner/device and stable-use evidence;
+the next independent owner step is Android-phone installation/standalone launch and Home layout in
+the [existing device procedure](PERSONAL_V1_DEVICE_ACCEPTANCE.md#physical-device-procedure), without
+chat submission, provider reads or deliberate interruption. No device result has been supplied.
 
 ### Execution and stop conditions
 
