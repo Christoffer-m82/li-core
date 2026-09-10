@@ -655,8 +655,8 @@ live selector, ledger, provider call, disposable resource or staging change is c
 
 | Remaining boundary | What the existing tests actually prove | Next evidence needed |
 | --- | --- | --- |
-| Subsequent Workspace turn | `test_historical_recall_stays_private_in_workspace_and_derived_outputs` checks two packets with mocked storage and capture; its follow-up message is English even in the Swedish initial-request variant | A same-conversation EN/SV chain using the real disposable database, then a separately authorized provider-backed version |
-| Derived capture | `test_historical_privacy_crosses_real_database_without_crossing_specialist_packet` verifies a private stored memory on the first turn with a fake classifier; the provider driver checks derived history but does not assert a capture receipt or persisted capture privacy | Real classifier disposition, governed receipt, current-turn provenance and persisted private metadata on the chained case; no candidate is not a capture pass |
+| Subsequent Workspace turn | `test_chained_historical_privacy_and_capture_cross_real_database_safely` now checks a two-turn same-conversation EN/SV chain against a real disposable database, including a genuinely Swedish follow-up, complete fake-provider packet inspection and completed-replay fencing | A separately authorized provider-backed chained version; the local fake-provider result does not establish model behavior |
+| Derived capture | The chained local case drives two deterministic fake-classifier candidates through the real governed store and verifies unique receipts, current-turn source references, persisted private metadata and unchanged canonical memory on exact replay | Provider-backed classifier disposition and governed receipt on the chained case; no candidate is not a capture pass |
 | Uncertain-effect reconciliation | Both isolated provider recovery cases verify a committed correction, deterministic uncertainty, exact replay rejection and unchanged canonical fingerprint | Deployed artifact/configuration compatibility and an explicitly reviewed operational reconciliation path; no production reconciliation endpoint is established by the harness |
 | Historical owner records | No assessment performed; new synthetic results cannot establish absence of prior harm | Separate scoped owner assessment authorization or explicit documented residual-risk decision, never automatic repair |
 
@@ -715,7 +715,24 @@ historical-record assessment or repair remains a separate owner decision.
 Local validation for this review: from `backend/`, `python -m pytest
 tests/test_personal_v1_chat_acceptance.py tests/test_memory_capture.py tests/test_recoverable_turns.py -q`
 passed **61 tests**, with the upstream Starlette/AnyIO warning visible. No new integration or provider
-result is claimed. The proposed chained extension remains to be implemented and rehearsed.
+result was claimed by that planning review.
+
+The local chained extension subsequently passed **four** opt-in harness cases against a fresh
+localhost-only schema-0.42 database with three separated synthetic runtime roles and fake providers:
+the new EN/SV chained cases plus the two unchanged recovery baselines. Each language used two
+connected Workspace turns and four fake model calls. The Swedish follow-up was genuinely Swedish.
+Li's second-turn packet contained its exact private first-turn answer, while both complete Nora
+packets excluded the historical marker and both captured values. Both captures were unique, retained
+`private_to_li=true` and their exact current-turn source reference, and exact second-turn replay left
+the provider-call list, conversation rows and canonical-memory fingerprint unchanged. The complete
+migration manifest passed before the harness and the exactly named disposable container and anonymous
+volume were removed afterward. Private-proposal behavior was not altered. This is local fake-provider
+and real disposable-storage evidence, not provider-backed, deployed, personal-record or device
+acceptance. The focused privacy/recovery/proposal suite passed **61 tests**; the full backend suite
+passed **1,258 tests** with four intentional opt-in skips. Ruff, compileall, all **121** tracked
+Markdown link/anchor checks and the tracked-file secret audit passed. The upstream Starlette/AnyIO
+warning remained visible.
+
 KR-011 stays open. OM-003 remains gated by the applicable staged, owner/device and stable-use evidence;
 the next independent owner step is Android-phone installation/standalone launch and Home layout in
 the [existing device procedure](PERSONAL_V1_DEVICE_ACCEPTANCE.md#physical-device-procedure), without

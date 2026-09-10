@@ -458,11 +458,16 @@ evidence. Do not rerun this completed trial or repeat the already passed English
 The [remaining-acceptance review](TESTING_AND_AUDIT.md#remaining-acceptance-review--2026-09-10)
 identifies the unproven later-Workspace and derived-capture provider observations without repeating
 the passed baseline trials. Existing focused tests passed 61 cases with the upstream warning visible.
-The next proposed local extension is one two-turn chain per language using real disposable storage;
-provider execution and any deployed reconciliation trial retain separate authorization gates.
-No new provider, deployment, historical-record, device or stability evidence is claimed. KR-011 and
-OM-003 remain open. Android-phone installation, standalone launch and Home layout can be checked
-by the owner independently, without submitting chat or reading another provider.
+The proposed local extension now passes one two-turn chain per language against real disposable
+schema-0.42 storage and fake providers. It verifies a genuinely Swedish follow-up, Li-only historical
+answer propagation, complete specialist-packet exclusion, private captures with exact current-turn
+provenance, and replay with no additional provider call, conversation row or canonical-memory change.
+The unchanged recovery baselines also passed, for four opt-in harness cases total; the disposable
+container and volume were removed. Provider-backed chained execution and any deployed reconciliation
+trial retain separate authorization gates. No new provider, deployment, historical-record, device or
+stability evidence is claimed. KR-011 and OM-003 remain open. Android-phone installation, standalone
+launch and Home layout can be checked by the owner independently, without submitting chat or reading
+another provider.
 
 ## Earlier baseline — 2026-09-04
 
