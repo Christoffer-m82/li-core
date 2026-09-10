@@ -7,6 +7,7 @@ manifest has been applied to its disposable, localhost-only PostgreSQL service.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections.abc import Iterator
@@ -112,15 +113,54 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {os.environ['LI_OS_API_TOKEN']}"}
 
 
+def _canonical_memory_fingerprint() -> str:
+    """Hash every synthetic canonical-memory row without exposing its contents."""
+
+    digest = hashlib.sha256()
+    with psycopg.connect(
+        host=os.environ["PGHOST"],
+        port=int(os.environ["PGPORT"]),
+        dbname=os.environ["PGDATABASE"],
+        user=os.environ["PGUSER"],
+        password=os.environ["PGPASSWORD"],
+        sslmode="disable",
+    ) as connection:
+        tables = connection.execute(
+            "SELECT tablename FROM pg_tables "
+            "WHERE schemaname = 'li_memory' ORDER BY tablename"
+        ).fetchall()
+        for (table,) in tables:
+            digest.update(table.encode())
+            digest.update(b"\0")
+            rows = connection.execute(
+                sql.SQL(
+                    "SELECT row_to_json(t)::text FROM {}.{} t "
+                    "ORDER BY row_to_json(t)::text"
+                ).format(sql.Identifier("li_memory"), sql.Identifier(table))
+            ).fetchall()
+            for (row,) in rows:
+                digest.update(row.encode())
+                digest.update(b"\0")
+    return digest.hexdigest()
+
+
 @pytest.mark.parametrize(
-    "language,query",
+    "language,query,followup",
     [
-        ("en", "Ask Nora to compare amber covers from our previous conversation."),
-        ("sv", "Be Nora jämföra bärnstensomslag från vårt tidigare samtal."),
+        (
+            "en",
+            "Ask Nora to compare amber covers from our previous conversation.",
+            "Ask Nora to refine that comparison using the notebook preference already discussed.",
+        ),
+        (
+            "sv",
+            "Be Nora jämföra bärnstensomslag från vårt tidigare samtal.",
+            "Be Nora förfina jämförelsen utifrån anteckningsbokspreferensen vi redan diskuterade.",
+        ),
     ],
 )
-def test_historical_privacy_crosses_real_database_without_crossing_specialist_packet(
-    monkeypatch: pytest.MonkeyPatch, language: str, query: str,
+def test_chained_historical_privacy_and_capture_cross_real_database_safely(
+    monkeypatch: pytest.MonkeyPatch, language: str, query: str, followup: str,
 ) -> None:
     from app.database import (
         append_conversation_message,
@@ -134,7 +174,10 @@ def test_historical_privacy_crosses_real_database_without_crossing_specialist_pa
 
     run_id = uuid4().hex
     private_marker = f"synthetic-private-{language}-{run_id}"
-    capture_value = f"synthetic-capture-{language}-{run_id}"
+    capture_values = [
+        f"Synthetic private notebook preference {language} first {run_id}",
+        f"Synthetic private notebook preference {language} follow-up {run_id}",
+    ]
     historical_conversation = create_conversation(
         privacy_metadata={"private_to_li": True, "allowed_specialists": []}
     )
@@ -147,6 +190,8 @@ def test_historical_privacy_crosses_real_database_without_crossing_specialist_pa
 
     packets = []
     model_calls: list[str] = []
+    li_responses: list[str] = []
+    analysis_calls = 0
 
     def consult(names, request):
         model_calls.append("specialist")
@@ -163,57 +208,105 @@ def test_historical_privacy_crosses_real_database_without_crossing_specialist_pa
     def synthesize(**kwargs):
         model_calls.append("synthesis")
         assert private_marker in str(kwargs["system"])
+        if li_responses:
+            assert li_responses[0] in str(kwargs["system"])
+        response = f"Li retained {private_marker} privately in turn {len(li_responses) + 1}."
+        li_responses.append(response)
         return json.dumps({
-            "final_response": f"Li retained {private_marker} privately.",
+            "final_response": response,
             "used_specialist_keys": ["nora"],
             "action_intents": [],
         })
 
-    monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
-    monkeypatch.setattr("app.li_runtime.generate_claude_text", synthesize)
-    monkeypatch.setattr(
-        "app.main.analyze_memory_capture",
-        lambda *args, **kwargs: MemoryCaptureAnalysis(candidates=[MemoryCandidate(
+    def analyze(*args, **kwargs):
+        nonlocal analysis_calls
+        value = capture_values[analysis_calls]
+        analysis_calls += 1
+        return MemoryCaptureAnalysis(candidates=[MemoryCandidate(
             action="store_explicit",
             memory_class="explicit_preference",
             domain="preferences",
-            value=capture_value,
+            value=value,
             sensitivity="low",
-        )]),
+        )])
+
+    monkeypatch.setattr("app.li_runtime.consult_specialists", consult)
+    monkeypatch.setattr("app.li_runtime.generate_claude_text", synthesize)
+    monkeypatch.setattr(
+        "app.main.analyze_memory_capture", analyze,
     )
 
-    turn_id = uuid4()
-    payload = {
+    first_turn_id = uuid4()
+    first_payload = {
         "message": query,
-        "turn_id": str(turn_id),
+        "turn_id": str(first_turn_id),
         "workspace_specialist": "nora",
     }
     with TestClient(app) as client:
-        response = client.post("/li/chat", headers=_headers(), json=payload)
-        replay = client.post("/li/chat", headers=_headers(), json=payload)
+        first = client.post("/li/chat", headers=_headers(), json=first_payload)
+        assert first.status_code == 200
+        assert first.json()["turn_state"] == "completed"
 
-    assert response.status_code == 200
-    assert response.json()["turn_state"] == "completed"
+        conversation_id = first.json()["conversation_id"]
+        second_turn_id = uuid4()
+        second_payload = {
+            "message": followup,
+            "turn_id": str(second_turn_id),
+            "conversation_id": conversation_id,
+            "workspace_specialist": "nora",
+        }
+        second = client.post("/li/chat", headers=_headers(), json=second_payload)
+        calls_before_replay = list(model_calls)
+        messages_before_replay = get_recent_conversation_messages(
+            conversation_id=conversation_id, limit=12
+        )
+        memory_before_replay = _canonical_memory_fingerprint()
+        replay = client.post("/li/chat", headers=_headers(), json=second_payload)
+        memory_after_replay = _canonical_memory_fingerprint()
+        messages_after_replay = get_recent_conversation_messages(
+            conversation_id=conversation_id, limit=12
+        )
+
+    assert second.status_code == 200
+    assert second.json()["turn_state"] == "completed"
     assert replay.status_code == 200
     assert replay.json()["turn_state"] == "completed_replay"
-    assert model_calls == ["specialist", "synthesis"]
-    assert len(packets) == 1
-    assert private_marker not in packets[0].model_dump_json()
+    assert replay.json()["response"] == second.json()["response"]
+    assert model_calls == calls_before_replay == [
+        "specialist", "synthesis", "specialist", "synthesis"
+    ]
+    assert analysis_calls == 2
+    assert len(li_responses) == 2
+    assert len(packets) == 2
+    assert all(
+        private_marker not in packet.model_dump_json()
+        and all(value not in packet.model_dump_json() for value in capture_values)
+        for packet in packets
+    )
+    assert memory_after_replay == memory_before_replay
+    assert messages_after_replay == messages_before_replay
 
     messages = get_recent_conversation_messages(
-        conversation_id=response.json()["conversation_id"], limit=12
+        conversation_id=conversation_id, limit=12
     )
-    assistant = next(row for row in messages if row["role"] == "assistant")
-    assert private_marker in assistant["content"]
-    assert assistant["privacy_metadata"]["private_to_li"] is True
-    assert assistant["privacy_metadata"]["allowed_specialists"] == []
-    assert assistant["privacy_metadata"]["sharing_basis"] == "derived_from_runtime_sources"
-    captured = [
-        row for row in recall_memory(query=capture_value, domains=["preferences"], limit=10)
-        if row["value_text"] == capture_value
-    ]
-    assert len(captured) == 1
-    assert captured[0]["private_to_li"] is True
+    assistants = [row for row in messages if row["role"] == "assistant"]
+    assert len(assistants) == 2
+    for assistant in assistants:
+        assert private_marker in assistant["content"]
+        assert assistant["privacy_metadata"]["private_to_li"] is True
+        assert assistant["privacy_metadata"]["allowed_specialists"] == []
+        assert assistant["privacy_metadata"]["sharing_basis"] == "derived_from_runtime_sources"
+
+    for value, turn_id in zip(capture_values, (first_turn_id, second_turn_id), strict=True):
+        captured = [
+            row for row in recall_memory(query=value, domains=["preferences"], limit=10)
+            if row["value_text"] == value
+        ]
+        assert len(captured) == 1
+        assert captured[0]["private_to_li"] is True
+        assert captured[0]["source_reference"] == (
+            f"li-chat:{conversation_id}:{turn_id}"
+        )
 
 
 @pytest.mark.parametrize(

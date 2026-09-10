@@ -157,7 +157,12 @@ where applicable, Heimdall review.
   The [2026-09-10 remaining-acceptance review](TESTING_AND_AUDIT.md#remaining-acceptance-review--2026-09-10)
   separates mocked later-Workspace coverage, first-turn disposable capture and baseline provider
   evidence. It proposes a bounded chained privacy/capture continuation and a separate deployed
-  reconciliation gate; it does not authorize live execution or historical-record inspection.
+  reconciliation gate; it does not authorize live execution or historical-record inspection. The
+  local continuation now passes two connected Workspace turns per language against real disposable
+  schema-0.42 storage and fake providers, including a genuinely Swedish follow-up, private answer
+  propagation, specialist-packet exclusion, private capture provenance and exact-replay invariants.
+  This narrows the gap but does not provide the separately gated provider-backed chained observation,
+  deployed reconciliation, historical-record decision, owner/device acceptance or stability evidence.
 
 ## KR-012: Portfolio values are owner-entered and may become stale
 
