@@ -1,14 +1,14 @@
-# Enlarged-text web candidate: `a9a6bf8`
+# Enlarged-text web staging release: `a9a6bf8`
 
 ## Status and authorization
 
-**Zero-normal-traffic candidate is Ready; promotion has not occurred.** The owner authorized only
+**Validated web revision now serves 100% of staging traffic.** The owner authorized only
 a web staging deployment of `a9a6bf8f21b996123194e8e3ba1bb6471c50e05c`, against verified existing
 coverage with no additional charge. Backend, database, IAM, secrets, providers, scheduler and
 billing changes are excluded.
 
 The candidate `li-os-web-release-a9a6bf8` was created on 2026-10-03. The preceding
-`li-os-web-release-131034f` still serves 100% of normal traffic. Backend `li-os-calendar-v2`
+`li-os-web-release-131034f` remained at 100% until all candidate gates passed. Backend `li-os-calendar-v2`
 still serves 100%; schema 0.42 is the last recorded database state, not a newly performed database
 verification. See the [Calendar configuration release](2026-09-09-calendar-v2-staging.md).
 
@@ -30,7 +30,7 @@ verification. See the [Calendar configuration release](2026-09-09-calendar-v2-st
   inputs were unchanged; the Linux/amd64 image digest is
   `sha256:9c898d3c0fe22a34c26fc508cec7be77529e85ffb8d1e8d78d52930adcc50546`.
 
-## Candidate evidence and remaining gate
+## Candidate and promotion evidence
 
 - The complete non-image revision specification equals the preceding web revision, including
   runtime identity, resources, environment and all five numeric secret references. The only
@@ -45,12 +45,21 @@ verification. See the [Calendar configuration release](2026-09-09-calendar-v2-st
   the corrected `/sw.js` check passed. This was a test-path error, not an image mismatch.
 - A revision-scoped ERROR-severity query found no entries during the candidate check window. No
   historical logs or raw provider output were inspected.
-- **Authenticated candidate readiness remains unverified.** The unchanged OAuth configuration
-  redirects to the normal staging hostname, so candidate login cannot simply be treated as a new
-  independent sign-in flow. An owner-operated masked local check can use the existing signed-in
-  web session solely for `/api/ready`, without displaying or saving the cookie or response body.
-  Promotion waits for this gate; no secret access or authentication-boundary change is used as a
-  shortcut.
+- The owner operated the masked local validation and reported that the exact candidate's
+  authenticated `/api/ready` returned 200. Its only authenticated request was readiness; neither
+  the cookie nor response body was displayed or saved. The unchanged OAuth configuration redirects
+  to the normal staging hostname, so an existing owner-entered web session was used without changing
+  OAuth or accessing Secret Manager values. This is owner-reported authenticated candidate evidence,
+  not a second independently performed authenticated test after promotion.
+- Immediately before promotion, the immutable digest, complete non-image specification, candidate
+  and rollback readiness, and preceding revision's 100% traffic were reverified. The exact validated
+  revision was promoted on 2026-10-03 at approximately 20:44 UTC.
+- Post-promotion checks verified 100% traffic on `li-os-web-release-a9a6bf8`; health, shell and the
+  three public documents returned 200 with security headers. Anonymous readiness, portfolio,
+  Calendar and proposal routes remained 401. The four changed static assets again matched the
+  authorized archive. Web IAM's etag and backend `li-os-calendar-v2` at 100% were unchanged.
+- The initial revision-scoped post-promotion ERROR query returned no entries. This bounded rollout
+  observation is not an owner stable-use period or universal absence-of-errors claim.
 
 ## Rollback and limitations
 
@@ -60,7 +69,7 @@ restore the known enlarged-text layout failure. It leaves backend, schema, perso
 configuration unchanged. Stop promotion on any failed readiness, configuration, privacy or image
 check, per the [deployment workflow](../DEPLOYMENT_WORKFLOW.md).
 
-No promotion, provider call, Calendar read, personal-record access, migration or adjacent service
-change was performed. Samsung 200% retesting, installed-app, tablet, Windows, owner and stability
+No provider call, Calendar read, personal-record access, migration or adjacent service change was
+performed. Samsung 200% retesting, installed-app, tablet, Windows, owner and stability
 acceptance remain open. Android Back behavior is a separate unresolved finding. KR-011, KR-013 and
-OM-003 remain open; this candidate does not close their gates.
+OM-003 remain open; this web release does not close their gates.
