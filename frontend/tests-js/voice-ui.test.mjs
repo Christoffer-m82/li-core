@@ -96,6 +96,8 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   }
 
   const document = {
+    events: new Map(),
+    addEventListener(name, handler) { this.events.set(name, handler); },
     body: new FakeElement(),
     createElement: () => {
       const element = new FakeElement();
@@ -157,6 +159,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     LiCalendar: { create: () => ({ load() {}, clear() {} }) },
     LiFinances: { create: () => ({ load() {}, clear() {} }) },
     addEventListener(name, handler) { windowEvents.set(name, handler); },
+    removeEventListener(name, handler) { if (windowEvents.get(name) === handler) windowEvents.delete(name); },
     clearTimeout,
     confirm: () => false,
     localStorage,
@@ -192,6 +195,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   vm.runInNewContext(voiceSource, context);
   vm.runInNewContext(readFileSync(new URL('../static/assets/themes.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(profileSource, context);
+  vm.runInNewContext(readFileSync(new URL('../static/assets/exit-guard.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(appSource, context);
 
   return {
@@ -205,7 +209,9 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     setView: vm.runInNewContext('setView', context),
     loadHomeData: vm.runInNewContext('loadHomeData', context),
     sendMessage: vm.runInNewContext('sendMessage', context),
+    handleFile: vm.runInNewContext('handleFile', context),
     document,
+    hasExitWarning: () => windowEvents.has('beforeunload'),
     elements,
     requests,
     setConversation(value) { vm.runInNewContext(`state.conversationId = ${JSON.stringify(value)}`, context); },
@@ -229,6 +235,34 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
     hasTimer(delay) { return [...timers.values()].some((timer) => timer.delay === delay); },
   };
 }
+
+test('main-chat exit warning follows typing, in-flight send, success and failure without extra requests', async () => {
+  let release; const delayed = new Promise(resolve => { release = resolve; });
+  const app = loadApp({ chatResponses: [{ ok: true, json: () => delayed }, { ok: false, json: async () => ({}) }] });
+  await app.settle(); assert.equal(app.hasExitWarning(), false);
+  const input = app.document.querySelector('#message-input'); input.value = 'Synthetic draft';
+  app.document.events.get('input')(); assert.equal(app.hasExitWarning(), true);
+  input.value = ''; app.document.events.get('input')(); assert.equal(app.hasExitWarning(), false);
+  const send = app.sendMessage('Synthetic request'); assert.equal(app.hasExitWarning(), true);
+  const count = app.requests.length;
+  let prevented = false; await app.dispatchWindow('beforeunload', { preventDefault() { prevented = true; } });
+  assert.equal(prevented, true); assert.equal(app.requests.length, count);
+  release({ conversation_id: 'test', response: 'OK' }); await send;
+  assert.equal(app.hasExitWarning(), false);
+  await app.sendMessage('Failed request'); assert.equal(app.hasExitWarning(), true);
+  assert.equal(input.value, 'Failed request');
+});
+
+test('temporary upload exit warning covers analysis and clears after sending', async () => {
+  let release; const delayed = new Promise(resolve => { release = resolve; });
+  const app = loadApp({ endpointResponses: { '/api/uploads': { ok: true, json: () => delayed } } });
+  await app.settle();
+  const upload = app.handleFile({ name: 'synthetic.txt' });
+  assert.equal(app.hasExitWarning(), true);
+  await app.settle(); release({ analysis_text: 'synthetic text' }); await upload;
+  assert.equal(app.hasExitWarning(), true);
+  await app.sendMessage('Review attachment'); assert.equal(app.hasExitWarning(), false);
+});
 
 test('blocked storage does not prevent startup, theme selection, or voice controls', async () => {
   const app = loadApp({ storageBlocked: true });

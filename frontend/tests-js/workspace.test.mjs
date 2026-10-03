@@ -65,6 +65,39 @@ test('new workspace sends exact message with selected recipient and uses returne
 
 const validIdForTest = value => typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 
+test('pending-work notification covers drafts, failed sends, completed sends and clearing', async () => {
+  const pending = []; let succeed = false;
+  const app = setup(async url => url === '/api/chat' ? succeed
+    ? reply({ conversation_id: id, response: 'OK', conversation_history_error: 'not saved' }) : { ok: false }
+    : reply({ interactions: [] }), { onPendingChange: value => { assert.equal(typeof value, 'boolean'); pending.push(value); } });
+  await app.view.open(agent, []); assert.equal(pending.at(-1), false);
+  const input = app.get('workspace-input'); input.value = 'Synthetic draft'; input.handlers.input();
+  assert.equal(pending.at(-1), true);
+  await app.send(); assert.equal(pending.at(-1), true);
+  succeed = true; await app.send(); assert.equal(pending.at(-1), false);
+  input.value = 'Another draft'; input.handlers.input(); app.view.clear();
+  assert.equal(pending.at(-1), false);
+});
+
+test('pending-work notification covers upload analysis, attachment removal and in-flight send', async () => {
+  let pending = false, releaseUpload, releaseSend;
+  const upload = new Promise(resolve => { releaseUpload = resolve; });
+  const send = new Promise(resolve => { releaseSend = resolve; });
+  const app = setup(async url => url === '/api/uploads' ? upload : url === '/api/chat' ? send
+    : reply({ interactions: [] }), { onPendingChange: value => { pending = value; } });
+  await app.view.open(agent, []);
+  const file = app.get('workspace-file'); file.files = [{ name: 'synthetic.txt', size: 12 }];
+  const analysis = file.handlers.change(); assert.equal(pending, true);
+  releaseUpload(reply({ analysis_text: 'Synthetic text' })); await analysis; assert.equal(pending, true);
+  const remove = app.root.children.flatMap(function flatten(el) { return [el, ...el.children.flatMap(flatten)]; })
+    .find(el => el.className.includes('workspace-remove-attachment'));
+  await remove.click(); assert.equal(pending, false);
+  app.get('workspace-input').value = 'Synthetic request';
+  const request = app.send(); assert.equal(pending, true);
+  releaseSend(reply({ conversation_id: id, response: 'OK', conversation_history_error: 'not saved' }));
+  await request; assert.equal(pending, false);
+});
+
 test('failed workspace retry reuses the same stable turn identity', async () => {
   const ids=[]; let succeed=false;
   const app=setup(async (url,options) => {
