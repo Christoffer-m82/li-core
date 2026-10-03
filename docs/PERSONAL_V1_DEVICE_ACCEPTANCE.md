@@ -8,10 +8,11 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
 is backend [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md) `calendar-v2` with web
-[public OAuth information release](releases/2026-09-08-131034f-staging.md) `131034f` and database
+[enlarged-text web release](releases/2026-10-03-a9a6bf8-web-staging.md) `a9a6bf8` and database
 schema 0.42. The earlier
 [`db1d17c` diagnostic release](releases/2026-09-08-db1d17c-staging.md) remains the backend application
-rollback target; web `a7601b7` is the immediate web rollback target.
+rollback target; web `131034f` is the immediate web rollback target and would restore the known
+enlarged-text defect.
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -158,14 +159,16 @@ needs a separate review. The local layout correction passed offline Edge/Chromiu
 the real Workspace renderer, unclipped controls and 44-pixel minimum target heights. This simulation
 does not reproduce Android Chrome's exact scaling engine. Frontend validation passed 101 Python
 tests, 93 Node tests, Ruff and compileall, with the upstream Starlette/AnyIO warning visible.
-An authorized web deployment and the same physical-phone retest are required before this failure closes.
+The separately authorized [web rollout](releases/2026-10-03-a9a6bf8-web-staging.md) deployed the
+correction after zero-traffic validation, including owner-reported authenticated readiness.
+The same physical-phone 200% retest remains required before this failure closes.
 The screenshots are not committed and no conversation or portfolio contents are recorded here.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend `calendar-v2`; web `release-131034f` |
+| Deployed release | Backend `calendar-v2`; web `release-a9a6bf8` |
 | Backend revision | `li-os-calendar-v2` |
-| Web revision | `li-os-web-release-131034f` |
+| Web revision | `li-os-web-release-a9a6bf8` |
 | Database schema | `0.42` |
 | Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics and the original OAuth failure classification are in the [diagnostic backend release](releases/2026-09-08-db1d17c-staging.md); public OAuth documents, branding and In-production publication are in the [web release](releases/2026-09-08-131034f-staging.md); matching credential references, backend promotion, one successful bounded provider-backed read, and the exact synthetic Finance archive are in the [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md). Physical-device Calendar display, owner and stability acceptance remain open |
 | Owner test start | NOT RECORDED |
