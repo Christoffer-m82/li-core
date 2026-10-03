@@ -136,6 +136,31 @@ normal-use evidence.
 
 ## Evidence record
 
+### Samsung Galaxy A55 5G browser observations - 2026-10-03
+
+The owner reported successful normal-size Home and Specialist Workspace keyboard/scrolling,
+portrait/landscape layout, menu navigation, theme readability/persistence, History navigation,
+portrait viewing, returning from another app and signed-in reopening. Calendar week/month layout
+and Avanza/Crypto views were reported usable without provider refresh or record changes. The owner
+reported no other freezes or confusing controls during those checks. Android and Chrome versions
+were not supplied, and the serving release was not independently rechecked in this batch.
+
+The supplied screenshots show normal Chrome browser controls. Installation and standalone launch
+therefore remain NOT RUN pending explicit installed-app observations. Tablet and Windows devices
+are available, but their acceptance remains NOT RUN. No sign-out, offline/reconnect, provider,
+microphone, record-mutation or stable-use journey is established by these observations.
+
+At owner-reported 200% Chrome scaling, Home failed enlarged-text usability: the composer and send
+button clipped, mobile navigation extended beyond the screen, and the Specialists heading crowded
+its activity badge. Android Back was also reported to leave immediately; navigation/exit behavior
+needs a separate review. The local layout correction passed offline Edge/Chromium checks at 180,
+360, 390, 760 and 1440 CSS pixels with normal and doubled computed font sizes, covering Home,
+the real Workspace renderer, unclipped controls and 44-pixel minimum target heights. This simulation
+does not reproduce Android Chrome's exact scaling engine. Frontend validation passed 101 Python
+tests, 93 Node tests, Ruff and compileall, with the upstream Starlette/AnyIO warning visible.
+An authorized web deployment and the same physical-phone retest are required before this failure closes.
+The screenshots are not committed and no conversation or portfolio contents are recorded here.
+
 | Field | Value |
 | --- | --- |
 | Deployed release | Backend `calendar-v2`; web `release-131034f` |

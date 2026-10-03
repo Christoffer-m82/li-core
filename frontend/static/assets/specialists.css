@@ -125,3 +125,16 @@ html:has(.specialist-portrait-dialog[open]){overflow:hidden}
 #specialist-live[data-chat-specialist="milo"]{--chat-specialist:#f2e6d4}
 #specialist-live[data-chat-specialist="iris"]{--chat-specialist:#fbdcd3}
 #specialist-live[data-chat-specialist="clara"]{--chat-specialist:#e6e5df}
+
+/* Keep the conversation and footer reachable when text is enlarged. */
+.workspace-chat{min-width:0;grid-template-columns:minmax(0,1fr);height:auto;min-height:500px}
+.workspace-log{max-height:68dvh}
+.workspace-chat-footer,.workspace-composer,.workspace-composer-bar{min-width:0}
+.specialist-profile{flex-wrap:wrap}.specialist-profile>div{min-width:0;overflow-wrap:anywhere}
+.specialist-portrait-header{flex-wrap:wrap}
+@media(max-width:480px){
+  .workspace-chat{height:auto;min-height:480px}
+  .workspace-composer-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(44px,1fr))}
+  .workspace-composer-bar textarea{grid-column:1/-1;grid-row:1;min-height:3em;max-height:none}
+  .workspace-send-button{justify-self:end}
+}

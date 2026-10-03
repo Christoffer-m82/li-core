@@ -667,3 +667,13 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
 const freshnessPanel = document.createElement('article'); freshnessPanel.className = 'panel'; const freshnessHeading = document.createElement('h3'); freshnessHeading.textContent = 'Freshness & Evidence'; const freshnessNote = document.createElement('p'); freshnessNote.className = 'muted'; freshnessNote.textContent = 'Read-only specialist policy. Stable knowledge stays separate from live world state.'; const freshnessList = document.createElement('div'); freshnessList.id = 'freshness-policy-list'; freshnessList.className = 'capability-grid'; freshnessPanel.append(freshnessHeading, freshnessNote, freshnessList); const backendNotes = $('[data-view-panel="backend"] .backend-notes'); if (backendNotes) backendNotes.before(freshnessPanel);
 const providerPanel = document.createElement('article'); providerPanel.className = 'panel'; const providerHeading = document.createElement('h3'); providerHeading.textContent = 'Provider Coverage & Source Authority'; const providerNote = document.createElement('p'); providerNote.className = 'muted'; providerNote.textContent = 'Read-only declared coverage. No credentials, secret identifiers, or invented reliability metrics.'; const providerList = document.createElement('div'); providerList.id = 'provider-coverage-list'; providerList.className = 'capability-grid'; providerPanel.append(providerHeading, providerNote, providerList); if (backendNotes) backendNotes.before(providerPanel);
 renderSystemAgents(); $('#system-agent-back').addEventListener('click', () => setView('home')); initializeAppearance(); createPlaceSettings(); $('#page-title').textContent = greeting(); activateTheme(state.theme); initializeVoice(); updateInstallControl(); updateConnectivity(); loadSession();
+
+// Keep the last page controls clear of navigation as text size changes.
+(() => {
+  const navigation = document.querySelector('.bottom-nav');
+  if (!navigation) return;
+  const reserveSpace = () => document.documentElement.style.setProperty('--mobile-nav-height', `${navigation.getBoundingClientRect().height}px`);
+  reserveSpace();
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(reserveSpace).observe(navigation);
+  window.addEventListener('resize', reserveSpace);
+})();

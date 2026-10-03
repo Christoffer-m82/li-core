@@ -52,6 +52,7 @@ class FakeElement {
   closest() { return null; }
   focus() {}
   getAttribute(name) { return this.attributes.get(name) ?? null; }
+  getBoundingClientRect() { return { height: 64 }; }
   hasAttribute(name) { return this.attributes.has(name); }
   querySelector(selector) { return this.children.find(child => `.${child.className}` === selector) || null; }
   querySelectorAll() { return []; }

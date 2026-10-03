@@ -50,6 +50,12 @@ The SVG remains the browser favicon.
 When Chromium exposes its install prompt, Settings shows an in-app **Install Li on this device**
 control; otherwise it gives Android/Windows browser-menu guidance and detects standalone launch.
 
+For local enlarged-text regression, with Playwright available and Microsoft Edge installed, run
+`node tests-browser/enlarged-text.cjs` from this directory. The offline check loads tracked static
+styles, the real Workspace renderer and navigation sizing, intercepts all network requests, and
+tests normal/doubled computed font sizes at narrow and desktop widths. It is a simulation;
+Android Chrome scaling and actual browser zoom still require the owner device checks.
+
 ## Local validation
 
 See [Appearance library](APPEARANCE.md) for built-in/custom themes, extension rules, and the Home

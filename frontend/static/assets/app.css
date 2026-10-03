@@ -42,4 +42,27 @@ button:focus-visible,a:focus-visible,textarea:focus-visible,input:focus-visible,
 @media(max-width:520px){.profile-photo-editor{grid-template-columns:1fr}.profile-photo-preview{width:92px;height:92px}}
 @media(max-width:1100px){.conversation-intro{order:5;flex-basis:100%;margin:0}.conversation-heading .voice-output-controls{margin-left:auto}}
 .conversation-panel{grid-template-columns:minmax(0,1fr)}.conversation-heading,.composer,.messages{min-width:0}.composer textarea{min-width:0;min-height:44px}.composer button{flex:0 0 44px;width:44px;height:44px}.voice-output-controls .icon-button{width:44px;height:44px}
+
+/* Enlarged text must reflow instead of forcing controls outside the viewport. */
+.topbar{gap:16px}.topbar>div{min-width:0;overflow-wrap:anywhere}.account-button{flex-shrink:0}
+.panel-heading{flex-wrap:wrap;gap:12px}.panel-heading>div{min-width:0;overflow-wrap:anywhere}
+.panel-heading .pill{max-width:100%;overflow-wrap:anywhere}
+.panel{min-width:0;overflow-wrap:anywhere}.home-glance-heading{min-width:0}
+.message>div{min-width:0}.message p,.composer-note{overflow-wrap:anywhere}
+.mini-avatar{flex-shrink:0}
+.specialist-card{grid-template-columns:42px minmax(0,1fr) auto}.specialist-card>div{min-width:0;overflow-wrap:anywhere}
+@media(max-width:760px){
+  main{padding-bottom:calc(var(--mobile-nav-height,10rem) + 18px)}
+  .home-glance,.overview-grid{grid-template-columns:minmax(0,1fr)}
+  .bottom-nav{position:fixed;inset:auto 0 0;grid-template-columns:repeat(auto-fit,minmax(44px,1fr));max-height:35dvh;overflow-y:auto;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line);z-index:5}
+  .bottom-nav .nav-item{display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;min-height:44px;padding:7px 2px;text-align:center}
+  .bottom-nav small{max-width:100%;overflow-wrap:anywhere;line-height:1.4}
+  .specialist-card{grid-template-columns:42px minmax(0,1fr)}
+  .specialist-status{grid-column:2;overflow-wrap:anywhere}
+}
+@media(max-width:480px){
+  .composer{display:grid;grid-template-columns:repeat(auto-fit,minmax(44px,1fr));gap:8px}
+  .composer textarea{grid-column:1/-1;grid-row:1;width:100%;min-height:3em;max-height:none}
+  .composer .send-button{justify-self:end}
+}
 .history-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:18px;align-items:start}.history-layout .empty-panel{grid-row:span 2}.memory-library h2,.memory-result h3{margin-top:0}.memory-search label{display:block;margin:18px 0 7px;font-weight:650}.memory-search-controls{display:flex;gap:8px}.memory-search-controls input{min-width:0;min-height:44px;flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);color:var(--text)}.memory-search-controls .primary-button{margin-top:0}.memory-results{display:grid;gap:10px;margin-top:14px}.memory-result{padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}.memory-result h3{font-size:14px;text-transform:capitalize}.memory-result p{line-height:1.5;overflow-wrap:anywhere}.memory-meta{display:block;color:var(--muted);text-transform:capitalize}.memory-proposals{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}.memory-proposals>h3{margin:0}.memory-proposal{border-left:3px solid var(--purple)}.memory-proposal-reason{display:block;margin-top:8px;color:var(--muted);line-height:1.45;overflow-wrap:anywhere}.memory-governance-note{margin:18px 0 0;padding:12px;border-left:3px solid var(--purple);border-radius:8px;background:var(--surface-2);color:var(--muted);font-size:12px;line-height:1.5}.memory-receipt{align-self:flex-start;margin:-8px 0 2px 39px;padding:9px 12px;border:1px solid color-mix(in srgb,var(--green) 40%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--green) 10%,var(--surface-2));display:grid;gap:3px;max-width:min(640px,84%);font-size:12px}.memory-receipt small{color:var(--muted)}.memory-receipt.proposed{border-color:color-mix(in srgb,var(--purple) 45%,var(--line));background:color-mix(in srgb,var(--purple) 10%,var(--surface-2))}.memory-receipt.unavailable{border-color:#9a4f58;background:color-mix(in srgb,#9a4f58 10%,var(--surface-2))}@media(max-width:760px){.history-layout{grid-template-columns:1fr}.history-layout .empty-panel{grid-row:auto}.memory-search-controls{align-items:stretch;flex-direction:column}}
