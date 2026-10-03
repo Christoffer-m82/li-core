@@ -164,6 +164,22 @@ correction after zero-traffic validation, including owner-reported authenticated
 The same physical-phone 200% retest remains required before this failure closes.
 The screenshots are not committed and no conversation or portfolio contents are recorded here.
 
+### Local browser draft-loss guard - 2026-10-03
+
+The Android Back review found no existing exit guard. The local correction adds a conditional
+browser-managed warning for unsent Li/Workspace chat text, analysed temporary attachments, uploads
+and in-flight chat requests. It adds no history trap, draft persistence, provider call or automatic
+retry. Failed chat requests retain their draft and warning; successful sends clear pending state.
+Browsers may suppress this warning on Android navigation or process closure. Clean exits remain
+unblocked; guaranteed Back/exit confirmation is not claimed. See the
+[frontend behavior and limitations](../frontend/README.md#browser-draft-loss-warning).
+
+This source change is not deployed. Physical Android Back behavior and the already-deployed 200%
+layout retest remain open. No other device or owner evidence is inferred.
+Validation passed 101 frontend Python tests, 98 Node tests, Ruff, compileall, the offline Chromium
+leave-warning check and all ten enlarged-text layout combinations. The upstream Starlette/AnyIO
+warning remains visible. These are synthetic local results, not owner observations.
+
 | Field | Value |
 | --- | --- |
 | Deployed release | Backend `calendar-v2`; web `release-a9a6bf8` |

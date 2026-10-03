@@ -32,7 +32,7 @@
     return rows.sort((a, b) => stamp(a.at) - stamp(b.at) || String(a.id || '').localeCompare(String(b.id || '')));
   }
   function create({ document, fetch, avatar, ownerAvatar, owner = () => ({ name: 'You' }), isBusy = () => false,
-    onActions = () => {}, onActivity = () => {}, confirmDiscard = () => true }) {
+    onActions = () => {}, onActivity = () => {}, confirmDiscard = () => true, onPendingChange = () => {} }) {
     let agent = null, entries = [], messages = [], conversationId = null, version = 0;
     let sending = false, uploading = false, ready = false, attachment = null, pendingSend = null, pendingBottom = false;
     let dragDepth = 0;
@@ -81,14 +81,16 @@
     form.append(recipientRow, attachmentRow, composerBar, composerNote);
     footer.append(latest, status, form); chat.append(log, dropPrompt, footer);
     root.append(header, note, limits, chat);
+    const pendingChanged = () => onPendingChange(Boolean(input.value.trim() || attachment || sending || uploading));
     function controls() {
       send.disabled = !ready || sending || uploading;
       [input, recipient, file, attach, remove, cases, fresh].forEach(el => { el.disabled = !agent || sending || uploading; });
       send.textContent = sending ? '…' : '↑';
       send.setAttribute('aria-label', sending ? 'Waiting for Li and specialist' : 'Send message');
       send.title = sending ? 'Waiting for Li and specialist' : 'Send message';
+      pendingChanged();
     }
-    function resetDraft() { input.value = ''; attachment = null; pendingTurnId = null; pendingTurnFingerprint = null; file.value = ''; files.replaceChildren(); remove.hidden = true; attachmentRow.hidden = true; }
+    function resetDraft() { input.value = ''; attachment = null; pendingTurnId = null; pendingTurnFingerprint = null; file.value = ''; files.replaceChildren(); remove.hidden = true; attachmentRow.hidden = true; pendingChanged(); }
     function forgetPending() { if (agent) removeRetry(retryKey(agent.id)); pendingTurnId = null; pendingTurnFingerprint = null; }
     function choices() {
       const option = (value, title) => { const el = node('option', title); el.value = value; return el; };
@@ -149,17 +151,19 @@
     const canDiscard = () => !(input.value.trim() || attachment) || confirmDiscard();
     cases.addEventListener('change', () => { if (!canDiscard()) { cases.value = conversationId || ''; return; } forgetPending(); resetDraft(); return load(cases.value || null); });
     fresh.addEventListener('click', () => { if (!canDiscard()) return; forgetPending(); resetDraft(); return load(null); });
-    remove.addEventListener('click', () => { attachment = null; file.value = ''; files.replaceChildren(); remove.hidden = true; attachmentRow.hidden = true; });
+    remove.addEventListener('click', () => { attachment = null; file.value = ''; files.replaceChildren(); remove.hidden = true; attachmentRow.hidden = true; pendingChanged(); });
     attach.addEventListener('click', () => file.click());
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); }
     });
     input.addEventListener('input', () => {
       input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+      pendingChanged();
     });
     async function prepareAttachment(item) {
       if (!item || sending || uploading) return;
       attachment = null; remove.hidden = true; attachmentRow.hidden = true; files.textContent = '';
+      pendingChanged();
       if (item.size > 10 * 1024 * 1024) { status.textContent = 'Files must be 10 MB or smaller.'; file.value = ''; return; }
       const token = version; uploading = true; controls(); status.textContent = 'Analysing attachment temporarily…';
       try {

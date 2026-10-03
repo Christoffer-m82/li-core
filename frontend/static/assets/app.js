@@ -22,6 +22,13 @@ function savePreference(key, value) {
 }
 const state = { conversationId: null, history: [], signedIn: false, sending: false, specialists: [], capabilities: [], temporaryUploadContext: null, pendingTurn: null, theme: preferenceStorage.getItem('li-theme') || 'dark', voiceOutput: preferenceStorage.getItem('li-voice-output') === 'on', voiceSession: 0, voiceSendTimer: null, displayName: '', currentSpecialist: null, installPrompt: null, memoryRequest: 0, memoryProposalRequest: 0 };
 const $ = (selector) => document.querySelector(selector);
+let workspacePending = false, pendingUploads = 0;
+const exitGuard = window.LiExitGuard?.create({ window, hasPendingWork: () =>
+  Boolean($('#message-input')?.value.trim() || state.temporaryUploadContext || state.sending || pendingUploads || workspacePending) });
+const refreshExitGuard = () => exitGuard?.refresh();
+// Input covers typing; focus also covers programmatically prepared drafts.
+document.addEventListener('input', refreshExitGuard);
+document.addEventListener('focusin', refreshExitGuard);
 const COUNTRY_CODES = `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW`.split(' ');
 const countryNames = new Intl.DisplayNames([navigator.language || 'en'], {type: 'region'});
 let placeState = { current_place: {}, most_visited: [] };
@@ -187,6 +194,7 @@ async function sendMessage(message) {
   state.pendingTurn = turn;
   saveRetry(retryKey, {turnId: turn.turnId, fingerprint});
   state.sending = true;
+  refreshExitGuard();
   if (!turn.rendered) {
     addMessage('user', message);
     state.history.push({ role: 'user', text: message });
@@ -238,6 +246,7 @@ async function sendMessage(message) {
     clearInterval(specialistPoll);
     await loadSpecialists();
     state.sending = false;
+    refreshExitGuard();
     $('.send-button').disabled = false;
     if (!window.speechSynthesis?.speaking) setLiState('idle');
     $('#message-input').focus();
@@ -252,15 +261,25 @@ function stopSpeaking() { voiceSynthesis?.stop(); $('#stop-speaking').classList.
 function speakLiResponse(text) { if (!voiceSynthesis || !state.voiceOutput) return; const language = window.LiVoice.detectLanguage(text); voiceSynthesis.speak(text, language, { onStart: () => { setLiState('speaking'); $('#stop-speaking').classList.remove('hidden'); }, onEnd: () => { $('#stop-speaking').classList.add('hidden'); setLiState('idle'); }, onError: () => { $('#stop-speaking').classList.add('hidden'); setLiState('error'); voiceStatus('Li could not play this response. The text is still available.'); } }); }
 function cancelVoiceInput() { state.voiceSession += 1; clearTimeout(state.voiceSendTimer); voiceTranscription?.cancel(); $('#microphone-button').setAttribute('aria-pressed', 'false'); $('#microphone-button').setAttribute('aria-label', 'Start voice input'); voiceStatus('', false); if (!state.sending) setLiState('idle'); }
 function voiceErrorMessage(code) { return { 'not-allowed': 'Microphone permission was denied. You can keep typing.', 'service-not-allowed': 'Speech recognition is blocked by this browser.', 'no-speech': 'No speech was detected. Please try again or type.', 'audio-capture': 'No microphone is available.', network: 'Speech recognition could not reach its browser provider.', timeout: 'Listening timed out. Please try again.' }[code] || 'Voice input was interrupted. Please try again or type.'; }
-async function startVoiceInput() { if (!voiceTranscription) { setLiState('error'); voiceStatus('Voice input is unsupported in this browser. Text chat remains available.'); return; } stopSpeaking(); cancelVoiceInput(); const session = ++state.voiceSession; const button = $('#microphone-button'); button.setAttribute('aria-pressed', 'true'); button.setAttribute('aria-label', 'Stop voice input'); voiceStatus('Listening… press Cancel to discard.'); setLiState('listening'); try { const transcript = await voiceTranscription.start({ onInterim: (value) => { if (session !== state.voiceSession) return; $('#message-input').value = value; voiceStatus(value ? `Heard: ${value}` : 'Listening…'); }, onState: (mode) => setLiState(mode) }); if (session !== state.voiceSession || !transcript) return; $('#message-input').value = transcript; button.setAttribute('aria-pressed', 'false'); button.setAttribute('aria-label', 'Start voice input'); setLiState('transcribing'); voiceStatus(`Transcript ready: ${transcript} · sending shortly…`); state.voiceSendTimer = setTimeout(() => { if (session !== state.voiceSession || state.sending) return; voiceStatus('', false); sendMessage(transcript); }, 1200); } catch (error) { if (session !== state.voiceSession) return; button.setAttribute('aria-pressed', 'false'); button.setAttribute('aria-label', 'Start voice input'); setLiState('error'); voiceStatus(voiceErrorMessage(error.message)); } }
+async function startVoiceInput() { if (!voiceTranscription) { setLiState('error'); voiceStatus('Voice input is unsupported in this browser. Text chat remains available.'); return; } stopSpeaking(); cancelVoiceInput(); const session = ++state.voiceSession; const button = $('#microphone-button'); button.setAttribute('aria-pressed', 'true'); button.setAttribute('aria-label', 'Stop voice input'); voiceStatus('Listening… press Cancel to discard.'); setLiState('listening'); try { const transcript = await voiceTranscription.start({ onInterim: (value) => { if (session !== state.voiceSession) return; $('#message-input').value = value; refreshExitGuard(); voiceStatus(value ? `Heard: ${value}` : 'Listening…'); }, onState: (mode) => setLiState(mode) }); if (session !== state.voiceSession || !transcript) return; $('#message-input').value = transcript; refreshExitGuard(); button.setAttribute('aria-pressed', 'false'); button.setAttribute('aria-label', 'Start voice input'); setLiState('transcribing'); voiceStatus(`Transcript ready: ${transcript} · sending shortly…`); state.voiceSendTimer = setTimeout(() => { if (session !== state.voiceSession || state.sending) return; voiceStatus('', false); sendMessage(transcript); }, 1200); } catch (error) { if (session !== state.voiceSession) return; button.setAttribute('aria-pressed', 'false'); button.setAttribute('aria-label', 'Start voice input'); setLiState('error'); voiceStatus(voiceErrorMessage(error.message)); } }
 function initializeVoice() { const supported = Boolean(voiceTranscription); $('#microphone-button').disabled = !supported; $('#microphone-button').title = supported ? 'Start push-to-talk' : 'Voice input is unsupported; use text chat'; $('#voice-capability-status').textContent = `Speech input: ${supported ? 'browser-native and available' : 'unavailable in this browser'} · speech output: ${voiceSynthesis ? 'browser-native and available' : 'unavailable'} · server provider: not configured · raw-audio retention: none.`; updateVoiceOutputControl(); }
 
 function isInstalledApp() { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
 function updateInstallControl(message = '') { const button = $('#install-app'); const installed = isInstalledApp(); button.classList.toggle('hidden', installed || !state.installPrompt); if (message) { $('#install-status').textContent = message; return; } $('#install-status').textContent = installed ? 'Li is installed on this device.' : state.installPrompt ? 'Li is ready to install from this browser.' : 'On Android or Windows, use your browser menu and choose Install app or Add to Home screen.'; }
 async function installApp() { if (!state.installPrompt || isInstalledApp()) { updateInstallControl(); return; } const prompt = state.installPrompt; state.installPrompt = null; $('#install-app').classList.add('hidden'); try { await prompt.prompt(); const choice = await prompt.userChoice; updateInstallControl(choice.outcome === 'accepted' ? 'Li installation started.' : 'Installation was cancelled. You can try again from your browser menu.'); } catch { updateInstallControl('Installation is unavailable right now. You can try again from your browser menu.'); } }
 
-async function uploadFile(file, save = false) { const form = new FormData(); form.append('file', file); form.append('save', String(save)); return fetch('/api/uploads', { method: 'POST', body: form }); }
-async function handleFile(file) { const tray = $('#attachment-tray'); tray.classList.remove('hidden'); tray.replaceChildren(); state.temporaryUploadContext = null; const chip = document.createElement('span'); chip.className = 'upload-chip pending'; chip.textContent = `${file.name} · analysing temporarily…`; tray.appendChild(chip); try { const response = await uploadFile(file); const data = await response.json(); const analysed = response.ok && typeof data.analysis_text === 'string' && data.analysis_text.length > 0; state.temporaryUploadContext = analysed ? `File: ${file.name}\n${data.analysis_text}` : null; chip.classList.remove('pending'); chip.classList.add(response.ok ? 'ready' : 'unavailable'); chip.textContent = response.ok ? (analysed ? `${file.name} · ready for your next message · not retained` : `${file.name} · validated but this file type cannot be analysed here · not retained`) : `${file.name} · ${data.detail || 'could not be attached'}`; if (response.ok) { const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save privately'; save.addEventListener('click', async () => { save.disabled = true; const stored = await uploadFile(file, true); save.textContent = stored.ok ? 'Saved' : 'Save failed'; }); tray.appendChild(save); } } catch { chip.className = 'upload-chip unavailable'; chip.textContent = `${file.name} · upload unavailable`; } }
+async function uploadFile(file, save = false) {
+  const form = new FormData(); form.append('file', file); form.append('save', String(save));
+  pendingUploads += 1; refreshExitGuard();
+  try { return await fetch('/api/uploads', { method: 'POST', body: form }); }
+  finally { pendingUploads -= 1; refreshExitGuard(); }
+}
+async function handleFile(file) {
+  pendingUploads += 1; refreshExitGuard();
+  try { return await analyseFile(file); }
+  finally { pendingUploads -= 1; refreshExitGuard(); }
+}
+async function analyseFile(file) { const tray = $('#attachment-tray'); tray.classList.remove('hidden'); tray.replaceChildren(); state.temporaryUploadContext = null; const chip = document.createElement('span'); chip.className = 'upload-chip pending'; chip.textContent = `${file.name} · analysing temporarily…`; tray.appendChild(chip); try { const response = await uploadFile(file); const data = await response.json(); const analysed = response.ok && typeof data.analysis_text === 'string' && data.analysis_text.length > 0; state.temporaryUploadContext = analysed ? `File: ${file.name}\n${data.analysis_text}` : null; chip.classList.remove('pending'); chip.classList.add(response.ok ? 'ready' : 'unavailable'); chip.textContent = response.ok ? (analysed ? `${file.name} · ready for your next message · not retained` : `${file.name} · validated but this file type cannot be analysed here · not retained`) : `${file.name} · ${data.detail || 'could not be attached'}`; if (response.ok) { const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save privately'; save.addEventListener('click', async () => { save.disabled = true; const stored = await uploadFile(file, true); save.textContent = stored.ok ? 'Saved' : 'Save failed'; }); tray.appendChild(save); } } catch { chip.className = 'upload-chip unavailable'; chip.textContent = `${file.name} · upload unavailable`; } }
 
 const SPECIALIST_PORTRAITS = new Set(['sofia', 'marco', 'elena', 'amelia', 'freja', 'oliver', 'james', 'victor', 'nora', 'milo', 'iris', 'clara', 'ada', 'theo', 'heimdall']);
 // Public identity definitions from agents/registry.yaml, not live operational status.
@@ -406,6 +425,7 @@ async function openSpecialist(item, initialTab = 'live') { state.currentSpeciali
     workspace: window.LiWorkspace?.create({ document, fetch, avatar: createSpecialistAvatar,
       ownerAvatar: () => profilePhoto.avatar('workspace-avatar'),
       owner: () => ({ name: state.displayName || 'You' }), isBusy: () => state.sending,
+      onPendingChange: pending => { workspacePending = pending; refreshExitGuard(); },
       onActions: items => items.forEach(renderActionIntent),
       onActivity: (id, records) => specialistView?.updateRecords(id, records),
       confirmDiscard: () => window.confirm('Discard the unsent message and temporary attachment before switching conversations?') }),

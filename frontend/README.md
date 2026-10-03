@@ -135,6 +135,20 @@ From `frontend`, install the project with its `dev` extra, then run `ruff check 
 `pytest`, and `python -m compileall app`. Start with
 `uvicorn app.main:app --host 127.0.0.1 --port 8080`.
 
+## Browser draft-loss warning
+
+Li chat and Specialist Workspace request the browser's generic leave/reload warning while a chat
+draft, analysed temporary attachment, upload or chat request is pending. The listener is removed
+when that work clears. This guard adds no draft storage, autosave, history entries or automatic retry.
+Browsers require prior user interaction and may skip the warning on Android Back, app closure or
+process termination; see [browser limitations](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).
+It is best-effort loss protection, not guaranteed exit confirmation or proof that an in-flight
+request stopped. Check its recorded state before resending an uncertain request.
+
+Local checks: `node --test tests-js/*.test.mjs`. With Playwright and local Edge available, run
+`node tests-browser/exit-guard.cjs` for the offline generic-warning check. Neither check establishes
+physical Android behavior; a separate deployment and owner test are required.
+
 ## Staging deployment
 
 Build from the repository root with `frontend/Dockerfile`. Create a dedicated

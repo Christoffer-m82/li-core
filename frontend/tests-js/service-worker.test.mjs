@@ -19,8 +19,8 @@ function worker({ offline = false, ok = true, redirected = false, type = 'basic'
     URL,
     self: { location: { origin: 'https://li.test' }, addEventListener: (name, handler) => handlers.set(name, handler) },
     caches: {
-      async open(name) { assert.equal(name, 'li-shell-v25'); if (cacheOpenFails) throw new Error('cache unavailable'); return cache; },
-      async keys() { return ['li-shell-v24', 'li-shell-v25', 'other-app']; },
+      async open(name) { assert.equal(name, 'li-shell-v26'); if (cacheOpenFails) throw new Error('cache unavailable'); return cache; },
+      async keys() { return ['li-shell-v24', 'li-shell-v26', 'other-app']; },
       async delete(name) { deleted.push(name); },
     },
     async fetch() { if (offline) throw new Error('offline'); return response; },
