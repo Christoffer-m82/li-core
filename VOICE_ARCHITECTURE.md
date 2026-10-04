@@ -17,13 +17,28 @@ Li Web voice is an additive input/output adapter around the existing authenticat
 The owner requested natural, human-sounding phone/tablet conversation on 2026-09-06 and asked to
 record the plan only. See the [real-time voice plan](docs/REALTIME_VOICE_PLAN.md) for provider
 evaluation, architecture options, interruption and timing requirements, delivery stages, and
-acceptance gates. This is future scope under OM-003, not implemented behavior or a provider decision.
+acceptance gates. This is future scope under OM-003, not implemented behavior. The owner's
+2026-10-04 ElevenLabs preference and proposed meeting-audio boundary are recorded below; neither
+constitutes runtime activation or completed provider evaluation.
 The existing final-response, orchestration and approval boundaries above remain in force; any
 speech-to-speech design that changes them must resolve that contract before implementation.
 Its project placement is late in Package 6 after the blueprint's
 [core stability entry gate](docs/LI_OS_IMPROVEMENT_BLUEPRINT.md#om-003-dependency-placement), before
 enhanced-voice device/owner acceptance and final sign-off; blocked voice work does not stop unrelated
 eligible acceptance work.
+
+## Owner-selected audio direction — 2026-10-04
+
+The owner prefers Eleven v4 Turbo for Li's speaking voice and ElevenLabs speech-to-text for
+meeting notes. The [proposed Work and meetings architecture](system/WORK_MEETINGS_ARCHITECTURE.md)
+separates meeting-local diarization/editable speaker names from persistent voice identification,
+and proposes batch `scribe_v2` transcription subject to evaluation and data-handling review.
+
+Li speech remains an adapter for the actual final Li response, not a new reasoning agent. The
+existing OM-003 entry gate remains unchanged. Meeting recordings would be an explicit, separately
+governed Work artifact flow with a post-transcription delete/keep choice; they do not silently
+change the ephemeral browser-chat audio contract above. No server audio provider, recording storage,
+provider credential or Work runtime is installed by this proposed design.
 
 ## Typed provider boundary
 
