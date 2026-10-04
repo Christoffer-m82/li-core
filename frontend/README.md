@@ -50,6 +50,11 @@ The SVG remains the browser favicon.
 When Chromium exposes its install prompt, Settings shows an in-app **Install Li on this device**
 control; otherwise it gives Android/Windows browser-menu guidance and detects standalone launch.
 
+For the owner's separately requested installation file, the dependency-free
+[Android browser-launcher preview](../native/android-launcher/README.md) builds a sideloadable APK
+locally. It opens this web app in an external browser; it is not native-client or standalone-device
+acceptance and contains no Li credentials.
+
 For local enlarged-text regression, with Playwright available and Microsoft Edge installed, run
 `node tests-browser/enlarged-text.cjs` from this directory. The offline check loads tracked static
 styles, the real Workspace renderer and navigation sizing, intercepts all network requests, and

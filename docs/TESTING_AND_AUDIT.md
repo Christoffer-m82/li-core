@@ -87,6 +87,14 @@ repository audit reject a tag-only image reference.
 
 Absence of a local platform toolchain is a skipped check, not a pass.
 
+The separate [Android browser-launcher preview](../native/android-launcher/README.md) uses no
+Gradle/Maven dependencies and does not change the native Place library. Run
+`python -m unittest discover -s native/android-launcher/tests -v` with JDK 17 for manifest controls
+and actual Java launcher control flow against synthetic Android stubs. The offline SDK-35 build
+script additionally checks compilation, APK alignment and signatures. These checks do not prove
+phone installation, browser availability, Google sign-in or standalone launch. The development-only
+key and APK stay under ignored `dist/`; neither belongs in source control.
+
 ## Documentation checks
 
 For Li voice or language changes, also use the
