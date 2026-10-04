@@ -455,6 +455,27 @@ def analytics_events() -> list[dict[str, object]]:
     return _call("list_agent_analytics_events")
 
 
+def specialist_activity(keys: list[str]) -> list[dict[str, object]]:
+    """Aggregate retained owner history without transferring its contents to Python."""
+    settings = get_settings()
+    try:
+        with psycopg.connect(**settings.database_connect_kwargs(), row_factory=dict_row) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT specialist_key, bool_or(status = 'active') AS active,
+                           max(greatest(
+                               CASE WHEN started_at <= CURRENT_TIMESTAMP THEN started_at END,
+                               CASE WHEN completed_at <= CURRENT_TIMESTAMP THEN completed_at END
+                           )) AS last_activity_at
+                    FROM li_api.list_agent_analytics_events()
+                    WHERE specialist_key = ANY(%s)
+                    GROUP BY specialist_key
+                """, (keys,))
+                return [dict(row) for row in cursor.fetchall()]
+    except psycopg.Error as exc:
+        raise RuntimeDataError("Specialist activity unavailable.") from exc
+
+
 def get_agent_settings() -> dict[str, object]:
     rows = _call("get_agent_analytics_settings")
     return rows[0]

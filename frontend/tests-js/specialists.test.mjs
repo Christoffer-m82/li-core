@@ -30,6 +30,26 @@ const entry = { interaction_id: 'one', request_text: 'Compare notebooks', status
   started_at: '2026-09-01T10:00:00Z', outcome: { recommendation: 'Compare export options', findings: ['Portable text'], key_assumptions: ['Offline matters'], follow_up_questions: ['Which device?'] } };
 const content = el => [el.textContent, ...el.children.map(content)].join(' ');
 
+test('roster orders active first, newest activity next, preserving registry ties and unknowns', () => {
+  const {api} = setup();
+  const roster = [
+    {id:'unknown'}, {id:'old', last_activity_at:'2026-08-01T10:00:00Z'},
+    {id:'new', last_activity_at:'2026-09-01T10:00:00Z'},
+    {id:'active-old', active:true, last_activity_at:'2026-08-01T10:00:00Z'},
+    {id:'tie', last_activity_at:'2026-09-01T12:00:00+02:00'},
+    {id:'active-new', active:true, last_activity_at:'2026-09-01T10:00:00Z'},
+    {id:'invalid', last_activity_at:'bad'}, {id:'future', last_activity_at:'2099-01-01T00:00:00Z'},
+  ];
+  const before = JSON.stringify(roster);
+  assert.deepEqual(Array.from(api.orderRoster(roster), row => row.id),
+    ['active-new','active-old','new','tie','old','unknown','invalid','future']);
+  assert.equal(JSON.stringify(roster), before);
+  roster[5].active = false;
+  assert.equal(api.orderRoster(roster)[0].id, 'active-old');
+  roster[3].active = false;
+  assert.equal(api.orderRoster(roster)[0].id, 'new');
+});
+
 test('metrics use loaded completed durations only and never invent missing measurements', () => {
   const { api } = setup();
   assert.equal(api.summary([]).average, 'Not measured');

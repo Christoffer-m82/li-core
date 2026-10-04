@@ -1,5 +1,14 @@
 /* Recorded specialist activity only. No generated transcripts or persistent browser data. */
 (() => {
+  function orderRoster(roster, now = Date.now()) {
+    const stamp = item => {
+      const value = typeof item.last_activity_at === 'string' ? Date.parse(item.last_activity_at) : NaN;
+      return Number.isFinite(value) && value <= now ? value : -Infinity;
+    };
+    // Stable sorting preserves registry order for ties and unknown timestamps.
+    return [...roster].sort((a, b) => Number(b.active === true) - Number(a.active === true) ||
+      (stamp(a) === stamp(b) ? 0 : stamp(a) > stamp(b) ? -1 : 1));
+  }
   const text = (value, fallback = 'Not recorded') => typeof value === 'string' && value.trim() ? value : fallback;
   const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not recorded';
   const strings = value => Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
@@ -197,5 +206,5 @@
         ['specialist-record', 'specialist-history-list', 'specialist-metrics', 'specialist-load-status', 'specialist-results', 'specialist-statistics', ...(!workspace ? ['specialist-live'] : [])].forEach(id => $(id).replaceChildren());
       } };
   }
-  (typeof window === 'undefined' ? globalThis : window).LiSpecialists = { create, summary, filter, statistics };
+  (typeof window === 'undefined' ? globalThis : window).LiSpecialists = { create, summary, filter, statistics, orderRoster };
 })();

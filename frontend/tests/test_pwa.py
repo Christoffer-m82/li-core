@@ -190,7 +190,7 @@ def test_install_icons_are_served_and_cached_with_the_shell():
         assert response.headers["content-type"] == "image/png"
         assert url in service_worker
 
-    assert "li-shell-v26" in service_worker
+    assert "li-shell-v27" in service_worker
 
 
 def test_settings_exposes_install_control_and_fallback_guidance():

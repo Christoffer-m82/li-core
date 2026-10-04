@@ -39,7 +39,8 @@ def teardown_function() -> None:
 
 def test_specialist_roster_is_single_and_inactive_without_real_events(monkeypatch):
     async def backend(*args, **kwargs):
-        return httpx.Response(200, json={"interactions": []})
+        assert args[2] == "/specialists/activity"
+        return httpx.Response(200, json={"activity": [], "scope": "retained_interactions"})
 
     monkeypatch.setattr("app.main.request_backend", backend)
     response = signed_in_client().get("/api/specialists")
@@ -48,6 +49,50 @@ def test_specialist_roster_is_single_and_inactive_without_real_events(monkeypatc
     assert len(payload["specialists"]) == 12
     assert payload["live_events_available"] is True
     assert all(item["active"] is False for item in payload["specialists"])
+    assert all(item["last_activity_at"] is None for item in payload["specialists"])
+
+
+def test_specialist_activity_only_exposes_allowlisted_metadata(monkeypatch):
+    calls = []
+
+    async def backend(*args, **kwargs):
+        calls.append(args[2])
+        return httpx.Response(200, json={"scope": "retained_interactions", "activity": [
+            {"specialist_key": "nora", "active": True,
+             "last_activity_at": "2026-09-01T10:00:00Z", "request_text": "DO NOT FORWARD"}
+        ]})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    result = signed_in_client().get("/api/specialists")
+    assert result.status_code == 200
+    assert calls == ["/specialists/activity"]
+    assert "DO NOT FORWARD" not in result.text
+    nora = next(row for row in result.json()["specialists"] if row["id"] == "nora")
+    assert nora["active"] is True
+    assert nora["last_activity_at"] == "2026-09-01T10:00:00+00:00"
+
+
+@pytest.mark.parametrize("row", [
+    {"specialist_key": "heimdall", "active": False},
+    {"specialist_key": "nora", "active": "false"},
+    {"specialist_key": "nora", "active": False, "last_activity_at": "invalid"},
+    {"specialist_key": "nora", "active": False, "last_activity_at": "2026-09-01"},
+])
+def test_specialist_activity_rejects_malformed_metadata(monkeypatch, row):
+    async def backend(*args, **kwargs):
+        return httpx.Response(200, json={"scope": "retained_interactions", "activity": [row]})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    assert signed_in_client().get("/api/specialists").status_code == 502
+
+
+def test_duplicate_specialist_activity_is_not_accepted_as_complete(monkeypatch):
+    async def backend(*args, **kwargs):
+        row = {"specialist_key": "nora", "active": False, "last_activity_at": None}
+        return httpx.Response(200, json={"scope": "retained_interactions", "activity": [row, row]})
+
+    monkeypatch.setattr("app.main.request_backend", backend)
+    assert signed_in_client().get("/api/specialists").status_code == 502
 
 
 def test_specialist_history_does_not_fabricate_transcripts(monkeypatch):
@@ -416,7 +461,8 @@ def test_client_includes_activity_sorting_theme_fallback_and_real_artifact_guard
     javascript = (Path(__file__).parents[1] / "static" / "assets" / "app.js").read_text(
         encoding="utf-8"
     )
-    assert "Number(b.active) - Number(a.active)" in javascript
+    assert "window.LiSpecialists.orderRoster(state.specialists)" in javascript
+    assert "window.LiSpecialists.orderRoster(data.agents)" in javascript
     assert "prefers-color-scheme: light" in javascript
     assert "attachment.url ? 'a' : 'span'" in javascript
     assert "Save privately" in javascript
