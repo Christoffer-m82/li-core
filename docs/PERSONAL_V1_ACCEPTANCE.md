@@ -64,6 +64,19 @@ before the final release sign-off can include it.
 | Security and recovery | Auth/role denial, safe logs, pinned release, rollback, successful isolated restore with recovery timings | The [schema-0.41 release](releases/2026-09-06-8831381-staging.md) adds a fresh authenticated pre-migration backup, full schema-0.40 restore, migration rehearsal, live authority denials, pinned immutable images, unchanged runtime identities, safe logs and an immediate application rollback path. Recurring cadence and remaining live/device evidence stay open. See [known risks](KNOWN_RISKS.md). |
 | Release stability | All agreed journeys pass, no unresolved critical findings, normal use observation and rollback available | A stable-use observation period; no unsupported claim of 100% |
 
+## Work and audio planning evidence — 2026-10-04
+
+The owner requested Work notes/to-dos and meetings with in-person/online recording, speaker-separated
+transcripts, summaries and follow-ups. The [proposed architecture](../system/WORK_MEETINGS_ARCHITECTURE.md)
+defines meeting-wide name editing, source-linked task proposals and a delete/keep recording prompt
+after the transcript is durably saved. ElevenLabs is the preferred audio provider, not a verified
+integration. The owner reported privately saving a key; it was not read or installed by this batch.
+
+This is design evidence only. Work implementation, audio retention decisions, provider data-handling
+review, cost-covered evaluation, authorized rollout and physical acceptance remain open. Typed Work
+and fake-provider domain work may proceed without activating audio. Existing OM-003, KR-011,
+owner/device and stability gates remain unchanged. No provider call or runtime change occurred.
+
 ## Local browser accessibility evidence — 2026-09-05
 
 An authenticated local Windows Chromium check used synthetic specialist activity and no production

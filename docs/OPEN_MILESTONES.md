@@ -19,6 +19,15 @@ rather than rewriting the authoritative design.
 | OM-009 | Operationalize backup verification and restore testing | [Memory Storage Policy](../memory/storage-policy.md#40-backup-verification) and [Security & Privacy Policy](../system/security-policy.md#71-backup-verification) require verification and recovery controls. The [2026-09-06 isolated drill](releases/2026-09-06-isolated-restore-drill.md) proves two authenticated restores: forward recovery of the pre-037 backup and a direct schema-0.39 restore of its independently encrypted replacement, with canonical counts and authority boundaries preserved without a plaintext dump. The superseded local backup was then deleted with owner authorization while the validated replacement was preserved. The [operator procedure](../memory/backup-tools/README.md#operator-cadence) now requires monthly and pre-migration drills. | Exercise and record the next scheduled occurrence by 2026-10-06 or before the next staging migration, whichever comes first. |
 | OM-010 | Release the private Finance and Calendar workspaces | The [accepted architecture](../system/FINANCE_CALENDAR_ARCHITECTURE.md) defines a governed Calendar read UI and schema-0.42 owner-entered Avanza/Crypto portfolio without brokerage credentials or trading authority. The [workspace release](releases/2026-09-07-a7601b7-staging.md) records the schema/UI/Finance rollout; the [diagnostic backend release](releases/2026-09-08-db1d17c-staging.md) records the safely classified OAuth failure; the [public OAuth information release](releases/2026-09-08-131034f-staging.md) records prerequisite pages, branding and In-production publication; and the [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md) records matching owner consent, version-2 references, deployment, one successful bounded provider-backed read, and the action-time-confirmed `LIOS42` synthetic archive. | Record owner acceptance on Android phone/tablet and installed Windows PWA plus stability observation. Automatic market quotes remain a later reviewed extension. |
 
+## OM-011 — Work notes, tasks and meeting records
+
+The owner-requested [Work and meeting architecture](../system/WORK_MEETINGS_ARCHITECTURE.md) is
+proposed, not implemented: typed notes/tasks, in-person and online recording/import, editable
+meeting-local speaker labels, transcripts, summaries and reviewed follow-ups. Its W1–W5 sequence
+defines exit evidence without creating a second roadmap. Non-audio local Work work can proceed
+independently; audio retention, provider handling, cost and external activation remain gated.
+Li's preferred ElevenLabs speaking voice remains OM-003 and does not bypass its entry gate.
+
 ## Maintenance rule
 
 The [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) orders the current completion

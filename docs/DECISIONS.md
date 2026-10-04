@@ -22,6 +22,13 @@ prove deployment or operational state.
 | Proactivity uses paused scheduler jobs and owner-approved rhythm activation with durable idempotency | [Governed proactivity](../deployment/cloud-run/governed-proactivity.md) | Deployment/activation gate |
 | Finance and Calendar are first-class private workspaces; Calendar reuses Li's governed reader and portfolio data remains owner-entered, currency-separated, and unable to trade | [Finance and Calendar workspace architecture](../system/FINANCE_CALENDAR_ARCHITECTURE.md) | Accepted repository design; schema 0.42 and the matching staging application are deployed with partial acceptance evidence |
 
+## Proposed decisions
+
+The [Work, meeting transcripts and ElevenLabs audio proposal](../system/WORK_MEETINGS_ARCHITECTURE.md)
+records the owner's requested Work scope and audio preference. Status is **Proposed**, not an accepted
+runtime permission or completed integration. It preserves existing voice gates and requires separate
+retention, provider-data handling, cost and activation evidence.
+
 ## Adding a decision
 
 For a material, cross-component, security, data, provider, or irreversible decision, add or update an

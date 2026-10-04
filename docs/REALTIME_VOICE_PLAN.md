@@ -1,6 +1,6 @@
 # Li real-time voice conversation plan
 
-**Status:** Planned milestone only; no implementation, provider selection, activation or deployment.
+**Status:** Planned milestone; owner preference recorded, no server audio implementation or activation.
 **Requested:** 2026-09-06 by Christoffer.
 **Milestone:** OM-003 in [Open milestones](OPEN_MILESTONES.md).
 **Scope owner:** Christoffer; technical choices remain provisional until evaluation.
@@ -83,10 +83,13 @@ voice. If a voice-specific gate is blocked, continue unrelated eligible package 
 | Streaming recognition → existing Li reasoning → streaming speech generation | Keeps the current orchestration path and strong control of response text. A conversation framework can coordinate timing and interruption. | Each stage adds potential delay; transcripts alone lose some vocal expression. The present final-response contract would need an explicit streaming design. |
 | Native speech-to-speech interface → bounded Li backend capabilities | Candidate for the most fluid exchange; immediate spoken interaction can coexist with slower memory/specialist work. | The interface itself reasons. Define precisely which replies it can originate and how it stays consistent with Li's identity, history and backend results. |
 
-Provisional recommendation: compare an OpenAI Realtime conversation prototype with an ElevenLabs
-Conversational prototype, using Gemini Live as the multilingual comparison. Cartesia is an alternate
-speech generator for the pipeline option; Hume is an optional expression-focused comparison if its
-language support meets the target. This is an evaluation order, not a purchase or final vendor decision.
+The owner subsequently chose ElevenLabs as the preferred audio direction: Eleven v4 Turbo for Li's
+speech and speaker-separated transcription for meeting notes. The 2026-10-04
+[proposed Work and meetings architecture](../system/WORK_MEETINGS_ARCHITECTURE.md) narrows the next
+evaluation to that pipeline, preserving existing Li reasoning and final-response-only synthesis.
+This supersedes the earlier broad multi-vendor comparison order, not the entry or activation gates.
+The earlier research table below remains background, not a request to run other paid prototypes.
+No listening-quality result, selected voice ID or server-provider deployment is established.
 
 A possible transport is WebRTC for browser/mobile audio, with LiveKit as an optional session and
 turn-handling framework. Assess the additional hosting, dependency and cost requirements before
@@ -139,7 +142,7 @@ Follow [Security boundaries](SECURITY_BOUNDARIES.md), the
   of automatic overages before live tests; otherwise record the blocker and continue offline work.
 - Define bounded session duration, concurrency, idle timeout and usage limits before activation.
   Keep configuration disabled until provider/data-handling prerequisites and exact deployment
-  authorization are established. The owner's present instruction authorizes this plan only.
+  authorization are established. Planning and a privately saved key do not authorize activation.
 
 ## Delivery stages
 
