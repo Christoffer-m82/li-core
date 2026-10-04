@@ -8,11 +8,11 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
 is backend [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md) `calendar-v2` with web
-[enlarged-text web release](releases/2026-10-03-a9a6bf8-web-staging.md) `a9a6bf8` and database
+[draft-exit warning web release](releases/2026-10-04-c155bb1-web-staging.md) `c155bb1` and database
 schema 0.42. The earlier
 [`db1d17c` diagnostic release](releases/2026-09-08-db1d17c-staging.md) remains the backend application
-rollback target; web `131034f` is the immediate web rollback target and would restore the known
-enlarged-text defect.
+rollback target; web `a9a6bf8` is the immediate web rollback target and would remove the best-effort
+draft-loss warning while retaining the enlarged-text correction.
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -174,17 +174,19 @@ Browsers may suppress this warning on Android navigation or process closure. Cle
 unblocked; guaranteed Back/exit confirmation is not claimed. See the
 [frontend behavior and limitations](../frontend/README.md#browser-draft-loss-warning).
 
-This source change is not deployed. Physical Android Back behavior and the already-deployed 200%
-layout retest remain open. No other device or owner evidence is inferred.
+The separately authorized [web rollout](releases/2026-10-04-c155bb1-web-staging.md) deployed this
+source after zero-traffic candidate validation and owner-reported authenticated readiness.
+Physical Android Back behavior and the already-deployed 200% layout retest remain open.
+No other device or owner evidence is inferred.
 Validation passed 101 frontend Python tests, 98 Node tests, Ruff, compileall, the offline Chromium
 leave-warning check and all ten enlarged-text layout combinations. The upstream Starlette/AnyIO
 warning remains visible. These are synthetic local results, not owner observations.
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend `calendar-v2`; web `release-a9a6bf8` |
+| Deployed release | Backend `calendar-v2`; web `release-c155bb1` |
 | Backend revision | `li-os-calendar-v2` |
-| Web revision | `li-os-web-release-a9a6bf8` |
+| Web revision | `li-os-web-release-c155bb1` |
 | Database schema | `0.42` |
 | Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics and the original OAuth failure classification are in the [diagnostic backend release](releases/2026-09-08-db1d17c-staging.md); public OAuth documents, branding and In-production publication are in the [web release](releases/2026-09-08-131034f-staging.md); matching credential references, backend promotion, one successful bounded provider-backed read, and the exact synthetic Finance archive are in the [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md). Physical-device Calendar display, owner and stability acceptance remain open |
 | Owner test start | NOT RECORDED |
