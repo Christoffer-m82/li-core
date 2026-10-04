@@ -7,12 +7,12 @@ the owner's Android phone, Android tablet, and Windows laptop. It supplements th
 [personal-use v1 acceptance checklist](PERSONAL_V1_ACCEPTANCE.md) and does not replace the
 [security boundaries](SECURITY_BOUNDARIES.md), [deployment workflow](DEPLOYMENT_WORKFLOW.md), or
 [2026-09-05 staging release record](releases/2026-09-05-a864076-staging.md). The current device target
-is backend [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md) `calendar-v2` with web
-[draft-exit warning web release](releases/2026-10-04-c155bb1-web-staging.md) `c155bb1` and database
-schema 0.42. The earlier
-[`db1d17c` diagnostic release](releases/2026-09-08-db1d17c-staging.md) remains the backend application
-rollback target; web `a9a6bf8` is the immediate web rollback target and would remove the best-effort
-draft-loss warning while retaining the enlarged-text correction.
+is backend and web [specialist activity ordering release](releases/2026-10-04-c1fbf57-staging.md)
+`c1fbf57` with database schema 0.42. Immediate rollback targets are backend
+`li-os-calendar-v2` and web `li-os-web-release-c155bb1`. Coordinated rollback restores
+the preceding web before the preceding backend because the new web depends on
+the activity endpoint. This preserves the earlier enlarged-text and draft-loss
+corrections while removing recent-activity ordering.
 
 Repository tests and synthetic browser sizes do not complete this checklist. Record only behavior
 seen on the named device against the deployed staging URL. Do not put passwords, tokens, private
@@ -184,11 +184,11 @@ warning remains visible. These are synthetic local results, not owner observatio
 
 | Field | Value |
 | --- | --- |
-| Deployed release | Backend `calendar-v2`; web `release-c155bb1` |
-| Backend revision | `li-os-calendar-v2` |
-| Web revision | `li-os-web-release-c155bb1` |
+| Deployed release | Backend and web `release-c1fbf57` |
+| Backend revision | `li-os-release-c1fbf57` |
+| Web revision | `li-os-web-release-c1fbf57` |
 | Database schema | `0.42` |
-| Staging rollout | PASS — schema/UI/Finance evidence is in the [workspace release](releases/2026-09-07-a7601b7-staging.md); sanitized diagnostics and the original OAuth failure classification are in the [diagnostic backend release](releases/2026-09-08-db1d17c-staging.md); public OAuth documents, branding and In-production publication are in the [web release](releases/2026-09-08-131034f-staging.md); matching credential references, backend promotion, one successful bounded provider-backed read, and the exact synthetic Finance archive are in the [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md). Physical-device Calendar display, owner and stability acceptance remain open |
+| Staging rollout | PASS — the current [specialist ordering rollout](releases/2026-10-04-c1fbf57-staging.md) records separate authenticated candidates, backend-first promotion, exact images and configuration/IAM continuity. Earlier schema/UI/Finance and Calendar evidence remains in the [workspace release](releases/2026-09-07-a7601b7-staging.md) and [Calendar configuration release](releases/2026-09-09-calendar-v2-staging.md). Physical-device ordering, enlarged-text, Android Back, owner and stability acceptance remain open |
 | Owner test start | NOT RECORDED |
 | Owner test end | NOT RECORDED |
 | Devices and versions | NOT RECORDED |
