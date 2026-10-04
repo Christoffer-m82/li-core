@@ -19,8 +19,8 @@ function worker({ offline = false, ok = true, redirected = false, type = 'basic'
     URL,
     self: { location: { origin: 'https://li.test' }, addEventListener: (name, handler) => handlers.set(name, handler) },
     caches: {
-      async open(name) { assert.equal(name, 'li-shell-v26'); if (cacheOpenFails) throw new Error('cache unavailable'); return cache; },
-      async keys() { return ['li-shell-v24', 'li-shell-v26', 'other-app']; },
+      async open(name) { assert.equal(name, 'li-shell-v27'); if (cacheOpenFails) throw new Error('cache unavailable'); return cache; },
+      async keys() { return ['li-shell-v26', 'li-shell-v27', 'other-app']; },
       async delete(name) { deleted.push(name); },
     },
     async fetch() { if (offline) throw new Error('offline'); return response; },
@@ -106,5 +106,5 @@ test('installation caches static assets only and activation preserves unrelated 
   assert.ok(app.writes.includes('/'));
   assert.ok(app.writes.every(path => path === '/' || path.startsWith('/assets/') || path === '/manifest.webmanifest'));
   await app.dispatch('activate');
-  assert.deepEqual(app.deleted, ['li-shell-v24']);
+  assert.deepEqual(app.deleted, ['li-shell-v26']);
 });

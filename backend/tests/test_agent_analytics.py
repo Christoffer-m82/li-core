@@ -82,6 +82,23 @@ def test_supported_periods_and_invalid_period():
         raise AssertionError("invalid periods must fail")
 
 
+def test_roster_activity_uses_all_retained_events_not_period_or_recent_fifty():
+    rows = [event(request=f"r{i}") for i in range(70)]
+    rows.append(event("victor", days=400, request="older", status="active"))
+    victor = calculate_analytics(ROSTER, rows, "30d", NOW)["agents"][1]
+    assert victor["request_count"] == 0
+    assert victor["active"] is True
+    assert victor["last_activity_at"] == rows[-1]["completed_at"]
+
+
+def test_last_activity_counts_completion_and_excludes_future_unknown_times():
+    rows = [event(days=2), event(days=1, completed_at=NOW + timedelta(days=1))]
+    nora = calculate_analytics(ROSTER, rows, "30d", NOW)["agents"][0]
+    assert nora["last_activity_at"] == rows[1]["started_at"]
+    empty = calculate_analytics(ROSTER, [], "all", NOW)["agents"][1]
+    assert empty["last_activity_at"] is None
+
+
 def test_paused_and_archived_states_are_preserved():
     roster = [dict(ROSTER[0], state="paused"), dict(ROSTER[1], state="archived")]
     agents = calculate_analytics(roster, [], "all", NOW)["agents"]

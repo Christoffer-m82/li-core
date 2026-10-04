@@ -40,6 +40,9 @@ def calculate_analytics(
     total_workload = sum(value for value in (_duration(event) for event in current) if value is not None)
     request_sizes = Counter(e["request_id"] for e in current)
     by_agent: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    retained_by_agent: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for event in events:
+        retained_by_agent[event["specialist_key"]].append(event)
     previous_counts = Counter(e["specialist_key"] for e in previous)
     for event in current:
         by_agent[event["specialist_key"]].append(event)
@@ -81,7 +84,11 @@ def calculate_analytics(
         overlap_peers = {other["specialist_key"] for row in rows for other in current
                          if other["request_id"] == row["request_id"] and other["specialist_key"] != key}
         agents.append({**profile, "state": profile.get("state", "idle"),
-            "active": any(row["status"] == "active" for row in rows),
+            "active": any(row["status"] == "active" for row in retained_by_agent[key]),
+            "last_activity_at": max((stamp for row in retained_by_agent[key]
+                for stamp in (row.get("started_at"), row.get("completed_at"))
+                if isinstance(stamp, datetime) and stamp.utcoffset() is not None and stamp <= end),
+                default=None),
             "last_used": max((row["started_at"] for row in rows), default=None),
             "request_count": len(rows), "active_days": len({row["started_at"].date() for row in rows}),
             "usage_share_pct": round(100 * len(rows) / total_agent_calls, 1) if total_agent_calls else 0.0,

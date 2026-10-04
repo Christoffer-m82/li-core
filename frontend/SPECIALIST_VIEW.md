@@ -71,6 +71,35 @@ instead. This repository change does not deploy either service or modify an exte
 
 ## Statistics
 
+### Activity ordering
+
+Home and the Specialists overview put active specialists first, then order each group by the latest
+recorded consultation start or completion, newest first. Ties retain registry order. Null, invalid
+or future timestamps are unknown and sort after known times, never as activity at the current time.
+Availability does not mean a specialist has never been used; missing dates remain unmeasured.
+
+Home replaces its content-bearing 50-record snapshot request with one authenticated
+`/specialists/activity` metadata read. The backend aggregates the existing owner-scoped
+`li_api.list_agent_analytics_events()` function inside PostgreSQL and returns only specialist keys,
+active flags and latest timestamps. There is no snapshot limit or personal text transferred to
+Python/BFF/browser on this path. It reflects **retained** history, not deleted or unrecorded activity.
+The Specialists overview reuses its existing analytics read, computing ordering metadata from all
+retained events independently of its period-filtered metrics. No per-specialist requests, new
+polling, persistent browser data, authority grants or schema changes are added.
+
+History and Statistics still use their explicitly bounded snapshots. New/malformed/unavailable
+summary responses fail closed with activity unavailable; an older backend is not silently treated
+as complete history. Deploy the backend supporting the metadata endpoint and analytics timestamps
+before this frontend, under separate exact rollout authorization. Rolling back that backend while
+retaining this frontend makes Home activity unavailable. No deployment occurred in this batch.
+
+Local validation on 2026-10-04 passed 1,265 backend tests (four intentional opt-in skips), 107
+frontend tests and 99 JavaScript tests, plus lint, compilation and offline browser regressions.
+A disposable PostgreSQL function fixture verified metadata-only aggregation beyond 50 records,
+completion recency and unknown/future dates; it was not a full schema or deployed acceptance test.
+The fixture container was removed. Upstream warnings remain visible. No provider calls or owner/
+physical-device acceptance were performed.
+
 The **Statistics** tab presents measured information from the same up-to-50 interaction snapshot.
 It does not issue additional analytics calls or reuse potentially stale, differently scoped totals
 from the Specialists overview. Choose All loaded records, Last 7 days or Last 30 days; date filters

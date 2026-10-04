@@ -153,7 +153,7 @@ from app.runtime_data import (
     finish_chat_turn_attempt, mark_chat_turn_progress, mark_chat_turn_effect_started,
     change_artifact, conversation_messages,
     finalize_artifact, get_artifact, get_privacy_settings, list_artifacts, list_conversations,
-    list_interactions, reserve_artifact, set_retention, analytics_events,
+    list_interactions, reserve_artifact, set_retention, analytics_events, specialist_activity,
     delete_conversation,
     get_agent_settings, set_agent_cadence, create_agent_recommendations,
     review_agent_recommendation, execute_agent_recommendation, agent_states,
@@ -566,6 +566,15 @@ def specialist_history(specialist: str | None = None) -> dict[str, object]:
         return {"interactions": list_interactions(specialist)}
     except RuntimeDataError as exc:
         raise HTTPException(status_code=503, detail="Specialist history unavailable.") from exc
+
+
+@app.get("/specialists/activity", dependencies=[Depends(require_api_token)])
+def specialist_activity_summary() -> dict[str, object]:
+    try:
+        return {"activity": specialist_activity(list(SPECIALIST_CONTRACTS)),
+                "scope": "retained_interactions"}
+    except RuntimeDataError as exc:
+        raise HTTPException(status_code=503, detail="Specialist activity unavailable.") from exc
 
 
 @app.get("/agents/analytics", dependencies=[Depends(require_api_token)])

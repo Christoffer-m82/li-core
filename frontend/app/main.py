@@ -557,11 +557,43 @@ async def recorded_specialist_interactions(path: str) -> list[dict[str, object]]
 
 @app.get("/api/specialists")
 async def specialists(_: str = Depends(require_user)) -> dict[str, object]:
-    events = await recorded_specialist_interactions("/specialists/interactions")
-    active = {event.get("specialist_key") for event in events if event.get("status") == "active"}
-    return {"specialists": [dict(item, active=item["id"] in active,
-        status="Working" if item["id"] in active else "Available") for item in SPECIALISTS],
-        "live_events_available": True}
+    try:
+        upstream = await request_backend(settings, "GET", "/specialists/activity")
+        if upstream.status_code != 200:
+            raise ValueError("Activity unavailable")
+        payload = upstream.json()
+        if not isinstance(payload, dict) or payload.get("scope") != "retained_interactions":
+            raise ValueError("Invalid activity scope")
+        rows = payload.get("activity")
+        if not isinstance(rows, list) or len(rows) > len(SPECIALISTS):
+            raise ValueError("Invalid activity summary")
+        activity = {}
+        allowed = {item["id"] for item in SPECIALISTS}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError("Invalid activity entry")
+            key = row.get("specialist_key")
+            if not isinstance(key, str) or key not in allowed or key in activity:
+                raise ValueError("Invalid specialist")
+            if type(row.get("active")) is not bool:
+                raise ValueError("Invalid active flag")
+            stamp = row.get("last_activity_at")
+            if stamp is not None:
+                if not isinstance(stamp, str):
+                    raise ValueError("Invalid activity time")
+                parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                if parsed.utcoffset() is None:
+                    raise ValueError("Activity time requires timezone")
+                stamp = parsed.isoformat()
+            activity[key] = {"active": row["active"], "last_activity_at": stamp}
+        return {"specialists": [dict(item,
+            **activity.get(item["id"], {"active": False, "last_activity_at": None}),
+            status="Working" if activity.get(item["id"], {}).get("active") else "Available"
+        ) for item in SPECIALISTS], "live_events_available": True,
+            "activity_scope": "retained_interactions"}
+    except (BackendUnavailable, httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502,
+            detail="Specialist activity is temporarily unavailable.") from exc
 
 
 @app.get("/api/specialists/{specialist_id}/interactions")

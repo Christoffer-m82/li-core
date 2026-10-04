@@ -195,6 +195,7 @@ function loadApp({ geolocation, storageBlocked = false, storageWriteFails = fals
   vm.runInNewContext(voiceSource, context);
   vm.runInNewContext(readFileSync(new URL('../static/assets/themes.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(profileSource, context);
+  vm.runInNewContext(readFileSync(new URL('../static/assets/specialists.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(readFileSync(new URL('../static/assets/exit-guard.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(appSource, context);
 
@@ -617,7 +618,7 @@ test('Home specialist entry keeps the active-first roster and exposes the full c
   app.setSpecialists([
     { id: 'sofia', name: 'Sofia', role: 'Health', status: 'Available', active: false },
     { id: 'marco', name: 'Marco', role: 'Fitness', status: 'Working', active: true },
-    { id: 'elena', name: 'Elena', role: 'Nutrition', status: 'Available', active: false },
+    { id: 'elena', name: 'Elena', role: 'Nutrition', status: 'Available', active: false, last_activity_at: '2026-09-01T10:00:00Z' },
     { id: 'nora', name: 'Nora', role: 'Research', status: 'Available', active: false },
   ]);
 
@@ -626,6 +627,7 @@ test('Home specialist entry keeps the active-first roster and exposes the full c
   const cards = app.elements.get('#specialist-list').children;
   assert.equal(cards.length, 4);
   assert.equal(cards[0].dataset.specialistId, 'marco');
+  assert.equal(cards[1].dataset.specialistId, 'elena');
   assert.equal(app.elements.get('#home-specialists-all').textContent, 'View all 4 specialists');
 });
 

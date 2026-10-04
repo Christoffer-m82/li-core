@@ -121,11 +121,12 @@ Backend/System. Recent conversations and files stay below the main workspace. On
 Home shows the first three active-first specialist cards and a **View all specialists** control; the
 full roster remains present on larger screens and on the Specialists page.
 
-For the next specialist-list iteration, active specialists should always sort first. All remaining
-specialists should sort by their latest recorded activity, newest first, so a just-finished
-specialist stays near the top until a newer interaction displaces it. Specialists with no recorded
-activity fall back to registry order. This is a planned ordering rule, not evidence that the current
-deployed list already implements it.
+Home and the Specialists overview sort active specialists first, then latest recorded consultation
+activity (start or completion) newest first. Equal or unknown times retain registry order; known
+times precede unknown times within each active/inactive group. This uses all retained interaction
+records, not the 50-record History snapshot or the selected analytics period. Deleted history cannot
+be reconstructed. See [activity ordering](SPECIALIST_VIEW.md#activity-ordering) for the data boundary
+and rollout requirements. This implementation is not deployed or physical-device evidence.
 
 Recommended remaining Home work:
 
